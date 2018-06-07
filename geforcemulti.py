@@ -217,19 +217,12 @@ def get_asset_from_symbol(symbol):
 
   return asset.lower()
 
-def run_geforce(fig, canvas, tabnum):
+def run_geforce(fig, canvas, tabindex, tabnum):
     global currency_entered2
-
+    global drawing
     global status_bar
     global geforce_vars
     global listbox
-
-    TP_value_1 = 0
-    TP_value_2 = 0
-
-    send_items = []
-    send_TP = []
-    send_SL = []
 
     currency_entered = currency_entered2
     timeframe_entered = "1h"
@@ -240,6 +233,9 @@ def run_geforce(fig, canvas, tabnum):
     symbol = currency_entered
     to_sell = 0
 
+    drawing = {}
+    drawing[1] = False
+    drawing[2] = False
     first = True
     while True:
         try:
@@ -254,143 +250,143 @@ def run_geforce(fig, canvas, tabnum):
           dates2 = [x[0] for x in prices]
           dates3 = [x[6] for x in prices]
 
-          if geforce_vars[tabnum].show_wavetrend:
-            ax3 = ax.twinx()
 
-            n1, n2, period = 10, 21, 60
-            ap = (np.array(high) + np.array(low) + np.array(close)) / 3
-            esa = talib.EMA(ap, timeperiod=n1)
-            d = talib.EMA(abs(ap - esa), timeperiod=n1)
-            ci = (ap - esa) / (0.015 * d)
-            wt1 = talib.EMA(ci, timeperiod=n2)
-            wt2 = talib.SMA(wt1, timeperiod=4)
+          ax3 = ax.twinx()
 
-            bb_upper, bb_middle, bb_lower = BBANDS(np.array(close), timeperiod=20)
+          n1, n2, period = 10, 21, 60
+          ap = (np.array(high) + np.array(low) + np.array(close)) / 3
+          esa = talib.EMA(ap, timeperiod=n1)
+          d = talib.EMA(abs(ap - esa), timeperiod=n1)
+          ci = (ap - esa) / (0.015 * d)
+          wt1 = talib.EMA(ci, timeperiod=n2)
+          wt2 = talib.SMA(wt1, timeperiod=4)
 
-            wavetrend1 = ax3.plot(dates2, wt1, color="green", lw=.5)
-            wavetrend2 = ax3.plot(dates2, wt2, color="red", lw=.5)
+          bb_upper, bb_middle, bb_lower = BBANDS(np.array(close), timeperiod=20)
 
-            bb_upper = ax.plot(date, bb_upper, color="blue", lw=.5, antialiased=True, alpha=.5)
-            bb_middle = ax.plot(date, bb_middle, color="blue", lw=.5, antialiased=True, alpha=.5)
-            bb_lower = ax.plot(date, bb_lower, color="blue", lw=.5, antialiased=True, alpha=.5)
+          wavetrend1 = ax3.plot(dates2, wt1, color="green", lw=.5)
+          wavetrend2 = ax3.plot(dates2, wt2, color="red", lw=.5)
 
-            ax3.axhline(60, color='red')
-            ax3.axhline(-60, color='green')
-            ax3.axhline(0, color='gray')
-            ax3.axhline(53, color='red', linestyle="dotted")
-            ax3.axhline(-53, color='green', linestyle="dotted")
+          bb_upper = ax.plot(date, bb_upper, color="blue", lw=.5, antialiased=True, alpha=.5)
+          bb_middle = ax.plot(date, bb_middle, color="blue", lw=.5, antialiased=True, alpha=.5)
+          bb_lower = ax.plot(date, bb_lower, color="blue", lw=.5, antialiased=True, alpha=.5)
 
-            xvalues1 = wavetrend1[0].get_xdata()
-            yvalues1 = wavetrend1[0].get_ydata()
-            xvalues2 = wavetrend2[0].get_xdata()
-            yvalues2 = wavetrend2[0].get_ydata()
+          ax3.axhline(60, color='red')
+          ax3.axhline(-60, color='green')
+          ax3.axhline(0, color='gray')
+          ax3.axhline(53, color='red', linestyle="dotted")
+          ax3.axhline(-53, color='green', linestyle="dotted")
 
-            start_x = 0
-            for i in xrange(0, len(wt1)):
-                if not np.isnan(wt1[i]):
-                  start_x = i
-                  break
+          xvalues1 = wavetrend1[0].get_xdata()
+          yvalues1 = wavetrend1[0].get_ydata()
+          xvalues2 = wavetrend2[0].get_xdata()
+          yvalues2 = wavetrend2[0].get_ydata()
 
-            xl = ax.get_xlim()
-            ax.set_xlim(date[start_x], xl[1])
+          start_x = 0
+          for i in xrange(0, len(wt1)):
+              if not np.isnan(wt1[i]):
+                start_x = i
+                break
 
-            idx = np.argwhere(np.diff(np.sign(yvalues1 - yvalues2)) != 0).reshape(-1) + 0
+          xl = ax.get_xlim()
+          ax.set_xlim(date[start_x], xl[1])
 
-            symbol = currency_entered
-            print symbol + " CURRENT=%d" % len(np.array(high))
-            print symbol + " INTERSECTION=%d" % idx[-1]
+          idx = np.argwhere(np.diff(np.sign(yvalues1 - yvalues2)) != 0).reshape(-1) + 0
 
-            wt1_rising = False
-            if yvalues1[-1] > yvalues1[-2]:
-              print symbol + " Wavetrend 1 rising"
-              wt1_rising = True
+          symbol = currency_entered
+          print symbol + " CURRENT=%d" % len(np.array(high))
+          print symbol + " INTERSECTION=%d" % idx[-1]
 
-            if yvalues1[-1] < yvalues1[-2]:
-              print symbol + " Wavetrend 1 falling"
+          wt1_rising = False
+          if yvalues1[-1] > yvalues1[-2]:
+            print symbol + " Wavetrend 1 rising"
+            wt1_rising = True
 
-            if idx[-1] > len(np.array(high)) - 3:
-              print symbol + " INTERSECTION!!!"
+          if yvalues1[-1] < yvalues1[-2]:
+            print symbol + " Wavetrend 1 falling"
 
-              if wt1_rising == True and not bought:
-                  #buy
-                  if is_windows:
-                    import win32api
-                    gt = client.get_server_time()
-                    tt=time.gmtime(int((gt["serverTime"])/1000))
-                    win32api.SetSystemTime(tt[0],tt[1],0,tt[2],tt[3],tt[4],tt[5],0)
+          if idx[-1] > len(np.array(high)) - 3:
+            print symbol + " INTERSECTION!!!"
 
-                  print "BUY"
-                  asset_balance = 0
+            if wt1_rising == True and not bought:
+                #buy
+                if is_windows:
+                  import win32api
+                  gt = client.get_server_time()
+                  tt=time.gmtime(int((gt["serverTime"])/1000))
+                  win32api.SetSystemTime(tt[0],tt[1],0,tt[2],tt[3],tt[4],tt[5],0)
+
+                print "BUY"
+                asset_balance = 0
+                symbol = currency_entered
+                symbol_price = get_symbol_price(symbol)
+
+                if symbol == "BTCUSDT":
+                  asset_balance = float(client.get_asset_balance("usdt")["free"])
+                  buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 3)
+                  if buy_amount < truncate((init_btc_balance / symbol_price) * amount_per_trade, 3):
+                      buy_amount = truncate((asset_balance / symbol_price) * 0.97, 3)
+                else:
+                  asset_balance = float(client.get_asset_balance("btc")["free"])
+                  buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
+                  if buy_amount < truncate((init_btc_balance /symbol_price) * amount_per_trade, 2):
+                      buy_amount = truncate((asset_balance / symbol_price) * 0.97, 2)
+                
+                print buy_amount
+
+                if buy_amount != 0:
+                  from playsound import playsound
+                  try:
+                    order = client.order_market_buy(symbol=symbol, quantity=buy_amount)
+                    playsound("beep.wav")
+                  except:
+                    print get_full_stacktrace()
+                  time.sleep(5)
+                  if symbol == "BTCUSDT":
+                    to_sell = int(truncate(float(client.get_asset_balance("usdt")["free"]), 2))
+                  else:
+                    to_sell = truncate(float(client.get_asset_balance(get_asset_from_symbol(symbol))["free"]), 2)
+                  print "TO SELL: " + str(to_sell)
+                  bought = True
+                  sold = False
+                  f = open("trades.txt", "a")
+                  f.write("BUY %s MARKET @ %.8f\n" % (symbol, symbol_price))
+                  f.close()
+                  listbox.insert(END, "BUY %s MARKET @ %.8f" % (symbol, symbol_price))
+
+            if wt1_rising == False and not sold:
+                #sell
+                if is_windows:
+                  import win32api
+                  gt = client.get_server_time()
+                  tt=time.gmtime(int((gt["serverTime"])/1000))
+                  win32api.SetSystemTime(tt[0],tt[1],0,tt[2],tt[3],tt[4],tt[5],0)
+                print "SELL"
+                symbol = currency_entered
+                
+                if symbol == "BTCUSDT":                  
+                  asset_balance = int(truncate(float(client.get_asset_balance("usdt")["free"]), 2))
+                else:
+                  asset_balance = truncate(float(client.get_asset_balance(get_asset_from_symbol(symbol))["free"]), 2)
+                
+                if to_sell == 0:
+                  to_sell = asset_balance
+                  
+                if asset_balance != 0:
+                  from playsound import playsound
                   symbol = currency_entered
                   symbol_price = get_symbol_price(symbol)
-
-                  if symbol == "BTCUSDT":
-                    asset_balance = float(client.get_asset_balance("usdt")["free"])
-                    buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 3)
-                    if buy_amount < truncate((init_btc_balance / symbol_price) * amount_per_trade, 3):
-                        buy_amount = truncate((asset_balance / symbol_price) * 0.97, 3)
-                  else:
-                    asset_balance = float(client.get_asset_balance("btc")["free"])
-                    buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
-                    if buy_amount < truncate((init_btc_balance /symbol_price) * amount_per_trade, 2):
-                        buy_amount = truncate((asset_balance / symbol_price) * 0.97, 2)
-                  
-                  print buy_amount
-
-                  if buy_amount != 0:
-                    from playsound import playsound
-                    try:
-                      order = client.order_market_buy(symbol=symbol, quantity=buy_amount)
-                      playsound("beep.wav")
-                    except:
-                      print get_full_stacktrace()
-                    time.sleep(5)
-                    if symbol == "BTCUSDT":
-                      to_sell = int(truncate(float(client.get_asset_balance("usdt")["free"]), 2))
-                    else:
-                      to_sell = truncate(float(client.get_asset_balance(get_asset_from_symbol(symbol))["free"]), 2)
-                    print "TO SELL: " + str(to_sell)
-                    bought = True
-                    sold = False
-                    f = open("trades.txt", "a")
-                    f.write("BUY %s MARKET @ %.8f\n" % (symbol, symbol_price))
-                    f.close()
-                    listbox.insert(END, "BUY %s MARKET @ %.8f" % (symbol, symbol_price))
-
-              if wt1_rising == False and not sold:
-                  #sell
-                  if is_windows:
-                    import win32api
-                    gt = client.get_server_time()
-                    tt=time.gmtime(int((gt["serverTime"])/1000))
-                    win32api.SetSystemTime(tt[0],tt[1],0,tt[2],tt[3],tt[4],tt[5],0)
-                  print "SELL"
-                  symbol = currency_entered
-                  
-                  if symbol == "BTCUSDT":                  
-                    asset_balance = truncate(float(client.get_asset_balance(get_asset_from_symbol("usdt"))["free"]), 2)
-                  else:
-                    asset_balance = truncate(float(client.get_asset_balance(get_asset_from_symbol(symbol))["free"]), 2)
-                    
-                  if to_sell == 0:
-                    to_sell = asset_balance
-                    
-                  if asset_balance != 0:
-                    from playsound import playsound
-                    symbol = currency_entered
-                    symbol_price = get_symbol_price(symbol)
-                    print to_sell
-                    try:
-                      order = client.order_market_sell(symbol=symbol, quantity=to_sell)
-                      playsound("beep.wav")
-                    except:
-                      print get_full_stacktrace()
-                    bought = False
-                    sold = True
-                    f = open("trades.txt", "a")
-                    f.write("SELL %s MARKET @ %.8f\n" % (symbol, symbol_price))
-                    f.close()
-                    listbox.insert(END, "SELL %s MARKET @ %.8f" % (symbol, symbol_price))
+                  print to_sell
+                  try:
+                    order = client.order_market_sell(symbol=symbol, quantity=to_sell)
+                    playsound("beep.wav")
+                  except:
+                    print get_full_stacktrace()
+                  bought = False
+                  sold = True
+                  f = open("trades.txt", "a")
+                  f.write("SELL %s MARKET @ %.8f\n" % (symbol, symbol_price))
+                  f.close()
+                  listbox.insert(END, "SELL %s MARKET @ %.8f" % (symbol, symbol_price))
 
           candlestick_ohlc(ax, prices)
           ax.autoscale_view()
@@ -443,16 +439,10 @@ def run_geforce(fig, canvas, tabnum):
           yvalues2 = None
           gc.collect()
 
-          canvas.draw_idle()
-          
-          i = 0
-          while not geforce_vars[tabnum].redraw:
-              time.sleep(1)
-              i = i + 1
-              if i > 2:
-                  break
-
-          geforce_vars[tabnum].redraw = False
+          drawing[tabindex] = True
+          while drawing[tabindex]:
+            pass
+         
           fig.clf()
         except:
           print get_full_stacktrace()
@@ -674,6 +664,7 @@ def on_closing():
    os._exit(0)
 
 def add_notebook(event):
+  global drawing
   global geforce_vars
   global listbox
   global tab_count
@@ -718,7 +709,7 @@ def add_notebook(event):
   canvas.show()
   canvas.get_tk_widget().pack(fill=tk.BOTH, expand=tk.YES)
 
-  t = threading.Thread(target=run_geforce, args=(fig, canvas, len(geforce_vars)-1))
+  t = threading.Thread(target=run_geforce, args=(fig, canvas, tab_count + 1, len(geforce_vars)-1))
   t.daemon = True
   t.start()
 
@@ -729,11 +720,19 @@ def add_notebook(event):
   listbox.insert(END, "WAVETREND ROBOT 1.0 started.")
   tab_index = notebook.index(notebook.select()) 
 
+  tabindex = tab_count
+  while True:
+    if drawing[tabindex] == True:
+      canvas.draw()
+      drawing[tabindex] = False
+    else:
+      notebook.update()
+      notebook.update_idletasks()
+
 if __name__ == "__main__":
   init_btc_balance = float(client.get_asset_balance("btc")["free"])
   if init_btc_balance < 0.001:
-    print "minimum btc balance: 0.001"
-    sys.exit(1)
+    print "WARNING BTC BALANCE LOW"
 
   os.environ['TZ'] = str(get_localzone())
   mainroot = tk.Tk()
