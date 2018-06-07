@@ -236,7 +236,9 @@ def run_geforce(fig, canvas, tabindex, tabnum):
     drawing = {}
     drawing[1] = False
     drawing[2] = False
+    lock = threading.Lock()
     first = True
+    prev_trade_time = 0
     while True:
         try:
           date, open_, high, low, close, vol = getDataBinance(timeframe_entered, days_entered, currency_entered)
@@ -307,7 +309,13 @@ def run_geforce(fig, canvas, tabindex, tabnum):
           if idx[-1] > len(np.array(high)) - 3:
             print symbol + " INTERSECTION!!!"
 
-            if wt1_rising == True and not bought:
+            allow_trade = True
+            
+            if prev_trade_time != 0:
+              if prev_trade_time > datetime.datetime.now() - timedelta(minutes=3):
+                allow_trade = False
+
+            if wt1_rising == True and not bought and allow_trade:
                 #buy
                 if is_windows:
                   import win32api
@@ -338,6 +346,7 @@ def run_geforce(fig, canvas, tabindex, tabnum):
                   try:
                     order = client.order_market_buy(symbol=symbol, quantity=buy_amount)
                     playsound("beep.wav")
+                    prev_trade_time = datetime.datetime.now()
                   except:
                     print get_full_stacktrace()
                   time.sleep(5)
@@ -353,7 +362,7 @@ def run_geforce(fig, canvas, tabindex, tabnum):
                   f.close()
                   listbox.insert(END, "BUY %s MARKET @ %.8f" % (symbol, symbol_price))
 
-            if wt1_rising == False and not sold:
+            if wt1_rising == False and not sold and allow_trade:
                 #sell
                 if is_windows:
                   import win32api
@@ -364,7 +373,8 @@ def run_geforce(fig, canvas, tabindex, tabnum):
                 symbol = currency_entered
                 
                 if symbol == "BTCUSDT":                  
-                  asset_balance = int(truncate(float(client.get_asset_balance("usdt")["free"]), 2))
+                  symbol_price = get_symbol_price(symbol)
+                  asset_balance = truncate(float(client.get_asset_balance("usdt")["free"]) * 0.97 / symbol_price, 3)
                 else:
                   asset_balance = truncate(float(client.get_asset_balance(get_asset_from_symbol(symbol))["free"]), 2)
                 
@@ -379,6 +389,7 @@ def run_geforce(fig, canvas, tabindex, tabnum):
                   try:
                     order = client.order_market_sell(symbol=symbol, quantity=to_sell)
                     playsound("beep.wav")
+                    prev_trade_time = datetime.datetime.now()
                   except:
                     print get_full_stacktrace()
                   bought = False
@@ -440,8 +451,9 @@ def run_geforce(fig, canvas, tabindex, tabnum):
           gc.collect()
 
           drawing[tabindex] = True
-          while drawing[tabindex]:
-            pass
+          with lock:
+            while drawing[tabindex]:
+              time.sleep(0.00000001)
          
           fig.clf()
         except:
@@ -728,6 +740,7 @@ def add_notebook(event):
     else:
       notebook.update()
       notebook.update_idletasks()
+    time.sleep(0.00000001)
 
 if __name__ == "__main__":
   init_btc_balance = float(client.get_asset_balance("btc")["free"])
