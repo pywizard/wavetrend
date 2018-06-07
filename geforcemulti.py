@@ -35,6 +35,8 @@ from config import *
 import platform
 import ctypes
 import os
+import Queue
+
 
 is_windows = False
 if platform.system() == "Windows":
@@ -217,9 +219,21 @@ def get_asset_from_symbol(symbol):
 
   return asset.lower()
 
-def run_geforce(fig, canvas, tabindex, tabnum):
+queue = {}
+queue[1] = Queue.Queue()
+queue[2] = Queue.Queue()
+drawing = {}
+drawing[1] = Queue.Queue()
+drawing[2] = Queue.Queue()
+
+canvas = {}
+canvas[1] = None
+canvas[2] = None
+
+def run_geforce(fig, tabindex, tabnum):
     global currency_entered2
     global drawing
+    global queue
     global status_bar
     global geforce_vars
     global listbox
@@ -233,10 +247,6 @@ def run_geforce(fig, canvas, tabindex, tabnum):
     symbol = currency_entered
     to_sell = 0
 
-    drawing = {}
-    drawing[1] = False
-    drawing[2] = False
-    lock = threading.Lock()
     first = True
     prev_trade_time = 0
     while True:
@@ -380,7 +390,9 @@ def run_geforce(fig, canvas, tabindex, tabnum):
                 
                 if to_sell == 0:
                   to_sell = asset_balance
-                  
+                
+                print asset_balance
+                
                 if asset_balance != 0:
                   from playsound import playsound
                   symbol = currency_entered
@@ -399,6 +411,11 @@ def run_geforce(fig, canvas, tabindex, tabnum):
                   f.close()
                   listbox.insert(END, "SELL %s MARKET @ %.8f" % (symbol, symbol_price))
 
+          ticker = get_symbol_price(currency_entered)
+          line = ax.axhline(ticker, color='black', linestyle="dotted", lw=.7)
+          annotation = ax.annotate("%.8f" % ticker, xy=(date[-1] + timedelta(hours=3), ticker), xycoords="data", fontsize=7, color='black')
+          annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
+
           candlestick_ohlc(ax, prices)
           ax.autoscale_view()
           ax.set_axis_bgcolor('white')
@@ -408,11 +425,6 @@ def run_geforce(fig, canvas, tabindex, tabnum):
           ax.set_ylim(yl[0]-(yl[1]-yl[0])*pad,yl[1])
           ax.set_xlabel(timeframe_entered)
           ax.set_ylabel(currency_entered)
-
-          ticker = get_symbol_price(currency_entered)
-          line = ax.axhline(ticker, color='black', linestyle="dotted", lw=.7)
-          annotation = ax.annotate("%.8f" % ticker, xy=(date[-1] + timedelta(hours=3), ticker), xycoords="data", fontsize=7, color='black')
-          annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
 
           ax.spines['top'].set_edgecolor((18/255.0,27/255.0,33/255.0))
           ax.spines['left'].set_edgecolor((18/255.0,27/255.0,33/255.0))
@@ -450,11 +462,14 @@ def run_geforce(fig, canvas, tabindex, tabnum):
           yvalues2 = None
           gc.collect()
 
-          drawing[tabindex] = True
-          with lock:
-            while drawing[tabindex]:
-              time.sleep(0.00000001)
-         
+          drawing[tabindex].put(1)
+          while True:
+            if drawing[tabindex].qsize() != 0:
+              val = queue[tabindex].get()
+              if val == 1:
+                break
+            time.sleep(0.00000001)
+
           fig.clf()
         except:
           print get_full_stacktrace()
@@ -681,6 +696,7 @@ def add_notebook(event):
   global listbox
   global tab_count
   global root
+  global queue
 
   clicked_tab = notebook.tk.call(notebook._w, "identify", "tab", event.x, event.y)
   if clicked_tab != 0:
@@ -717,30 +733,30 @@ def add_notebook(event):
   geforce_vars.append(var)
 
   fig = Figure(facecolor='white')
-  canvas = FigureCanvasTkAgg(fig, master=frame1)
-  canvas.show()
-  canvas.get_tk_widget().pack(fill=tk.BOTH, expand=tk.YES)
-
-  t = threading.Thread(target=run_geforce, args=(fig, canvas, tab_count + 1, len(geforce_vars)-1))
-  t.daemon = True
-  t.start()
+  canvas[tab_count + 1] = FigureCanvasTkAgg(fig, master=frame1)
+  canvas[tab_count + 1].show()
+  canvas[tab_count + 1].get_tk_widget().pack(fill=tk.BOTH, expand=tk.YES)
 
   tab = notebook.add(frame1, text=str(currency_entered2) + "  ")
   tab_count = tab_count + 1
   notebook.select(tab_count)
 
+  t = threading.Thread(target=run_geforce, args=(fig, tab_count, len(geforce_vars)-1))
+  t.daemon = True
+  t.start()
+
   listbox.insert(END, "WAVETREND ROBOT 1.0 started.")
-  tab_index = notebook.index(notebook.select()) 
 
   tabindex = tab_count
   while True:
-    if drawing[tabindex] == True:
-      canvas.draw()
-      drawing[tabindex] = False
-    else:
-      notebook.update()
-      notebook.update_idletasks()
-    time.sleep(0.00000001)
+    for i in [1,2]:
+      if drawing[i].qsize() != 0 and drawing[i].get() == 1:
+        canvas[i].draw()
+        queue[i].put(1)
+      else:
+        notebook.update()
+        notebook.update_idletasks()
+      time.sleep(0.00000001)
 
 if __name__ == "__main__":
   init_btc_balance = float(client.get_asset_balance("btc")["free"])
