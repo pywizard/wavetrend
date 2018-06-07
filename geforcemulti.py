@@ -196,6 +196,9 @@ def get_full_stacktrace():
     stackstr = trc + ''.join(traceback.format_list(stack))
     if not exc is None:
          stackstr += '  ' + traceback.format_exc().lstrip(trc)
+    f = open("debug.log", "a")
+    f.write(stackstr + "\n")
+    f.close()
     return stackstr
 
 def BBANDS(real, timeperiod=5, nbdevup=2, nbdevdn=2):
@@ -464,10 +467,9 @@ def run_geforce(fig, tabindex, tabnum):
 
           drawing[tabindex].put(1)
           while True:
-            if drawing[tabindex].qsize() != 0:
-              val = queue[tabindex].get()
-              if val == 1:
-                break
+            val = queue[tabindex].get()
+            if val == 1:
+              break
             time.sleep(0.00000001)
 
           fig.clf()
@@ -697,6 +699,7 @@ def add_notebook(event):
   global tab_count
   global root
   global queue
+  global canvas
 
   clicked_tab = notebook.tk.call(notebook._w, "identify", "tab", event.x, event.y)
   if clicked_tab != 0:
