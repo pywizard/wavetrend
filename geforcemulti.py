@@ -259,13 +259,12 @@ canvas = {}
 canvas[1] = None
 canvas[2] = None
 
-def run_geforce(fig, tabindex, tabnum):
+def run_geforce(fig, tabindex, tabnum, listbox):
     global currency_entered2
     global drawing
     global queue
     global status_bar
     global geforce_vars
-    global listbox
 
     currency_entered = currency_entered2
     timeframe_entered = "1h"
@@ -720,7 +719,6 @@ def on_closing():
 def add_notebook(event):
   global drawing
   global geforce_vars
-  global listbox
   global tab_count
   global root
   global queue
@@ -769,7 +767,7 @@ def add_notebook(event):
   tab_count = tab_count + 1
   notebook.select(tab_count)
 
-  t = threading.Thread(target=run_geforce, args=(fig, tab_count, len(geforce_vars)-1))
+  t = threading.Thread(target=run_geforce, args=(fig, tab_count, len(geforce_vars)-1, listbox,))
   t.daemon = True
   t.start()
 
