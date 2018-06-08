@@ -444,7 +444,6 @@ def run_geforce(fig, tabindex, tabnum):
           if first == True:
             fig.tight_layout()
             first = False
-            listbox.insert(END, "Last cross was at price " + "%.8f" % close[idx[-1]])
             listbox.insert(END, "=== TRADES === ")
             f = open("trades.txt")
             lines = f.readlines()
