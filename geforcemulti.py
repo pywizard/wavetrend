@@ -156,6 +156,7 @@ def _candlestick(ax, quotes, tabindex, width=0.2, colorup='white', colordown='bl
           last_line2[tabindex].set_ydata((low, lower))
           last_rect[tabindex].set_y(lower)
           last_rect[tabindex].set_height(height)
+          last_rect[tabindex].set_facecolor(color)
         
     ax.autoscale_view()
 
