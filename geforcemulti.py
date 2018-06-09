@@ -360,18 +360,19 @@ def run_geforce(fig, tabindex, tabnum, listbox):
           
           wt_rising = False
      
-          if yvalues1[-1] - yvalues2[-1] > 0:
+          diff = yvalues1[-1] - yvalues2[-1]
+          if diff > 0:
             if counter % 15 == 0:
-              print "Rising Wavetrend"
+              print "Rising Wavetrend %.8f" % abs(diff)
             wt_rising = True
           else:
             if counter % 15 == 0:
-              print "Falling Wavetrend"
+              print "Falling Wavetrend %.8f" % abs(diff)
           
           if init == True:
             wt_was_rising = wt_rising
           
-          if wt_rising != wt_was_rising:
+          if wt_rising != wt_was_rising and (abs(diff) > 1):
             print symbol + " INTERSECTION!!!"
             wt_was_rising = wt_rising
 
