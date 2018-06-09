@@ -299,6 +299,7 @@ def run_geforce(fig, tabindex, tabnum, listbox):
     switch_hour = False
     prev_trade_time = 0
     counter = 0
+    wt_was_rising = False
     while True:
         try:
           date, open_, high, low, close, vol = getDataBinance(timeframe_entered, days_entered, currency_entered)
@@ -355,26 +356,26 @@ def run_geforce(fig, tabindex, tabnum, listbox):
           xl = ax.get_xlim()
           ax.set_xlim(date[start_x], xl[1])
 
-          idx = np.argwhere(np.diff(np.sign(yvalues1 - yvalues2)) != 0).reshape(-1) + 0
+          #idx = np.argwhere(np.diff(np.sign(yvalues1 - yvalues2)) != 0).reshape(-1) + 0
 
           symbol = currency_entered
           
-          if counter % 15 == 0:
-            print symbol + " CURRENT=%d" % len(np.array(high))
-            print symbol + " INTERSECTION=%d" % idx[-1]
-
-          wt1_rising = False
-          if yvalues1[-1] > yvalues1[-2]:
+          wt_rising = False
+     
+          if yvalues1[-1] - yvalues2[-1]:
             if counter % 15 == 0:
-              print symbol + " Wavetrend 1 rising"
-            wt1_rising = True
-
-          if yvalues1[-1] < yvalues1[-2]:
+              print "Rising Wavetrend"
+            wt_rising = True
+          else:
             if counter % 15 == 0:
-              print symbol + " Wavetrend 1 falling"
-
-          if idx[-1] > len(np.array(high)) - 3:
+              print "Falling Wavetrend"
+          
+          if init == True:
+            wt_was_rising = wt_rising
+          
+          if wt_rising != wt_was_rising:
             print symbol + " INTERSECTION!!!"
+            wt_was_rising = wt_rising
 
             allow_trade = True
             
@@ -382,7 +383,7 @@ def run_geforce(fig, tabindex, tabnum, listbox):
               if prev_trade_time > datetime.datetime.now() - timedelta(minutes=3):
                 allow_trade = False
 
-            if wt1_rising == True and not bought and allow_trade:
+            if wt_rising == True and not bought and allow_trade:
                 #buy
                 if is_windows:
                   import win32api
@@ -429,7 +430,7 @@ def run_geforce(fig, tabindex, tabnum, listbox):
                   f.close()
                   listbox.insert(END, "BUY %s MARKET @ %.8f" % (symbol, symbol_price))
 
-            if wt1_rising == False and not sold and allow_trade:
+            if wt_rising == False and not sold and allow_trade:
                 #sell
                 if is_windows:
                   import win32api
@@ -861,8 +862,6 @@ def add_notebook(event):
 
 if __name__ == "__main__":
   init_btc_balance = float(client.get_asset_balance("btc")["free"])
-  if init_btc_balance < 0.001:
-    print "WARNING BTC BALANCE LOW"
 
   os.environ['TZ'] = str(get_localzone())
   mainroot = tk.Tk()
