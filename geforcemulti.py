@@ -356,13 +356,11 @@ def run_geforce(fig, tabindex, tabnum, listbox):
           xl = ax.get_xlim()
           ax.set_xlim(date[start_x], xl[1])
 
-          #idx = np.argwhere(np.diff(np.sign(yvalues1 - yvalues2)) != 0).reshape(-1) + 0
-
           symbol = currency_entered
           
           wt_rising = False
      
-          if yvalues1[-1] - yvalues2[-1]:
+          if yvalues1[-1] - yvalues2[-1] > 0:
             if counter % 15 == 0:
               print "Rising Wavetrend"
             wt_rising = True
