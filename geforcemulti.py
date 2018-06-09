@@ -8,7 +8,6 @@ import platform
 import numpy as np
 from numpy import NaN, Inf, arange, isscalar, asarray, array
 from matplotlib.finance import *
-from matplotlib.finance import candlestick_ohlc
 from matplotlib.widgets import MultiCursor
 from datetime import timedelta
 import sys
@@ -49,9 +48,16 @@ if platform.system() == "Windows":
 from binance.client import Client
 client = Client(api_key, api_secret)
 
-def _candlestick(ax, quotes, width=0.2, colorup='white', colordown='black',
-                 alpha=1.0, ochl=True):
+last_line1 = {}
+last_line2 = {}
+last_rect = {}
 
+def _candlestick(ax, quotes, tabindex, width=0.2, colorup='white', colordown='black',
+                 alpha=1.0):
+
+    global last_line1
+    global last_line2
+    global last_rect
     """
     Plot the time, open, high, low, close as a vertical line ranging
     from low to high.  Use a rectangular bar to represent the
@@ -94,11 +100,11 @@ def _candlestick(ax, quotes, width=0.2, colorup='white', colordown='black',
 
     colorup = "white"
     colordown = "black"
+    
+    if first[tabindex] == False:
+      quotes = [quotes[-1]]
     for q in quotes:
-        if ochl:
-            t, open, close, high, low = q[:5]
-        else:
-            t, open, high, low, close = q[:5]
+        t, open, high, low, close = q[:5]
 
         if close >= open:
             color = colorup
@@ -135,17 +141,25 @@ def _candlestick(ax, quotes, width=0.2, colorup='white', colordown='black',
         )
         rect.set_alpha(alpha)
 
-        lines.append(vline1)
-        lines.append(vline2)
-        patches.append(rect)
-        ax.add_line(vline1)
-        ax.add_line(vline2)
-        ax.add_patch(rect)
+        if first[tabindex] == True:
+          lines.append(vline1)
+          lines.append(vline2)
+          patches.append(rect)
+          ax.add_line(vline1)
+          ax.add_line(vline2)
+          ax.add_patch(rect)
+          last_line1[tabindex] = vline1
+          last_line2[tabindex] = vline2
+          last_rect[tabindex] = rect
+        else:
+          last_line1[tabindex].set_ydata((high, higher))
+          last_line2[tabindex].set_ydata((low, lower))
+          last_rect[tabindex].set_y(lower)
+          last_rect[tabindex].set_height(height)
+        
     ax.autoscale_view()
 
     return lines, patches
-
-matplotlib.finance._candlestick = _candlestick
 
 def _invalidate_internal(self, value, invalidating_node):
     """
@@ -259,12 +273,17 @@ canvas = {}
 canvas[1] = None
 canvas[2] = None
 
+first =  {}
+first[1] = True
+first[2] = True
+
 def run_geforce(fig, tabindex, tabnum, listbox):
     global currency_entered2
     global drawing
     global queue
     global status_bar
     global geforce_vars
+    global first
 
     currency_entered = currency_entered2
     timeframe_entered = "1h"
@@ -275,12 +294,16 @@ def run_geforce(fig, tabindex, tabnum, listbox):
     symbol = currency_entered
     to_sell = 0
 
-    first = True
+    init = True
+    switch_hour = False
     prev_trade_time = 0
     while True:
         try:
           date, open_, high, low, close, vol = getDataBinance(timeframe_entered, days_entered, currency_entered)
-          ax = fig.add_subplot(1,1,1)
+          
+          if first[tabindex] == True:
+            ax = fig.add_subplot(1,1,1)
+            ax3 = ax.twinx()
 
           prices = []
           for i in range(0, len(date)):
@@ -289,9 +312,6 @@ def run_geforce(fig, tabindex, tabnum, listbox):
           prices2 = [x[4] for x in prices]
           dates2 = [x[0] for x in prices]
           dates3 = [x[6] for x in prices]
-
-
-          ax3 = ax.twinx()
 
           n1, n2, period = 10, 21, 60
           ap = (np.array(high) + np.array(low) + np.array(close)) / 3
@@ -303,18 +323,21 @@ def run_geforce(fig, tabindex, tabnum, listbox):
 
           bb_upper, bb_middle, bb_lower = BBANDS(np.array(close), timeperiod=20)
 
-          wavetrend1 = ax3.plot(dates2, wt1, color="green", lw=.5)
-          wavetrend2 = ax3.plot(dates2, wt2, color="red", lw=.5)
+          if first[tabindex] == True:
+            wavetrend1 = ax3.plot(dates2, wt1, color="green", lw=.5)
+            wavetrend2 = ax3.plot(dates2, wt2, color="red", lw=.5)
+          else:
+            wavetrend1[0].set_ydata(wt1)
+            wavetrend2[0].set_ydata(wt2)
 
-          bb_upper = ax.plot(date, bb_upper, color="blue", lw=.5, antialiased=True, alpha=.5)
-          bb_middle = ax.plot(date, bb_middle, color="blue", lw=.5, antialiased=True, alpha=.5)
-          bb_lower = ax.plot(date, bb_lower, color="blue", lw=.5, antialiased=True, alpha=.5)
-
-          ax3.axhline(60, color='red')
-          ax3.axhline(-60, color='green')
-          ax3.axhline(0, color='gray')
-          ax3.axhline(53, color='red', linestyle="dotted")
-          ax3.axhline(-53, color='green', linestyle="dotted")
+          if first[tabindex] == True:
+            bb_upper_, = ax.plot(date, bb_upper, color="blue", lw=.5, antialiased=True, alpha=.5)
+            bb_middle_, = ax.plot(date, bb_middle, color="blue", lw=.5, antialiased=True, alpha=.5)
+            bb_lower_, = ax.plot(date, bb_lower, color="blue", lw=.5, antialiased=True, alpha=.5)
+          else:
+            bb_upper_.set_ydata(bb_upper)
+            bb_middle_.set_ydata(bb_middle)
+            bb_lower_.set_ydata(bb_lower)
 
           xvalues1 = wavetrend1[0].get_xdata()
           yvalues1 = wavetrend1[0].get_ydata()
@@ -439,46 +462,58 @@ def run_geforce(fig, tabindex, tabnum, listbox):
                   f.close()
                   listbox.insert(END, "SELL %s MARKET @ %.8f" % (symbol, symbol_price))
 
-          ticker = get_symbol_price(currency_entered)
-          line = ax.axhline(ticker, color='black', linestyle="dotted", lw=.7)
-          annotation = ax.annotate("%.8f" % ticker, xy=(date[-1] + timedelta(hours=3), ticker), xycoords="data", fontsize=7, color='black')
-          annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
+          ticker = prices[-1][4]
 
-          candlestick_ohlc(ax, prices)
-          ax.autoscale_view()
-          ax.set_axis_bgcolor('white')
+          if first[tabindex] == True:
+            price_line = ax.axhline(ticker, color='black', linestyle="dotted", lw=.7)
+            annotation = ax.annotate("%.8f" % ticker, xy=(date[-1] + timedelta(hours=3), ticker), xycoords="data", fontsize=7, color='black')
+            annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
+          else:
+            price_line.set_ydata(ticker)
+            annotation.set_text("%.8f" % ticker)
+            annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
 
-          pad = 0.25
-          yl = ax.get_ylim()
-          ax.set_ylim(yl[0]-(yl[1]-yl[0])*pad,yl[1])
-          ax.set_xlabel(timeframe_entered)
-          ax.set_ylabel(currency_entered)
+          _candlestick(ax, prices, tabindex)
+          if first[tabindex] == True:
+            ax3.axhline(60, color='red')
+            ax3.axhline(-60, color='green')
+            ax3.axhline(0, color='gray')
+            ax3.axhline(53, color='red', linestyle="dotted")
+            ax3.axhline(-53, color='green', linestyle="dotted")
+            ax.set_axis_bgcolor('white')
 
-          ax.spines['top'].set_edgecolor((18/255.0,27/255.0,33/255.0))
-          ax.spines['left'].set_edgecolor((18/255.0,27/255.0,33/255.0))
-          ax.spines['right'].set_edgecolor((18/255.0,27/255.0,33/255.0))
-          ax.spines['bottom'].set_edgecolor((18/255.0,27/255.0,33/255.0))
-          ax.set_axis_bgcolor('white')
-          ax3.spines['left'].set_edgecolor('black')
-          ax3.spines['right'].set_edgecolor('black')
-          ax3.spines['top'].set_visible(False)
-          ax3.spines['bottom'].set_visible(False)
-          ax.grid(alpha=.25)
-          ax.grid(True)
+            pad = 0.25
+            yl = ax.get_ylim()
+            ax.set_ylim(yl[0]-(yl[1]-yl[0])*pad,yl[1])
+            ax.set_xlabel(timeframe_entered)
+            ax.set_ylabel(currency_entered)
 
-          if first == True:
-            fig.tight_layout()
-            first = False
+            ax.spines['top'].set_edgecolor((18/255.0,27/255.0,33/255.0))
+            ax.spines['left'].set_edgecolor((18/255.0,27/255.0,33/255.0))
+            ax.spines['right'].set_edgecolor((18/255.0,27/255.0,33/255.0))
+            ax.spines['bottom'].set_edgecolor((18/255.0,27/255.0,33/255.0))
+            ax.set_axis_bgcolor('white')
+            ax3.spines['left'].set_edgecolor('black')
+            ax3.spines['right'].set_edgecolor('black')
+            ax3.spines['top'].set_visible(False)
+            ax3.spines['bottom'].set_visible(False)
+            ax.grid(alpha=.25)
+            ax.grid(True)
+
+            if init == True:
+              fig.tight_layout()
+
+            bbox = ax.get_position()
+            ax3.set_position([bbox.x0, bbox.y0, bbox.width, bbox.height / 4])
+            ax.autoscale_view()
             listbox.insert(END, "=== TRADES === ")
             f = open("trades.txt")
             lines = f.readlines()
             for line in lines:
               listbox.insert(END, line)
             f.close()
-
-          bbox = ax.get_position()
-          ax3.set_position([bbox.x0, bbox.y0, bbox.width, bbox.height / 4])
-          
+            first[tabindex] = False
+            
           prices[:] = []
           prices2[:] = []
           dates2[:] = []
@@ -496,9 +531,18 @@ def run_geforce(fig, tabindex, tabnum, listbox):
               break
             time.sleep(0.00000001)
 
-          fig.clf()
         except:
           print get_full_stacktrace()
+
+        if datetime.datetime.now().minute == 0 and init == False and switch_hour == False:
+          fig.clf()
+          first[tabindex] = True
+          switch_hour = True
+        
+        if datetime.datetime.now().minute == 1:
+          switch_hour = False
+        
+        init = False
 
 def relative_strength(prices, n=14):
     """
