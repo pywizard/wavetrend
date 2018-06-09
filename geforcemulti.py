@@ -469,21 +469,44 @@ def run_geforce(fig, tabindex, tabnum, listbox):
                   listbox.insert(END, "SELL %s MARKET @ %.8f" % (symbol, symbol_price))
 
           ticker = prices[-1][4]
+          in_one_hour = datetime.datetime.now()
+          in_one_hour = in_one_hour.replace(minute = 0, second = 0)
+          in_one_hour = in_one_hour + timedelta(hours=1)
+          duration = in_one_hour - datetime.datetime.now()
+          
+          days, seconds = duration.days, duration.seconds
+          hours = days * 24 + seconds // 3600
+          minutes = (seconds % 3600) // 60
+          seconds = seconds % 60
+          time_to_hour = "%02d:%02d" % (minutes, seconds)
 
           if first[tabindex] == True:
             price_line = ax.axhline(ticker, color='black', linestyle="dotted", lw=.7)
-            annotation = ax.annotate("%.8f" % ticker, xy=(date[-1] + timedelta(hours=3), ticker), xycoords="data", fontsize=7, color='black')
+            annotation = ax.text(date[-1] + timedelta(hours=3), ticker, "%.8f" % ticker, fontsize=7, color='black')
             annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
+            
+            tbox = annotation.get_window_extent(canvas[tabindex].renderer)
+            dbox = tbox.transformed(ax.transData.inverted())
+            y0 = dbox.height * 2.4
+            time_annotation = ax.text(date[-1] + timedelta(hours=3), ticker - y0, time_to_hour, fontsize=7, color='black')
+            time_annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
           else:
             price_line.set_ydata(ticker)
             annotation.set_text("%.8f" % ticker)
+            annotation.set_y(ticker)
             annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
+            tbox = annotation.get_window_extent(canvas[tabindex].renderer)
+            dbox = tbox.transformed(ax.transData.inverted())
+            y0 = dbox.height * 2.4
+            time_annotation.set_text(time_to_hour)
+            time_annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
+            time_annotation.set_y(ticker - y0)
 
           _candlestick(ax, prices, tabindex)
           if first[tabindex] == True:
             ax3.axhline(60, color='red')
             ax3.axhline(-60, color='green')
-            ax3.axhline(0, color='gray')
+            ax3.axhline(0, color='gray', lw=.5)
             ax3.axhline(53, color='red', linestyle="dotted")
             ax3.axhline(-53, color='green', linestyle="dotted")
             ax.set_axis_bgcolor('white')
@@ -508,16 +531,16 @@ def run_geforce(fig, tabindex, tabnum, listbox):
 
             if init == True:
               fig.tight_layout()
+              listbox.insert(END, "=== TRADES === ")
+              f = open("trades.txt")
+              lines = f.readlines()
+              for line in lines:
+                listbox.insert(END, line)
+              f.close()
 
             bbox = ax.get_position()
             ax3.set_position([bbox.x0, bbox.y0, bbox.width, bbox.height / 4])
             ax.autoscale_view()
-            listbox.insert(END, "=== TRADES === ")
-            f = open("trades.txt")
-            lines = f.readlines()
-            for line in lines:
-              listbox.insert(END, line)
-            f.close()
             first[tabindex] = False
             
           prices[:] = []
