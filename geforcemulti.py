@@ -559,7 +559,7 @@ def run_geforce(fig, tabindex, tabnum, listbox):
         except:
           print get_full_stacktrace()
 
-        if datetime.datetime.now().minute == 0 and init == False and switch_hour == False:
+        if datetime.datetime.now().minute == 0 and datetime.datetime.now().second < 10 and init == False and switch_hour == False:
           fig.clf()
           first[tabindex] = True
           switch_hour = True
