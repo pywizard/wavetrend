@@ -190,13 +190,15 @@ matplotlib.transforms.TransformNode._invalidate_internal = _invalidate_internal
 
 class Application:
     def __init__(self, master):
+        global currency_entered2
         self.master = master
         self.builder = builder = pygubu.Builder()
         builder.add_from_file('window.ui')
         self.mainwindow = builder.get_object('mainframe', master)
         builder.connect_callbacks(self)
         master.report_callback_exception = self.report_callback_exception
-
+        currency_entered2 = ""
+        
     def ok_callback(self):
         global currency_entered2
         global root
@@ -204,8 +206,8 @@ class Application:
         currency_entered2 = self.builder.get_object('boxCurrency').get().upper()
 
         if currency_entered2 != "":
-	    root.quit()
-	    root.withdraw()
+    	    root.quit()
+    	    root.withdraw()
 
     def cause_exception(self):
         a = []
@@ -547,12 +549,12 @@ def run_geforce(fig, tabindex, tabnum, listbox):
           yvalues2 = None
           gc.collect()
 
-          drawing[tabindex].put(1)
-          while True:
-            val = queue[tabindex].get()
-            if val == 1:
-              break
-            time.sleep(0.00000001)
+          if switch_hour != True:
+            drawing[tabindex].put(1)
+            while True:
+              val = queue[tabindex].get()
+              if val == 1:
+                break
 
         except:
           print get_full_stacktrace()
@@ -561,9 +563,8 @@ def run_geforce(fig, tabindex, tabnum, listbox):
           fig.clf()
           first[tabindex] = True
           switch_hour = True
-        
-        if datetime.datetime.now().minute == 1:
-          switch_hour = False
+        elif switch_hour == True:
+            switch_hour = False
           
         counter = counter + 1
         
@@ -774,6 +775,14 @@ class StatusBar(tk.Frame):
       self.label.config(text="")
       self.label.update_idletasks()
 
+def center_win(win):
+    win.update_idletasks()
+    width = win.winfo_width()
+    height = win.winfo_height()
+    x = (win.winfo_screenwidth() // 2) - (width // 2)
+    y = (win.winfo_screenheight() // 2) - (height // 2)
+    win.geometry('{}x{}+{}+{}'.format(width, height, x, y))
+
 def quit():
     global tkTop
     tkTop.destroy()
@@ -784,6 +793,10 @@ tab_count = 0
 def on_closing():
    mainroot.destroy()
    os._exit(0)
+
+def on_dialog_closing():
+  root.quit()
+  root.destroy()
 
 def add_notebook(event):
   global drawing
@@ -803,7 +816,11 @@ def add_notebook(event):
 
   root = tk.Tk()
   app = Application(root)
+  center_win(root)
+  root.protocol("WM_DELETE_WINDOW", on_dialog_closing)  
   root.mainloop()
+  if currency_entered2 == "":
+    return
 
   frame1 = ttk.Frame(notebook)
   listbox = Listbox(frame1)
@@ -858,6 +875,7 @@ if __name__ == "__main__":
 
   os.environ['TZ'] = str(get_localzone())
   mainroot = tk.Tk()
+  center_win(mainroot)
 
   imgicon = os.path.join(os.path.dirname(os.path.realpath(__file__)),'joker.gif')
   img = tk.PhotoImage(file=imgicon)
@@ -875,5 +893,6 @@ if __name__ == "__main__":
   notebook.pack(fill=tk.BOTH, expand=tk.YES)
 
   mainroot.protocol("WM_DELETE_WINDOW", on_closing)
+
   mainroot.mainloop()
   os._exit(0)
