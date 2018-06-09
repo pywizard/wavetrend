@@ -374,7 +374,7 @@ def run_geforce(fig, tabindex, tabnum, listbox):
           if init == True:
             wt_was_rising = wt_rising
           
-          if wt_rising != wt_was_rising and (abs(diff) > 1):
+          if wt_rising != wt_was_rising and (abs(diff) > 5):
             print symbol + " INTERSECTION!!!"
             wt_was_rising = wt_rising
 
