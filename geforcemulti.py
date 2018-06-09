@@ -375,13 +375,7 @@ def run_geforce(fig, tabindex, tabnum, listbox):
             print symbol + " INTERSECTION!!!"
             wt_was_rising = wt_rising
 
-            allow_trade = True
-            
-            if prev_trade_time != 0:
-              if prev_trade_time > datetime.datetime.now() - timedelta(minutes=3):
-                allow_trade = False
-
-            if wt_rising == True and not bought and allow_trade:
+            if wt_rising == True and not bought:
                 #buy
                 if is_windows:
                   import win32api
@@ -428,7 +422,7 @@ def run_geforce(fig, tabindex, tabnum, listbox):
                   f.close()
                   listbox.insert(END, "BUY %s MARKET @ %.8f" % (symbol, symbol_price))
 
-            if wt_rising == False and not sold and allow_trade:
+            if wt_rising == False and not sold:
                 #sell
                 if is_windows:
                   import win32api
