@@ -298,6 +298,7 @@ def run_geforce(fig, tabindex, tabnum, listbox):
     init = True
     switch_hour = False
     prev_trade_time = 0
+    counter = 0
     while True:
         try:
           date, open_, high, low, close, vol = getDataBinance(timeframe_entered, days_entered, currency_entered)
@@ -357,16 +358,20 @@ def run_geforce(fig, tabindex, tabnum, listbox):
           idx = np.argwhere(np.diff(np.sign(yvalues1 - yvalues2)) != 0).reshape(-1) + 0
 
           symbol = currency_entered
-          print symbol + " CURRENT=%d" % len(np.array(high))
-          print symbol + " INTERSECTION=%d" % idx[-1]
+          
+          if counter % 15 == 0:
+            print symbol + " CURRENT=%d" % len(np.array(high))
+            print symbol + " INTERSECTION=%d" % idx[-1]
 
           wt1_rising = False
           if yvalues1[-1] > yvalues1[-2]:
-            print symbol + " Wavetrend 1 rising"
+            if counter % 15 == 0:
+              print symbol + " Wavetrend 1 rising"
             wt1_rising = True
 
           if yvalues1[-1] < yvalues1[-2]:
-            print symbol + " Wavetrend 1 falling"
+            if counter % 15 == 0:
+              print symbol + " Wavetrend 1 falling"
 
           if idx[-1] > len(np.array(high)) - 3:
             print symbol + " INTERSECTION!!!"
@@ -542,6 +547,8 @@ def run_geforce(fig, tabindex, tabnum, listbox):
         
         if datetime.datetime.now().minute == 1:
           switch_hour = False
+          
+        counter = counter + 1
         
         init = False
 
