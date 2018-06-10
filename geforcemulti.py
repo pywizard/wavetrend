@@ -871,7 +871,7 @@ class Window(QtGui.QMainWindow):
         
         timer = QtCore.QTimer(self)
         timer.timeout.connect(self.update_canvases)
-        timer.start(2000)
+        timer.start(500)
     
     def update_canvases(self):
         if QtGui.QApplication.hasPendingEvents():
