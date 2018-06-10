@@ -2,7 +2,7 @@ import warnings
 warnings.filterwarnings("ignore")
 import matplotlib
 matplotlib.use("Agg")
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 from matplotlib.figure import Figure
 import platform
 import numpy as np
@@ -15,11 +15,18 @@ import hashlib
 import hmac
 import time
 import datetime
-from PyQt4 import QtGui, QtCore, uic
-import traceback
+import Tkinter as tk
+import pygubu
+import traceback, tkMessageBox
+import FileDialog
 import copy
+import ttk
+from Tkinter import *
 import threading
+import pytz
+from tzlocal import get_localzone
 import pandas as pd
+import copy
 import talib
 import math
 import gc
@@ -28,6 +35,7 @@ import platform
 import ctypes
 import os
 import Queue
+
 
 is_windows = False
 if platform.system() == "Windows":
@@ -40,16 +48,16 @@ if platform.system() == "Windows":
 from binance.client import Client
 client = Client(api_key, api_secret)
 
+last_line1 = {}
+last_line2 = {}
+last_rect = {}
 
-
-class abstract():
-  pass
-
-config = {}
-
-def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, width=0.2, colorup='white', colordown='black',
+def _candlestick(ax, quotes, tabindex, width=0.2, colorup='white', colordown='black',
                  alpha=1.0):
 
+    global last_line1
+    global last_line2
+    global last_rect
     """
     Plot the time, open, high, low, close as a vertical line ranging
     from low to high.  Use a rectangular bar to represent the
@@ -93,7 +101,7 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, width=0.2
     colorup = "white"
     colordown = "black"
     
-    if first == False:
+    if first[tabindex] == False:
       quotes = [quotes[-1]]
     for q in quotes:
         t, open, high, low, close = q[:5]
@@ -133,26 +141,26 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, width=0.2
         )
         rect.set_alpha(alpha)
 
-        if first == True:
+        if first[tabindex] == True:
           lines.append(vline1)
           lines.append(vline2)
           patches.append(rect)
           ax.add_line(vline1)
           ax.add_line(vline2)
           ax.add_patch(rect)
-          last_line1 = vline1
-          last_line2 = vline2
-          last_rect = rect
+          last_line1[tabindex] = vline1
+          last_line2[tabindex] = vline2
+          last_rect[tabindex] = rect
         else:
-          last_line1.set_ydata((high, higher))
-          last_line2.set_ydata((low, lower))
-          last_rect.set_y(lower)
-          last_rect.set_height(height)
-          last_rect.set_facecolor(color)
+          last_line1[tabindex].set_ydata((high, higher))
+          last_line2[tabindex].set_ydata((low, lower))
+          last_rect[tabindex].set_y(lower)
+          last_rect[tabindex].set_height(height)
+          last_rect[tabindex].set_facecolor(color)
         
     ax.autoscale_view()
 
-    return last_line1, last_line2, last_rect
+    return lines, patches
 
 def _invalidate_internal(self, value, invalidating_node):
     """
@@ -179,6 +187,35 @@ def _invalidate_internal(self, value, invalidating_node):
                                         invalidating_node=self)
 
 matplotlib.transforms.TransformNode._invalidate_internal = _invalidate_internal
+
+class Application:
+    def __init__(self, master):
+        global currency_entered2
+        self.master = master
+        self.builder = builder = pygubu.Builder()
+        builder.add_from_file('window.ui')
+        self.mainwindow = builder.get_object('mainframe', master)
+        builder.connect_callbacks(self)
+        master.report_callback_exception = self.report_callback_exception
+        currency_entered2 = ""
+        
+    def ok_callback(self):
+        global currency_entered2
+        global root
+
+        currency_entered2 = self.builder.get_object('boxCurrency').get().upper()
+
+        if currency_entered2 != "":
+    	    root.quit()
+    	    root.withdraw()
+
+    def cause_exception(self):
+        a = []
+        a.a = 0
+
+    def report_callback_exception(self, *args):
+        err = traceback.format_exception(*args)
+        tkMessageBox.showerror('Exception', err)
 
 class abstract():
   pass
@@ -226,41 +263,46 @@ def get_asset_from_symbol(symbol):
 
   return asset.lower()
 
-def translate_buy_amount_percent(index):
-  if index == 0:
-    return .25
-  elif index == 1:
-    return .5
-  elif index == 0:
-    return .75
-  elif index == 0:
-    return .97
-    
-def run_geforce(symbol, fig, canvas, main):
+queue = {}
+queue[1] = Queue.Queue()
+queue[2] = Queue.Queue()
+drawing = {}
+drawing[1] = Queue.Queue()
+drawing[2] = Queue.Queue()
+
+canvas = {}
+canvas[1] = None
+canvas[2] = None
+
+first =  {}
+first[1] = True
+first[2] = True
+
+def run_geforce(fig, tabindex, listbox):
+    global currency_entered2
     global drawing
     global queue
     global status_bar
+    global first
 
+    currency_entered = currency_entered2
     timeframe_entered = "1h"
     days_entered = "13"
     bought = False
     sold = False
 
+    symbol = currency_entered
     to_sell = 0
 
     init = True
     prev_trade_time = 0
     counter = 0
     wt_was_rising = False
-    first = True
-    last_line1 = None
-    last_line2 = None
-    last_rect = None
     while True:
         try:
-          date, open_, high, low, close, vol = getDataBinance(timeframe_entered, days_entered, symbol)
+          date, open_, high, low, close, vol = getDataBinance(timeframe_entered, days_entered, currency_entered)
           
-          if first == True:
+          if first[tabindex] == True:
             ax = fig.add_subplot(1,1,1)
             ax3 = ax.twinx()
 
@@ -282,14 +324,14 @@ def run_geforce(symbol, fig, canvas, main):
 
           bb_upper, bb_middle, bb_lower = BBANDS(np.array(close), timeperiod=20)
 
-          if first == True:
+          if first[tabindex] == True:
             wavetrend1 = ax3.plot(dates2, wt1, color="green", lw=.5)
             wavetrend2 = ax3.plot(dates2, wt2, color="red", lw=.5)
           else:
             wavetrend1[0].set_ydata(wt1)
             wavetrend2[0].set_ydata(wt2)
 
-          if first == True:
+          if first[tabindex] == True:
             bb_upper_, = ax.plot(date, bb_upper, color="blue", lw=.5, antialiased=True, alpha=.5)
             bb_middle_, = ax.plot(date, bb_middle, color="blue", lw=.5, antialiased=True, alpha=.5)
             bb_lower_, = ax.plot(date, bb_lower, color="blue", lw=.5, antialiased=True, alpha=.5)
@@ -312,79 +354,27 @@ def run_geforce(symbol, fig, canvas, main):
           xl = ax.get_xlim()
           ax.set_xlim(date[start_x], xl[1])
 
+          symbol = currency_entered
+          
           wt_rising = False
      
-          if config[symbol].trade_all_crossings == True:
-            diff = yvalues1[-1] - yvalues2[-1]
-            if diff > 0:
-              if counter % 15 == 0:
-                print symbol + " Rising Wavetrend %.8f" % abs(diff)
-              wt_rising = True
-            else:
-              if counter % 15 == 0:
-                print symbol + " Falling Wavetrend %.8f" % abs(diff)
-
-          if config[symbol].trade_all_crossings == False:
-            if yvalues1[-1] > 53:
-              wt_line_above_53 = True
-              diff = yvalues1[-1] - 53
-            else:
-              wt_line_above_53 = False
-              diff = 53 - yvalues1[-1]
-            
-            if yvalues1[-1] > -53:
-              wt_line_below_53 = False
-              diff = yvalues1[-1] - -53
-            else:
-              wt_line_below_53 = True
-              diff = -53 - yvalues1[-1]
-            
-            if counter % 15 == 0 and wt_line_above_53 == True:
-              print symbol + " Wavetrend above 53"
-
-            if counter % 15 == 0 and wt_line_above_53 == False:
-              print symbol + " Wavetrend below 53"
-
-            if counter % 15 == 0 and wt_line_below_53 == True:
-              print symbol + " Wavetrend below -53"
-
-            if counter % 15 == 0 and wt_line_below_53 == False:
-              print symbol + " Wavetrend above -53"
-
+          diff = yvalues1[-1] - yvalues2[-1]
+          if diff > 0:
+            if counter % 15 == 0:
+              print "Rising Wavetrend %.8f" % abs(diff)
+            wt_rising = True
+          else:
+            if counter % 15 == 0:
+              print "Falling Wavetrend %.8f" % abs(diff)
+          
           if init == True:
             wt_was_rising = wt_rising
-            wt_line_was_above_53 = yvalues1[-1] > 53
-            wt_line_was_below_53 = yvalues1[-1] < -53     
           
-          buy_diff = config[symbol].buy_threshold
-          sell_diff = config[symbol].sell_threshold * -1
-          
-          if config[symbol].trade_all_crossings == True:
-            cross = wt_rising != wt_was_rising and (diff > buy_diff or diff < sell_diff) and config[symbol].trade_auto == True
-          else:
-            cross_buy = False
-            if wt_line_was_below_53 == True and wt_line_below_53 == False:
-              cross_buy = True
-            
-            cross_sell = False
-            if wt_line_was_above_53 == True and wt_line_above_53 == False:
-              cross_sell = True
-            
-            cross = (cross_buy or cross_sell) and (diff > buy_diff or diff < sell_diff) and config[symbol].trade_auto == True
-            
-          if cross == True:
+          if wt_rising != wt_was_rising and (abs(diff) > 1):
             print symbol + " INTERSECTION!!!"
-            
-            if config[symbol].trade_all_crossings == True:
-              wt_was_rising = wt_rising
-              buy = wt_rising == True and not bought
-            else:
-              if cross_buy:
-                wt_line_was_below_53 = wt_line_below_53
-              
-              buy = cross_buy and not bought
-              
-            if buy == True:
+            wt_was_rising = wt_rising
+
+            if wt_rising == True and not bought:
                 #buy
                 if is_windows:
                   import win32api
@@ -394,10 +384,10 @@ def run_geforce(symbol, fig, canvas, main):
 
                 print "BUY"
                 asset_balance = 0
+                symbol = currency_entered
                 symbol_price = get_symbol_price(symbol)
 
-                amount_per_trade = translate_buy_amount_percent(config[symbol].buy_amount_percent_index)
-                if symbol.endswith("USDT"):
+                if symbol == "BTCUSDT":
                   asset_balance = float(client.get_asset_balance("usdt")["free"])
                   buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 3)
                   if buy_amount < truncate((init_btc_balance / symbol_price) * amount_per_trade, 3):
@@ -419,7 +409,7 @@ def run_geforce(symbol, fig, canvas, main):
                   except:
                     print get_full_stacktrace()
                   time.sleep(5)
-                  if symbol.endswith("USDT"):
+                  if symbol == "BTCUSDT":
                     to_sell = int(truncate(float(client.get_asset_balance("usdt")["free"]), 2))
                   else:
                     to_sell = truncate(float(client.get_asset_balance(get_asset_from_symbol(symbol))["free"]), 2)
@@ -429,19 +419,9 @@ def run_geforce(symbol, fig, canvas, main):
                   f = open("trades.txt", "a")
                   f.write("BUY %s MARKET @ %.8f\n" % (symbol, symbol_price))
                   f.close()
-                  item = QtGui.QListWidgetItem("BUY %s MARKET @ %.8f" % (symbol, symbol_price))
-                  main.listWidget.addItem(item)
+                  listbox.insert(END, "BUY %s MARKET @ %.8f" % (symbol, symbol_price))
 
-            if config[symbol].trade_all_crossings == True:
-              wt_was_rising = wt_rising
-              sell = wt_rising == False and not sold
-            else:
-              if cross_sell:
-                wt_line_was_above_53 = wt_line_above_53
-              
-              sell = cross_sell and not sold
-              
-            if sell == True:
+            if wt_rising == False and not sold:
                 #sell
                 if is_windows:
                   import win32api
@@ -449,6 +429,7 @@ def run_geforce(symbol, fig, canvas, main):
                   tt=time.gmtime(int((gt["serverTime"])/1000))
                   win32api.SetSystemTime(tt[0],tt[1],0,tt[2],tt[3],tt[4],tt[5],0)
                 print "SELL"
+                symbol = currency_entered
                 
                 if symbol == "BTCUSDT":                  
                   symbol_price = get_symbol_price(symbol)
@@ -463,6 +444,7 @@ def run_geforce(symbol, fig, canvas, main):
                 
                 if asset_balance != 0:
                   from playsound import playsound
+                  symbol = currency_entered
                   symbol_price = get_symbol_price(symbol)
                   print to_sell
                   try:
@@ -476,8 +458,7 @@ def run_geforce(symbol, fig, canvas, main):
                   f = open("trades.txt", "a")
                   f.write("SELL %s MARKET @ %.8f\n" % (symbol, symbol_price))
                   f.close()
-                  item = QtGui.QListWidgetItem("SELL %s MARKET @ %.8f" % (symbol, symbol_price))
-                  main.listWidget.addItem(item)
+                  listbox.insert(END, "SELL %s MARKET @ %.8f" % (symbol, symbol_price))
 
           ticker = prices[-1][4]
           in_one_hour = datetime.datetime.now()
@@ -491,12 +472,12 @@ def run_geforce(symbol, fig, canvas, main):
           seconds = seconds % 60
           time_to_hour = "%02d:%02d" % (minutes, seconds)
 
-          if first == True:
+          if first[tabindex] == True:
             price_line = ax.axhline(ticker, color='black', linestyle="dotted", lw=.7)
             annotation = ax.text(date[-1] + timedelta(hours=3), ticker, "%.8f" % ticker, fontsize=7, color='black')
             annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
             
-            tbox = annotation.get_window_extent(canvas.renderer)
+            tbox = annotation.get_window_extent(canvas[tabindex].renderer)
             dbox = tbox.transformed(ax.transData.inverted())
             y0 = dbox.height * 2.4
             time_annotation = ax.text(date[-1] + timedelta(hours=3), ticker - y0, time_to_hour, fontsize=7, color='black')
@@ -506,15 +487,15 @@ def run_geforce(symbol, fig, canvas, main):
             annotation.set_text("%.8f" % ticker)
             annotation.set_y(ticker)
             annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
-            tbox = annotation.get_window_extent(canvas.renderer)
+            tbox = annotation.get_window_extent(canvas[tabindex].renderer)
             dbox = tbox.transformed(ax.transData.inverted())
             y0 = dbox.height * 2.4
             time_annotation.set_text(time_to_hour)
             time_annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
             time_annotation.set_y(ticker - y0)
 
-          last_line1, last_line2, last_rect = _candlestick(ax, prices, first, last_line1, last_line2, last_rect)
-          if first == True:
+          _candlestick(ax, prices, tabindex)
+          if first[tabindex] == True:
             ax3.axhline(60, color='red')
             ax3.axhline(-60, color='green')
             ax3.axhline(0, color='gray', lw=.5)
@@ -526,7 +507,7 @@ def run_geforce(symbol, fig, canvas, main):
             yl = ax.get_ylim()
             ax.set_ylim(yl[0]-(yl[1]-yl[0])*pad,yl[1])
             ax.set_xlabel(timeframe_entered)
-            ax.set_ylabel(symbol)
+            ax.set_ylabel(currency_entered)
 
             ax.spines['top'].set_edgecolor((18/255.0,27/255.0,33/255.0))
             ax.spines['left'].set_edgecolor((18/255.0,27/255.0,33/255.0))
@@ -542,11 +523,17 @@ def run_geforce(symbol, fig, canvas, main):
 
             if init == True:
               fig.tight_layout()
+              listbox.insert(END, "=== TRADES === ")
+              f = open("trades.txt")
+              lines = f.readlines()
+              for line in lines:
+                listbox.insert(END, line)
+              f.close()
 
             bbox = ax.get_position()
             ax3.set_position([bbox.x0, bbox.y0, bbox.width, bbox.height / 4])
             ax.autoscale_view()
-            first = False
+            first[tabindex] = False
             
           prices[:] = []
           prices2[:] = []
@@ -558,21 +545,18 @@ def run_geforce(symbol, fig, canvas, main):
           yvalues2 = None
           gc.collect()
 
-          canvas.draw()
-          '''
-          drawing.put(1)
+          drawing[tabindex].put(1)
           while True:
-            val = queue.get()
+            val = queue[tabindex].get()
             if val == 1:
               break
-          '''
-          
+
         except:
           print get_full_stacktrace()
 
         if datetime.datetime.now().minute == 0 and datetime.datetime.now().second < 5 and init == False:
           fig.clf()
-          first = True
+          first[tabindex] = True
           time.sleep(10)
           
         counter = counter + 1
@@ -772,186 +756,127 @@ def getDataBinance(timeframe_entered, days_entered, currency_entered):
 
     return dt, open_, high, low, close, volume
 
+class StatusBar(tk.Frame):
+   def __init__(self, master):
+      tk.Frame.__init__(self, master)
+      self.label = tk.Label(self, bd = 1, relief = tk.SUNKEN, anchor = "center")
+      self.label.pack(fill=tk.X)
+   def set(self, format0, *args):
+      self.label.config(text = format0 % args, font=("Courier",14))
+      self.label.update_idletasks()
+   def clear(self):
+      self.label.config(text="")
+      self.label.update_idletasks()
+
+def center_win(win):
+    win.update_idletasks()
+    width = win.winfo_width()
+    height = win.winfo_height()
+    x = (win.winfo_screenwidth() // 2) - (width // 2)
+    y = (win.winfo_screenheight() // 2) - (height // 2)
+    win.geometry('{}x{}+{}+{}'.format(width, height, x, y))
+
+def quit():
+    global tkTop
+    tkTop.destroy()
+
 listbox = None
 tab_count = 0
 
-from operator import itemgetter
-DIRPATH = os.path.join(os.path.dirname(os.path.abspath(__file__)))
+def on_closing():
+   mainroot.destroy()
+   os._exit(0)
 
-class MplCanvas(FigureCanvas):
-    def __init__(self, parent=None, width=5, height=4, dpi=100, symbol=None):
-        self.fig = Figure(facecolor='white')
+def on_dialog_closing():
+  root.quit()
+  root.destroy()
 
-        FigureCanvas.__init__(self, self.fig)
-        self.setParent(parent)
+def add_notebook(event):
+  global drawing
+  global tab_count
+  global root
+  global queue
+  global canvas
 
-        FigureCanvas.setSizePolicy(self,
-                                   QtGui.QSizePolicy.Expanding,
-                                   QtGui.QSizePolicy.Expanding)
-        FigureCanvas.updateGeometry(self)
-        
-main_shown = False
-class Window(QtGui.QMainWindow):
-    global tab_widgets
-    global config
-    def __init__(self, symbol):
-        QtGui.QDialog.__init__(self)
-        resolution = QtGui.QDesktopWidget().screenGeometry()
-        uic.loadUi(os.path.join(DIRPATH, 'mainwindowqt.ui'), self)
-        self.setGeometry(0, 0, int(resolution.width()/1.1), int(resolution.height()/1.2))
-        self.move((resolution.width() / 2) - (self.frameSize().width() / 2),
-                  (resolution.height() / 2) - (self.frameSize().height() / 2)) 
-        widget = QtGui.QVBoxLayout(self.tabWidget.widget(0))
-        dc = MplCanvas(self.tabWidget.widget(0), dpi=100, symbol=symbol)
-        widget.addWidget(dc)
-        t = threading.Thread(target=run_geforce, args=(symbol, dc.fig, dc, self))
-        t.daemon = True
-        t.start()
-        
-        self.toolButton.clicked.connect(self.add_coin_clicked)
-        self.tab_widgets = []
-        self.tab_widgets.append(self.tabWidget.widget(0))
-        self.tabWidget.currentChanged.connect(self.tabOnChange)
-        self.pushButton.clicked.connect(self.configAcceptClicked)
-    
-    def configAcceptClicked(self, event):
-      try:
-        buy_threshold = float(self.lineEdit.text())
-      except:
-        QtGui.QMessageBox.information(self, "WAVETREND ROBOT", "Entered buy theshold is not a number")
-        return
-        
-      try:
-        sell_threshold = float(self.lineEdit_2.text())
-      except:
-        QtGui.QMessageBox.information(self, "WAVETREND ROBOT", "Entered sell theshold is not a number")
-        return
-        
-      selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
-      if self.checkBox.isChecked() == True:
-        config[selected_symbol].trade_auto = True
+  clicked_tab = notebook.tk.call(notebook._w, "identify", "tab", event.x, event.y)
+  if clicked_tab != 0:
+    return
+
+  if tab_count == 2:
+    tkMessageBox.showinfo('', "Only two coins allowed.")
+    return
+
+  root = tk.Tk()
+  app = Application(root)
+  center_win(root)
+  root.protocol("WM_DELETE_WINDOW", on_dialog_closing)  
+  root.mainloop()
+  if currency_entered2 == "":
+    return
+
+  frame1 = ttk.Frame(notebook)
+  listbox = Listbox(frame1)
+  listbox.pack(side="bottom", fill=tk.BOTH)
+  listbox.config(width=0, height=7, font=('Arial', '12', 'bold'))
+
+  frame1.pack(fill=tk.BOTH, expand=tk.YES)
+
+  notebook.master.title("WAVETREND ROBOT")
+  if is_windows:
+    notebook.master.state('zoomed')
+  else:
+    notebook.master.attributes('-zoomed', True)
+  notebook.pack(fill=tk.BOTH, expand=tk.YES)
+
+  fig = Figure(facecolor='white')
+  canvas[tab_count + 1] = FigureCanvasTkAgg(fig, master=frame1)
+  canvas[tab_count + 1].show()
+  canvas[tab_count + 1].get_tk_widget().pack(fill=tk.BOTH, expand=tk.YES)
+
+  tab = notebook.add(frame1, text=str(currency_entered2) + "  ")
+  tab_count = tab_count + 1
+  notebook.select(tab_count)
+
+  t = threading.Thread(target=run_geforce, args=(fig, tab_count, listbox,))
+  t.daemon = True
+  t.start()
+
+  listbox.insert(END, "WAVETREND ROBOT 1.0 started.")
+
+  tabindex = tab_count
+  while True:
+    for i in [1,2]:
+      if drawing[i].qsize() != 0 and drawing[i].get() == 1:
+        canvas[i].draw()
+        queue[i].put(1)
       else:
-        config[selected_symbol].trade_auto = False
-        
-      if self.radioButton.isChecked() == True:
-        config[selected_symbol].trade_all_crossings = True
-      else:
-        config[selected_symbol].trade_all_crossings = False
-        
-      if self.radioButton_2.isChecked() == True:
-        config[selected_symbol].trade_lines_only = True
-      else:
-        config[selected_symbol].trade_lines_only = False
-          
-      config[selected_symbol].buy_threshold = float(buy_threshold)
-      config[selected_symbol].sell_threshold = float(sell_threshold)
-      config[selected_symbol].buy_amount_percent_index = self.comboBox.currentIndex()
-    
-      QtGui.QMessageBox.information(self, "WAVETREND ROBOT", selected_symbol + " Wavetrend configured.")
-    
-    def tabOnChange(self, event):
-      selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
-      main.groupBox.setTitle(selected_symbol + " Wavetrend")
-      self.checkBox.setChecked(config[selected_symbol].trade_auto)
-      self.radioButton.setChecked(config[selected_symbol].trade_all_crossings)
-      self.radioButton_2.setChecked(config[selected_symbol].trade_lines_only)
-      self.lineEdit.setText(str(config[selected_symbol].buy_threshold))
-      self.lineEdit_2.setText(str(config[selected_symbol].sell_threshold))
-      self.comboBox.setCurrentIndex(config[selected_symbol].buy_amount_percent_index)
-    
-    def addTab(self, symbol):
-      self.tab_widgets.append(QtGui.QWidget())
-      tab_index = self.tabWidget.addTab(self.tab_widgets[-1], symbol)
-      self.tabWidget.setCurrentWidget(self.tab_widgets[-1])
-      widget = QtGui.QVBoxLayout(self.tabWidget.widget(tab_index))
-      dc = MplCanvas(self.tabWidget.widget(tab_index), dpi=100, symbol=symbol)
-      widget.addWidget(dc)
-      t = threading.Thread(target=run_geforce, args=(symbol, dc.fig, dc, self))
-      t.daemon = True
-      t.start()
-         
-    def add_coin_clicked(self, event):
-      global dialog
-      dialog = Dialog()
-      dialog.show()
-        
-class Dialog(QtGui.QDialog):
-    global config
-    def __init__(self):
-        QtGui.QDialog.__init__(self)
-        uic.loadUi(os.path.join(DIRPATH, 'windowqt.ui'), self)
-        
-        coins = client.get_ticker()
-        btc_price = get_symbol_price("BTCUSDT")
-        coins_ = []
-        for coin in coins:
-            if coin["symbol"].endswith("BTC"):
-              coin["volumeFloat"] =int(float(coin["quoteVolume"]) * btc_price)
-              coins_.append(coin)
-            if coin["symbol"].endswith("USDT"):
-              coin["volumeFloat"] = int(float(coin["quoteVolume"]))
-              coins_.append(coin)
-        coins = sorted(coins_, key=itemgetter("volumeFloat"), reverse=True)
-        
-        self.tableWidget.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
-        
-        for coin in coins:
-          if coin["symbol"].endswith("BTC") or coin["symbol"].endswith("USDT"):
-            rowPosition = self.tableWidget.rowCount() - 1
-            self.tableWidget.insertRow(rowPosition)
-            self.tableWidget.setItem(rowPosition, 0, QtGui.QTableWidgetItem(coin["symbol"]))
-            self.tableWidget.setItem(rowPosition, 1, QtGui.QTableWidgetItem(coin["priceChange"]))
-            self.tableWidget.setItem(rowPosition, 2, QtGui.QTableWidgetItem(coin["priceChangePercent"]))
-            self.tableWidget.setItem(rowPosition, 3, QtGui.QTableWidgetItem(str(coin["volumeFloat"])))
-            if float(coin["priceChange"]) < 0:
-              self.tableWidget.item(rowPosition, 0).setBackground(QtGui.QColor(255,0,0))
-              self.tableWidget.item(rowPosition, 1).setBackground(QtGui.QColor(255,0,0))
-              self.tableWidget.item(rowPosition, 2).setBackground(QtGui.QColor(255,0,0))
-              self.tableWidget.item(rowPosition, 3).setBackground(QtGui.QColor(255,0,0))
-            else:
-              self.tableWidget.item(rowPosition, 0).setBackground(QtGui.QColor(0,255,0))
-              self.tableWidget.item(rowPosition, 1).setBackground(QtGui.QColor(0,255,0))
-              self.tableWidget.item(rowPosition, 2).setBackground(QtGui.QColor(0,255,0))
-              self.tableWidget.item(rowPosition, 3).setBackground(QtGui.QColor(0,255,0))
-
-    def accept(self):
-      selectionModel = self.tableWidget.selectionModel()
-      if selectionModel.hasSelection():
-        row = self.tableWidget.selectedItems()[0].row()
-        symbol = str(self.tableWidget.item(row, 0).text())
-  
-        config[symbol] = abstract()
-        config[symbol].trade_auto = False
-        config[symbol].trade_all_crossings = True
-        config[symbol].trade_lines_only = False
-        config[symbol].buy_threshold = 1.0
-        config[symbol].sell_threshold = 1.0
-        config[symbol].buy_amount_percent_index = 0
-  
-        global main
-        global main_shown
-        if not main_shown:
-          main = Window(symbol)
-          main.tabWidget.setTabText(main.tabWidget.count()-1, symbol)
-          main.groupBox.setTitle(symbol + " Wavetrend")
-          main.show()
-          main_shown = True
-          f = open("trades.txt")
-          lines = f.readlines()
-          for line in lines:
-            item = QtGui.QListWidgetItem(line)
-            main.listWidget.addItem(item)
-          f.close()
-        else:
-          main.addTab(symbol)
-          main.groupBox.setTitle(symbol + " Wavetrend")
-        
-        self.close()
+        notebook.update()
+        notebook.update_idletasks()
+      time.sleep(0.00000001)
 
 if __name__ == "__main__":
   init_btc_balance = float(client.get_asset_balance("btc")["free"])
 
-  app = QtGui.QApplication(sys.argv)
-  dialog = Dialog()
-  dialog.show()
-  os._exit(app.exec_())
+  os.environ['TZ'] = str(get_localzone())
+  mainroot = tk.Tk()
+  center_win(mainroot)
+
+  imgicon = os.path.join(os.path.dirname(os.path.realpath(__file__)),'joker.gif')
+  img = tk.PhotoImage(file=imgicon)
+  mainroot.tk.call('wm', 'iconphoto', mainroot._w, img)
+
+  status_bar = StatusBar(mainroot)
+  status_bar.pack(side = tk.BOTTOM, fill = tk.X)
+
+  notebook = ttk.Notebook(mainroot)
+  notebook.bind("<ButtonRelease-1>", add_notebook)
+
+  frame1 = ttk.Frame(notebook)
+  frame1.pack(fill=tk.BOTH, expand=tk.YES)
+  notebook.add(frame1, text="+")
+  notebook.pack(fill=tk.BOTH, expand=tk.YES)
+
+  mainroot.protocol("WM_DELETE_WINDOW", on_closing)
+
+  mainroot.mainloop()
+  os._exit(0)

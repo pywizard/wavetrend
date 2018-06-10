@@ -1,4 +1,5 @@
-﻿WAVETREND ROBOT 1.0 BETA
+﻿
+WAVETREND ROBOT 1.0 BETA
 ==
 
 Auto BUYS/SELLS when the Wavetrend Oscillator has an Intersection according to the direction.
@@ -13,8 +14,9 @@ https://www.youtube.com/watch?v=MqJ1czF220M
 
 
 
-![btc](https://i.imgur.com/bwJ5spg.png)
-![eos](https://i.imgur.com/z9Zh2ZX.png)
+![eos](https://i.imgur.com/P8moYeP.png)
+
+![ont](https://i.imgur.com/fZEUlvH.png)
 
 Installation
 ==
@@ -43,6 +45,14 @@ https://www.lfd.uci.edu/~gohlke/pythonlibs/#ta-lib
 example command for installation:
 
 pip install ta_lib-0.4.17-cp27-cp27m-win_amd64.whl
+
+Then choose the correct PyQT4 version from here:
+
+https://www.lfd.uci.edu/~gohlke/pythonlibs/
+
+For example the package PyQt4‑4.11.4‑cp27‑cp27m‑win_amd64.whl is for python 2.7 and Windows 64-Bits.
+Once downloaded, install the package:
+pip install PyQt4‑4.11.4‑cp27‑cp27m‑win_amd64.whl
 
 Linux Installation (Tested with Ubuntu)
 ******************************************************************************
@@ -77,6 +87,7 @@ sudo make install
 
 sudo pip2 install TA-Lib
 
+sudo apt-get install python-qt4
 Running
 =========
 
@@ -89,7 +100,6 @@ Run the program within an elevated cmd.exe shell (it syncs the system time with 
 Run command:
 
 python geforcemulti.py
+(or for the older version [not recommended] type python geforcemulti_tk_old.py)
 
-Click on the plus sign of the window and select the coin.
-
-This is is still beta software!!! Use at your own risk.
+This is is still beta software and is currently being developed and tested!!! Use at your own risk.
