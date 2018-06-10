@@ -21,7 +21,7 @@ https://www.youtube.com/watch?v=MqJ1czF220M
 Installation
 ==
 
-Window Installation
+Windows Installation
 ************************************************
 
 Install python 2.7 then install the dependencies
