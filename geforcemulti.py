@@ -256,7 +256,7 @@ def translate_buy_amount_percent_reversed(index):
   elif index == 3:
     return .25
     
-def geforce_update(symbol, fig, canvas, main, saved_dir):
+def geforce_update(symbol, fig, canvas, main, saved_dir, draw):
 
     if saved_dir != None:
       for var in saved_dir:
@@ -590,7 +590,8 @@ def geforce_update(symbol, fig, canvas, main, saved_dir):
       yvalues2 = None
       gc.collect()
       QtGui.QApplication.processEvents()
-      canvas.draw_idle()
+      if draw:
+        canvas.draw_idle()
       QtGui.QApplication.processEvents()
     except:
       print get_full_stacktrace()
@@ -870,13 +871,17 @@ class Window(QtGui.QMainWindow):
         
         timer = QtCore.QTimer(self)
         timer.timeout.connect(self.update_canvases)
-        timer.start(3000)
+        timer.start(2000)
     
     def update_canvases(self):
+        if QtGui.QApplication.hasPendingEvents():
+          return
         currentTabIndex = self.tabWidget.currentIndex()
         for i in xrange(len(self.instances)):
           if currentTabIndex == i:
-            self.saved_dirs[i] = geforce_update(self.instances[i][0], self.instances[i][1], self.instances[i][2], self, self.saved_dirs[i])
+            self.saved_dirs[i] = geforce_update(self.instances[i][0], self.instances[i][1], self.instances[i][2], self, self.saved_dirs[i], True)
+          else:
+            self.saved_dirs[i] = geforce_update(self.instances[i][0], self.instances[i][1], self.instances[i][2], self, self.saved_dirs[i], False)
     
     def buy_clicked(self, event):
       if is_windows:
