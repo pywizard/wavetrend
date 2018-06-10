@@ -51,8 +51,12 @@ Then choose the correct PyQT4 version from here:
 https://www.lfd.uci.edu/~gohlke/pythonlibs/
 
 For example the package PyQt4‑4.11.4‑cp27‑cp27m‑win_amd64.whl is for python 2.7 and Windows 64-Bits.
+
 Once downloaded, install the package:
+
 pip install PyQt4‑4.11.4‑cp27‑cp27m‑win_amd64.whl
+
+
 
 Linux Installation (Tested with Ubuntu)
 ******************************************************************************
@@ -88,6 +92,8 @@ sudo make install
 sudo pip2 install TA-Lib
 
 sudo apt-get install python-qt4
+
+
 Running
 =========
 
