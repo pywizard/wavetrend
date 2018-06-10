@@ -438,6 +438,7 @@ def run_geforce(symbol, fig, canvas, main):
                   try:
                     order = client.order_market_buy(symbol=symbol, quantity=buy_amount)
                     playsound("beep.wav")
+                    main.updateBalances(symbol)
                     prev_trade_time = datetime.datetime.now()
                   except:
                     print get_full_stacktrace()
@@ -488,6 +489,7 @@ def run_geforce(symbol, fig, canvas, main):
                   try:
                     order = client.order_market_sell(symbol=symbol, quantity=to_sell)
                     playsound("beep.wav")
+                    main.updateBalances(symbol)
                     prev_trade_time = datetime.datetime.now()
                   except:
                     print get_full_stacktrace()
@@ -877,6 +879,7 @@ class Window(QtGui.QMainWindow):
           try:
             client.order_market_buy(symbol=symbol, quantity=buy_amount)
             playsound("beep.wav")
+            self.updateBalances(symbol)
           except:
             pass
           item = QtGui.QListWidgetItem("BUY %s MARKET @ %.2f" % (symbol, buy_amount))
@@ -908,8 +911,9 @@ class Window(QtGui.QMainWindow):
           try: 
             client.order_market_sell(symbol=symbol, quantity=sell_amount)
             playsound("beep.wav")
+            self.updateBalances(symbol)
           except:
-            raise
+            pass
           item = QtGui.QListWidgetItem("SELL %s MARKET %.2f" % (symbol, sell_amount))
           self.listWidget_4.addItem(item)
     
@@ -948,6 +952,14 @@ class Window(QtGui.QMainWindow):
     
       QtGui.QMessageBox.information(self, "WAVETREND ROBOT", selected_symbol + " Wavetrend configured.")
     
+    def updateBalances(self, symbol):
+      asset = get_asset_from_symbol(symbol)
+      asset_balance = client.get_asset_balance(asset)["free"]
+      main.label_14.setText(asset.upper() + " Balance: " + asset_balance)
+      quote = get_quote_from_symbol(symbol)
+      quote_balance = client.get_asset_balance(quote)["free"]
+      main.label_15.setText(quote.upper() + " Balance: " + quote_balance)      
+    
     def tabOnChange(self, event):
       selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
       symbol = selected_symbol
@@ -958,14 +970,7 @@ class Window(QtGui.QMainWindow):
       self.lineEdit_7.setText(str(config[selected_symbol].buy_threshold))
       self.lineEdit_8.setText(str(config[selected_symbol].sell_threshold))
       self.comboBox_4.setCurrentIndex(config[selected_symbol].buy_amount_percent_index)
-    
-      asset = get_asset_from_symbol(symbol)
-      asset_balance = client.get_asset_balance(asset)["free"]
-      main.label_14.setText(asset.upper() + " Balance: " + asset_balance)
-      quote = get_quote_from_symbol(symbol)
-      quote_balance = client.get_asset_balance(quote)["free"]
-      main.label_15.setText(quote.upper() + " Balance: " + quote_balance)
-        
+            
     def addTab(self, symbol):
       self.tab_widgets.append(QtGui.QWidget())
       tab_index = self.tabWidget.addTab(self.tab_widgets[-1], symbol)
@@ -1040,12 +1045,7 @@ class Dialog(QtGui.QDialog):
 
         if not main_shown:
           main = Window(symbol)
-          asset = get_asset_from_symbol(symbol)
-          asset_balance = client.get_asset_balance(asset)["free"]
-          main.label_14.setText(asset.upper() + " Balance: " + asset_balance)
-          quote = get_quote_from_symbol(symbol)
-          quote_balance = client.get_asset_balance(quote)["free"]
-          main.label_15.setText(quote.upper() + " Balance: " + quote_balance)          
+          main.updateBalances(symbol)
           main.tabWidget.setTabText(main.tabWidget.count()-1, symbol)
           main.groupBox.setTitle(symbol)
           main.show()
@@ -1057,12 +1057,7 @@ class Dialog(QtGui.QDialog):
             main.listWidget_4.addItem(item)
           f.close()
         else:
-          asset = get_asset_from_symbol(symbol)
-          asset_balance = client.get_asset_balance(asset)["free"]
-          main.label_14.setText(asset.upper() + " Balance: " + asset_balance)
-          quote = get_quote_from_symbol(symbol)
-          quote_balance = client.get_asset_balance(quote)["free"]
-          main.label_15.setText(quote.upper() + " Balance: " + quote_balance)          
+          main.updateBalances(symbol)
           main.addTab(symbol)
           main.groupBox.setTitle(symbol)        
         self.close()
