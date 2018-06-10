@@ -974,7 +974,8 @@ class Window(QtGui.QMainWindow):
       self.lineEdit_7.setText(str(config[selected_symbol].buy_threshold))
       self.lineEdit_8.setText(str(config[selected_symbol].sell_threshold))
       self.comboBox_4.setCurrentIndex(config[selected_symbol].buy_amount_percent_index)
-            
+      self.updateBalances(symbol)
+      
     def addTab(self, symbol):
       self.tab_widgets.append(QtGui.QWidget())
       tab_index = self.tabWidget.addTab(self.tab_widgets[-1], symbol)
