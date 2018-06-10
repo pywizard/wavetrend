@@ -28,6 +28,7 @@ import platform
 import ctypes
 import os
 import Queue
+from playsound import playsound
 
 is_windows = False
 if platform.system() == "Windows":
@@ -39,8 +40,6 @@ if platform.system() == "Windows":
 
 from binance.client import Client
 client = Client(api_key, api_secret)
-
-
 
 class abstract():
   pass
@@ -444,7 +443,6 @@ def run_geforce(symbol, tab_index):
                 print buy_amount
 
                 if buy_amount != 0:
-                  from playsound import playsound
                   try:
                     order = client.order_market_buy(symbol=symbol, quantity=buy_amount)
                     playsound("beep.wav")
@@ -493,7 +491,6 @@ def run_geforce(symbol, tab_index):
                 print asset_balance
                 
                 if asset_balance != 0:
-                  from playsound import playsound
                   symbol_price = get_symbol_price(symbol)
                   print to_sell
                   try:
@@ -937,7 +934,6 @@ class Window(QtGui.QMainWindow):
                        msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
 
       if reply == QtGui.QMessageBox.Yes:
-          from playsound import playsound
           symbol_price = get_symbol_price(symbol)
           try:
             client.order_market_buy(symbol=symbol, quantity=buy_amount)
@@ -975,7 +971,6 @@ class Window(QtGui.QMainWindow):
                        msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
 
       if reply == QtGui.QMessageBox.Yes:
-          from playsound import playsound
           try: 
             client.order_market_sell(symbol=symbol, quantity=sell_amount)
             playsound("beep.wav")
