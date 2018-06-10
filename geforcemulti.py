@@ -843,7 +843,11 @@ class Window(QtGui.QMainWindow):
         widget.addWidget(dc)
         t = threading.Thread(target=run_geforce, args=(symbol, dc.fig, dc, self))
         t.daemon = True
-        t.start()    
+        t.start()
+        
+        t = threading.Thread(target=self.update_usdt_balance)
+        t.daemon = True
+        t.start()
     
     def buy_clicked(self, event):
       if is_windows:
@@ -987,6 +991,49 @@ class Window(QtGui.QMainWindow):
       dialog = Dialog()
       dialog.show()
         
+    def update_usdt_balance(self):
+      symbols = client.get_symbol_ticker()
+      self.usdt_symbols = []
+      self.btc_symbols = []
+      for symbol in symbols:
+        if symbol["symbol"].endswith("USDT"):
+          self.usdt_symbols.append(symbol["symbol"])      
+        if symbol["symbol"].endswith("BTC"):
+          self.btc_symbols.append(symbol["symbol"])
+      
+      while True:
+        time.sleep(5)
+        try:
+          account = client.get_account()
+          ticker = client.get_ticker()
+          balances = account["balances"]
+          usdt_balance = 0
+          
+          btc_price = get_symbol_price("BTCUSDT")
+          for balance in balances:
+            if float(balance["free"]) == 0.0:
+              continue
+            if balance["asset"] == "USDT":
+              usdt_balance = usdt_balance + float(balance["free"])
+            elif balance["asset"] + "USDT" in self.usdt_symbols:
+              for symbol in ticker:
+                if symbol["symbol"] == balance["asset"] + "USDT":
+                  symbol_price = float(symbol["lastPrice"])
+                  break
+              
+              usdt_balance = usdt_balance + float(balance["free"]) * symbol_price
+            elif balance["asset"] + "BTC" in self.btc_symbols:
+              for symbol in ticker:
+                if symbol["symbol"] == balance["asset"] + "BTC":
+                  symbol_price = float(symbol["lastPrice"])
+                  break
+              usdt_balance = usdt_balance + float(balance["free"]) * symbol_price * btc_price
+        
+          self.statusbar.showMessage("My Balance: " + "%.2f" % usdt_balance + " USDT")
+        except:
+          pass
+        time.sleep(35)
+    
 class Dialog(QtGui.QDialog):
     global config
     def __init__(self):
