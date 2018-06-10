@@ -36,6 +36,8 @@ pip install tzlocal
 
 pip install python-binance
 
+pip install playsound
+
 Choose the correct python 2.7 version of the TA-Lib package and architecture (win32/win_amd64),
 
 install TA-Lib from:
@@ -72,6 +74,8 @@ sudo pip2 install pygubu
 sudo pip2 install tzlocal
 
 sudo pip2 install python-binance
+
+sudo pip2 install playsound
 
 then.. with no spaces in pathname..
 
