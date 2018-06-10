@@ -14,9 +14,9 @@ https://www.youtube.com/watch?v=MqJ1czF220M
 
 
 
-![eos](https://i.imgur.com/P8moYeP.png)
+![eos](https://i.imgur.com/GS51zV3.png)
 
-![ont](https://i.imgur.com/fZEUlvH.png)
+![ont](https://i.imgur.com/hqJQ0x0.png)
 
 Installation
 ==

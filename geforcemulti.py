@@ -242,7 +242,7 @@ def run_geforce(symbol, fig, canvas, main):
     global status_bar
 
     timeframe_entered = "1h"
-    days_entered = "13"
+    days_entered = "10"
     bought = False
     sold = False
 
