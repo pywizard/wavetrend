@@ -245,11 +245,11 @@ def translate_buy_amount_percent(index):
   elif index == 2:
     return .75
   elif index == 3:
-    return .97
+    return .99
 
 def translate_buy_amount_percent_reversed(index):
   if index == 0:
-    return .97
+    return .99
   elif index == 1:
     return .75
   elif index == 2:
@@ -424,12 +424,12 @@ def run_geforce(symbol, fig, canvas, main):
                   asset_balance = float(client.get_asset_balance("usdt")["free"])
                   buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 3)
                   if buy_amount < truncate((init_btc_balance / symbol_price) * amount_per_trade, 3):
-                      buy_amount = truncate((asset_balance / symbol_price) * 0.97, 3)
+                      buy_amount = truncate((asset_balance / symbol_price) * 0.99, 3)
                 else:
                   asset_balance = float(client.get_asset_balance("btc")["free"])
                   buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
                   if buy_amount < truncate((init_btc_balance /symbol_price) * amount_per_trade, 2):
-                      buy_amount = truncate((asset_balance / symbol_price) * 0.97, 2)
+                      buy_amount = truncate((asset_balance / symbol_price) * 0.99, 2)
                 
                 print buy_amount
 
@@ -513,7 +513,10 @@ def run_geforce(symbol, fig, canvas, main):
 
           if first == True:
             price_line = ax.axhline(ticker, color='black', linestyle="dotted", lw=.7)
-            annotation = ax.text(date[-1] + timedelta(hours=3), ticker, "%.8f" % ticker, fontsize=7, color='black')
+            if symbol.endswith("USDT"):
+              annotation = ax.text(date[-1] + timedelta(hours=3), ticker, "%.2f" % ticker, fontsize=7, color='black')
+            else:
+              annotation = ax.text(date[-1] + timedelta(hours=3), ticker, "%.2f" % ticker, fontsize=7, color='black')
             annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
             
             tbox = annotation.get_window_extent(canvas.renderer)
@@ -523,7 +526,12 @@ def run_geforce(symbol, fig, canvas, main):
             time_annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
           else:
             price_line.set_ydata(ticker)
-            annotation.set_text("%.8f" % ticker)
+            
+            if symbol.endswith("USDT"):
+              annotation.set_text("%.2f" % ticker)
+            else:
+              annotation.set_text("%.8f" % ticker)
+              
             annotation.set_y(ticker)
             annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
             tbox = annotation.get_window_extent(canvas.renderer)
@@ -535,11 +543,11 @@ def run_geforce(symbol, fig, canvas, main):
 
           last_line1, last_line2, last_rect = _candlestick(ax, prices, first, last_line1, last_line2, last_rect)
           if first == True:
-            ax3.axhline(60, color='red')
-            ax3.axhline(-60, color='green')
+            ax3.axhline(60, color='red', lw=.8)
+            ax3.axhline(-60, color='green', lw=.8)
             ax3.axhline(0, color='gray', lw=.5)
-            ax3.axhline(53, color='red', linestyle="dotted")
-            ax3.axhline(-53, color='green', linestyle="dotted")
+            ax3.axhline(53, color='red', linestyle="dotted", lw=.8)
+            ax3.axhline(-53, color='green', linestyle="dotted", lw=.8)
             ax.set_axis_bgcolor('white')
 
             pad = 0.25
