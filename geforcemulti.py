@@ -27,7 +27,6 @@ from config import *
 import platform
 import ctypes
 import os
-import Queue
 
 is_windows = False
 if platform.system() == "Windows":
@@ -259,7 +258,6 @@ def translate_buy_amount_percent_reversed(index):
     
 def run_geforce(symbol, fig, canvas, main):
     global drawing
-    global queue
     global status_bar
 
     time.sleep(2)
@@ -589,14 +587,7 @@ def run_geforce(symbol, fig, canvas, main):
           gc.collect()
 
           canvas.draw()
-          '''
-          drawing.put(1)
-          while True:
-            val = queue.get()
-            if val == 1:
-              break
-          '''
-          
+                    
         except:
           print get_full_stacktrace()
 
