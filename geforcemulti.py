@@ -1110,7 +1110,7 @@ class Window(QtGui.QMainWindow):
           qs_local.put(SHOW_STATUSBAR_MESSAGE)
           qs_local.put("My Balance: " + "%.2f" % usdt_balance + " USDT")          
         except:
-          raise
+          pass
         time.sleep(35)
     
 class Dialog(QtGui.QDialog):
