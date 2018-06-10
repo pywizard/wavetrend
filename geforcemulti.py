@@ -886,9 +886,14 @@ class Window(QtGui.QMainWindow):
             self.updateBalances(symbol)
           except:
             pass
-          item = QtGui.QListWidgetItem("BUY %s MARKET @ %.2f" % (symbol, buy_amount))
+            
+          symbol_price = get_symbol_price(symbol)
+          item = QtGui.QListWidgetItem("BUY %s MARKET @ %.2f" % (symbol, symbol_price))
           self.listWidget_4.addItem(item)
 
+          f = open("trades.txt", "a")
+          f.write("BUY %s MARKET @ %.8f\n" % (symbol, symbol_price))
+          f.close()
     def sell_clicked(self, event):
       if is_windows:
         import win32api
@@ -918,8 +923,13 @@ class Window(QtGui.QMainWindow):
             self.updateBalances(symbol)
           except:
             pass
-          item = QtGui.QListWidgetItem("SELL %s MARKET %.2f" % (symbol, sell_amount))
+          
+          symbol_price = get_symbol_price(symbol)
+          item = QtGui.QListWidgetItem("SELL %s MARKET %.2f" % (symbol, symbol_price))
           self.listWidget_4.addItem(item)
+          f = open("trades.txt", "a")
+          f.write("SELL %s MARKET @ %.8f\n" % (symbol, symbol_price))
+          f.close()    
     
     def configAcceptClicked(self, event):
       try:
