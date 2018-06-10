@@ -354,13 +354,13 @@ def run_geforce(symbol, fig, canvas, main):
           if init == True:
             wt_was_rising = wt_rising
             wt_line_was_above_53 = yvalues1[-1] > 53
-            wt_line_was_below_53 = yvalues1[-1] < -53     
+            wt_line_was_below_53 = yvalues1[-1] < -53
           
           buy_diff = config[symbol].buy_threshold
           sell_diff = config[symbol].sell_threshold * -1
           
           if config[symbol].trade_all_crossings == True:
-            cross = wt_rising != wt_was_rising and (diff > buy_diff or diff < sell_diff) and config[symbol].trade_auto == True
+            cross = wt_rising != wt_was_rising and (abs(diff) > abs(buy_diff) or abs(diff) < abs(sell_diff)) and config[symbol].trade_auto == True
           else:
             cross_buy = False
             if wt_line_was_below_53 == True and wt_line_below_53 == False:
@@ -370,7 +370,7 @@ def run_geforce(symbol, fig, canvas, main):
             if wt_line_was_above_53 == True and wt_line_above_53 == False:
               cross_sell = True
             
-            cross = (cross_buy or cross_sell) and (diff > buy_diff or diff < sell_diff) and config[symbol].trade_auto == True
+            cross = (cross_buy or cross_sell) and (abs(diff) > abs(buy_diff) or abs(diff) < abs(sell_diff)) and config[symbol].trade_auto == True
             
           if cross == True:
             print symbol + " INTERSECTION!!!"
