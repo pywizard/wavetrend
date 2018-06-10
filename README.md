@@ -56,6 +56,41 @@ Once downloaded, install the package:
 
 pip install PyQt4‑4.11.4‑cp27‑cp27m‑win_amd64.whl
 
+Linux Installation (Tested with Ubuntu)
+******************************************************************************
+
+sudo apt-get install tk-dev libpng-dev libffi-dev dvipng texlive-latex-base
+
+sudo apt-get install python-tk
+
+sudo pip2 install matplotlib==2.0.1
+
+sudo pip2 install pandas==0.22.0
+
+sudo pip2 install pygubu
+
+sudo pip2 install tzlocal
+
+sudo pip2 install python-binance
+
+then.. with no spaces in pathname..
+
+wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+
+tar xvzf ta-lib-0.4.0-src.tar.gz
+
+cd ta-lib
+
+./configure --prefix=/usr
+
+make
+
+sudo make install
+
+sudo pip2 install TA-Lib
+
+sudo apt-get install python-qt4
+
 Running
 =========
 
