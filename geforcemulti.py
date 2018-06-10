@@ -226,20 +226,43 @@ def get_asset_from_symbol(symbol):
 
   return asset.lower()
 
+def get_quote_from_symbol(symbol):
+  quote = ""
+  if symbol == "BTCUSDT":
+    quote = "USDT"
+  elif symbol.find("BTC") > -1:
+    quote = "BTC"
+  elif symbol.find("USDT") > -1:
+    quote = "USDT"
+
+  return quote.lower()
+
 def translate_buy_amount_percent(index):
   if index == 0:
     return .25
   elif index == 1:
     return .5
-  elif index == 0:
+  elif index == 2:
     return .75
-  elif index == 0:
+  elif index == 3:
     return .97
+
+def translate_buy_amount_percent_reversed(index):
+  if index == 0:
+    return .97
+  elif index == 1:
+    return .75
+  elif index == 2:
+    return .5
+  elif index == 3:
+    return .25
     
 def run_geforce(symbol, fig, canvas, main):
     global drawing
     global queue
     global status_bar
+
+    time.sleep(2)
 
     timeframe_entered = "1h"
     days_entered = "10"
@@ -430,7 +453,7 @@ def run_geforce(symbol, fig, canvas, main):
                   f.write("BUY %s MARKET @ %.8f\n" % (symbol, symbol_price))
                   f.close()
                   item = QtGui.QListWidgetItem("BUY %s MARKET @ %.8f" % (symbol, symbol_price))
-                  main.listWidget.addItem(item)
+                  main.listWidget_4.addItem(item)
 
             if config[symbol].trade_all_crossings == True:
               wt_was_rising = wt_rising
@@ -448,13 +471,10 @@ def run_geforce(symbol, fig, canvas, main):
                   gt = client.get_server_time()
                   tt=time.gmtime(int((gt["serverTime"])/1000))
                   win32api.SetSystemTime(tt[0],tt[1],0,tt[2],tt[3],tt[4],tt[5],0)
+
                 print "SELL"
                 
-                if symbol == "BTCUSDT":                  
-                  symbol_price = get_symbol_price(symbol)
-                  asset_balance = truncate(float(client.get_asset_balance("usdt")["free"]) * 0.97 / symbol_price, 3)
-                else:
-                  asset_balance = truncate(float(client.get_asset_balance(get_asset_from_symbol(symbol))["free"]), 2)
+                asset_balance = truncate(float(client.get_asset_balance(get_asset_from_symbol(symbol))["free"]), 2)
                 
                 if to_sell == 0:
                   to_sell = asset_balance
@@ -477,7 +497,7 @@ def run_geforce(symbol, fig, canvas, main):
                   f.write("SELL %s MARKET @ %.8f\n" % (symbol, symbol_price))
                   f.close()
                   item = QtGui.QListWidgetItem("SELL %s MARKET @ %.8f" % (symbol, symbol_price))
-                  main.listWidget.addItem(item)
+                  main.listWidget_4.addItem(item)
 
           ticker = prices[-1][4]
           in_one_hour = datetime.datetime.now()
@@ -772,7 +792,6 @@ def getDataBinance(timeframe_entered, days_entered, currency_entered):
 
     return dt, open_, high, low, close, volume
 
-listbox = None
 tab_count = 0
 
 from operator import itemgetter
@@ -800,65 +819,145 @@ class Window(QtGui.QMainWindow):
         uic.loadUi(os.path.join(DIRPATH, 'mainwindowqt.ui'), self)
         self.setGeometry(0, 0, int(resolution.width()/1.1), int(resolution.height()/1.2))
         self.move((resolution.width() / 2) - (self.frameSize().width() / 2),
-                  (resolution.height() / 2) - (self.frameSize().height() / 2)) 
+                  (resolution.height() / 2) - (self.frameSize().height() / 2))         
+        self.toolButton.clicked.connect(self.add_coin_clicked)
+        self.tab_widgets = []
+        self.tab_widgets.append(self.tabWidget.widget(0))
+        self.tabWidget.currentChanged.connect(self.tabOnChange)
+        self.pushButton_4.clicked.connect(self.configAcceptClicked)
+        self.toolButton_2.clicked.connect(self.buy_clicked)
+        self.toolButton_3.clicked.connect(self.sell_clicked)
+    
         widget = QtGui.QVBoxLayout(self.tabWidget.widget(0))
         dc = MplCanvas(self.tabWidget.widget(0), dpi=100, symbol=symbol)
         widget.addWidget(dc)
         t = threading.Thread(target=run_geforce, args=(symbol, dc.fig, dc, self))
         t.daemon = True
-        t.start()
-        
-        self.toolButton.clicked.connect(self.add_coin_clicked)
-        self.tab_widgets = []
-        self.tab_widgets.append(self.tabWidget.widget(0))
-        self.tabWidget.currentChanged.connect(self.tabOnChange)
-        self.pushButton.clicked.connect(self.configAcceptClicked)
+        t.start()    
+    
+    def buy_clicked(self, event):
+      if is_windows:
+        import win32api
+        gt = client.get_server_time()
+        tt=time.gmtime(int((gt["serverTime"])/1000))
+        win32api.SetSystemTime(tt[0],tt[1],0,tt[2],tt[3],tt[4],tt[5],0)
+
+      print "BUY"
+      
+      asset_balance = 0
+      symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
+      symbol_price = get_symbol_price(symbol)
+
+      amount_per_trade = translate_buy_amount_percent_reversed(self.comboBox_5.currentIndex())
+      if symbol.endswith("USDT"):
+        asset_balance = float(client.get_asset_balance("usdt")["free"])
+        buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 3)
+      else:
+        asset_balance = float(client.get_asset_balance("btc")["free"])
+        buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
+      
+      if buy_amount == 0:
+        return
+
+      msg = "Buy " + str(buy_amount) + " " + symbol + "?"
+      reply = QtGui.QMessageBox.question(self, 'WAVETREND ROBOT', 
+                       msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
+
+      if reply == QtGui.QMessageBox.Yes:
+          from playsound import playsound
+          symbol_price = get_symbol_price(symbol)
+          try:
+            client.order_market_buy(symbol=symbol, quantity=buy_amount)
+            playsound("beep.wav")
+          except:
+            pass
+          item = QtGui.QListWidgetItem("BUY %s MARKET @ %.2f" % (symbol, buy_amount))
+          self.listWidget_4.addItem(item)
+
+    def sell_clicked(self, event):
+      if is_windows:
+        import win32api
+        gt = client.get_server_time()
+        tt=time.gmtime(int((gt["serverTime"])/1000))
+        win32api.SetSystemTime(tt[0],tt[1],0,tt[2],tt[3],tt[4],tt[5],0)
+
+      print "SELL"
+      
+      symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
+      amount_per_trade = translate_buy_amount_percent_reversed(self.comboBox_5.currentIndex())
+      
+      sell_amount = truncate(float(client.get_asset_balance(get_asset_from_symbol(symbol))["free"]) * amount_per_trade, 2)
+
+      if sell_amount == 0:
+        return
+    
+      msg = "Sell " + str(sell_amount) + " " + symbol + "?"
+      reply = QtGui.QMessageBox.question(self, 'WAVETREND ROBOT', 
+                       msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
+
+      if reply == QtGui.QMessageBox.Yes:
+          from playsound import playsound
+          try: 
+            client.order_market_sell(symbol=symbol, quantity=sell_amount)
+            playsound("beep.wav")
+          except:
+            raise
+          item = QtGui.QListWidgetItem("SELL %s MARKET %.2f" % (symbol, sell_amount))
+          self.listWidget_4.addItem(item)
     
     def configAcceptClicked(self, event):
       try:
-        buy_threshold = float(self.lineEdit.text())
+        buy_threshold = float(self.lineEdit_7.text())
       except:
         QtGui.QMessageBox.information(self, "WAVETREND ROBOT", "Entered buy theshold is not a number")
         return
         
       try:
-        sell_threshold = float(self.lineEdit_2.text())
+        sell_threshold = float(self.lineEdit_8.text())
       except:
         QtGui.QMessageBox.information(self, "WAVETREND ROBOT", "Entered sell theshold is not a number")
         return
         
       selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
-      if self.checkBox.isChecked() == True:
+      if self.checkBox_4.isChecked() == True:
         config[selected_symbol].trade_auto = True
       else:
         config[selected_symbol].trade_auto = False
         
-      if self.radioButton.isChecked() == True:
+      if self.radioButton_8.isChecked() == True:
         config[selected_symbol].trade_all_crossings = True
       else:
         config[selected_symbol].trade_all_crossings = False
         
-      if self.radioButton_2.isChecked() == True:
+      if self.radioButton_7.isChecked() == True:
         config[selected_symbol].trade_lines_only = True
       else:
         config[selected_symbol].trade_lines_only = False
           
       config[selected_symbol].buy_threshold = float(buy_threshold)
       config[selected_symbol].sell_threshold = float(sell_threshold)
-      config[selected_symbol].buy_amount_percent_index = self.comboBox.currentIndex()
+      config[selected_symbol].buy_amount_percent_index = self.comboBox_4.currentIndex()
     
       QtGui.QMessageBox.information(self, "WAVETREND ROBOT", selected_symbol + " Wavetrend configured.")
     
     def tabOnChange(self, event):
       selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
-      main.groupBox.setTitle(selected_symbol + " Wavetrend")
-      self.checkBox.setChecked(config[selected_symbol].trade_auto)
-      self.radioButton.setChecked(config[selected_symbol].trade_all_crossings)
-      self.radioButton_2.setChecked(config[selected_symbol].trade_lines_only)
-      self.lineEdit.setText(str(config[selected_symbol].buy_threshold))
-      self.lineEdit_2.setText(str(config[selected_symbol].sell_threshold))
-      self.comboBox.setCurrentIndex(config[selected_symbol].buy_amount_percent_index)
+      symbol = selected_symbol
+      main.groupBox.setTitle(selected_symbol)
+      self.checkBox_4.setChecked(config[selected_symbol].trade_auto)
+      self.radioButton_8.setChecked(config[selected_symbol].trade_all_crossings)
+      self.radioButton_7.setChecked(config[selected_symbol].trade_lines_only)
+      self.lineEdit_7.setText(str(config[selected_symbol].buy_threshold))
+      self.lineEdit_8.setText(str(config[selected_symbol].sell_threshold))
+      self.comboBox_4.setCurrentIndex(config[selected_symbol].buy_amount_percent_index)
     
+      asset = get_asset_from_symbol(symbol)
+      asset_balance = client.get_asset_balance(asset)["free"]
+      main.label_14.setText(asset.upper() + " Balance: " + asset_balance)
+      quote = get_quote_from_symbol(symbol)
+      quote_balance = client.get_asset_balance(quote)["free"]
+      main.label_15.setText(quote.upper() + " Balance: " + quote_balance)
+        
     def addTab(self, symbol):
       self.tab_widgets.append(QtGui.QWidget())
       tab_index = self.tabWidget.addTab(self.tab_widgets[-1], symbol)
@@ -930,22 +1029,34 @@ class Dialog(QtGui.QDialog):
   
         global main
         global main_shown
+
         if not main_shown:
           main = Window(symbol)
+          asset = get_asset_from_symbol(symbol)
+          asset_balance = client.get_asset_balance(asset)["free"]
+          main.label_14.setText(asset.upper() + " Balance: " + asset_balance)
+          quote = get_quote_from_symbol(symbol)
+          quote_balance = client.get_asset_balance(quote)["free"]
+          main.label_15.setText(quote.upper() + " Balance: " + quote_balance)          
           main.tabWidget.setTabText(main.tabWidget.count()-1, symbol)
-          main.groupBox.setTitle(symbol + " Wavetrend")
+          main.groupBox.setTitle(symbol)
           main.show()
           main_shown = True
           f = open("trades.txt")
           lines = f.readlines()
           for line in lines:
             item = QtGui.QListWidgetItem(line)
-            main.listWidget.addItem(item)
+            main.listWidget_4.addItem(item)
           f.close()
         else:
+          asset = get_asset_from_symbol(symbol)
+          asset_balance = client.get_asset_balance(asset)["free"]
+          main.label_14.setText(asset.upper() + " Balance: " + asset_balance)
+          quote = get_quote_from_symbol(symbol)
+          quote_balance = client.get_asset_balance(quote)["free"]
+          main.label_15.setText(quote.upper() + " Balance: " + quote_balance)          
           main.addTab(symbol)
-          main.groupBox.setTitle(symbol + " Wavetrend")
-        
+          main.groupBox.setTitle(symbol)        
         self.close()
 
 if __name__ == "__main__":
