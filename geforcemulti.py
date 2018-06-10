@@ -516,7 +516,7 @@ def run_geforce(symbol, fig, canvas, main):
             if symbol.endswith("USDT"):
               annotation = ax.text(date[-1] + timedelta(hours=3), ticker, "%.2f" % ticker, fontsize=7, color='black')
             else:
-              annotation = ax.text(date[-1] + timedelta(hours=3), ticker, "%.2f" % ticker, fontsize=7, color='black')
+              annotation = ax.text(date[-1] + timedelta(hours=3), ticker, "%.8f" % ticker, fontsize=7, color='black')
             annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
             
             tbox = annotation.get_window_extent(canvas.renderer)
@@ -879,7 +879,7 @@ class Window(QtGui.QMainWindow):
             pass
             
           symbol_price = get_symbol_price(symbol)
-          item = QtGui.QListWidgetItem("BUY %s MARKET @ %.2f" % (symbol, symbol_price))
+          item = QtGui.QListWidgetItem("BUY %s MARKET @ %.8f" % (symbol, symbol_price))
           self.listWidget_4.addItem(item)
 
           f = open("trades.txt", "a")
@@ -916,7 +916,7 @@ class Window(QtGui.QMainWindow):
             pass
           
           symbol_price = get_symbol_price(symbol)
-          item = QtGui.QListWidgetItem("SELL %s MARKET %.2f" % (symbol, symbol_price))
+          item = QtGui.QListWidgetItem("SELL %s MARKET %.8f" % (symbol, symbol_price))
           self.listWidget_4.addItem(item)
           f = open("trades.txt", "a")
           f.write("SELL %s MARKET @ %.8f\n" % (symbol, symbol_price))
