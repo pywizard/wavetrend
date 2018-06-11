@@ -443,7 +443,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             
             if config[symbol_with_timeframe].trade_all_crossings == True:
               wt_was_rising = wt_rising
-              if wt_rising == True
+              if wt_rising == True:
                 buy = True
             else:
               if cross_buy:
