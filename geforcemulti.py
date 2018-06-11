@@ -434,7 +434,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             if cross_buy == True:
               cross = abs(diff) > abs(buy_diff) and config[symbol_with_timeframe].trade_auto == True
             elif cross_sell == True:
-              cross = abs(diff) < abs(sell_diff) and config[symbol_with_timeframe].trade_auto == True
+              cross = abs(diff) > abs(sell_diff) and config[symbol_with_timeframe].trade_auto == True
             
           if cross == True:
             print symbol + " INTERSECTION!!!"
