@@ -289,8 +289,6 @@ def run_geforce(symbol, tab_index, timeframe_entered):
     time.sleep(2)
 
     days_entered = days_table[timeframe_entered]
-    bought = False
-    sold = False
 
     to_sell = 0
 
@@ -443,12 +441,12 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             
             if config[symbol_with_timeframe].trade_all_crossings == True:
               wt_was_rising = wt_rising
-              buy = wt_rising == True and not bought
+              buy = wt_rising == True
             else:
               if cross_buy:
                 wt_line_was_below_53 = wt_line_below_53
               
-              buy = cross_buy and not bought
+              buy = cross_buy
               
             if buy == True:
                 #buy
@@ -490,8 +488,6 @@ def run_geforce(symbol, tab_index, timeframe_entered):
                   else:
                     to_sell = truncate(float(client.get_asset_balance(get_asset_from_symbol(symbol))["free"]), 2)
                   print "TO SELL: " + str(to_sell)
-                  bought = True
-                  sold = False
                   f = open("trades.txt", "a")
                   f.write("BUY %s MARKET @ %.8f\n" % (symbol, symbol_price))
                   f.close()
@@ -500,12 +496,12 @@ def run_geforce(symbol, tab_index, timeframe_entered):
 
             if config[symbol_with_timeframe].trade_all_crossings == True:
               wt_was_rising = wt_rising
-              sell = wt_rising == False and not sold
+              sell = wt_rising == False
             else:
               if cross_sell:
                 wt_line_was_above_53 = wt_line_above_53
               
-              sell = cross_sell and not sold
+              sell = cross_sell
               
             if sell == True:
                 #sell
@@ -534,8 +530,6 @@ def run_geforce(symbol, tab_index, timeframe_entered):
                     prev_trade_time = datetime.datetime.now()
                   except:
                     print get_full_stacktrace()
-                  bought = False
-                  sold = True
                   f = open("trades.txt", "a")
                   f.write("SELL %s MARKET @ %.8f\n" % (symbol, symbol_price))
                   f.close()
@@ -1248,4 +1242,3 @@ if __name__ == "__main__":
   dialog = Dialog()
   dialog.show()
   os._exit(app.exec_())
-  
