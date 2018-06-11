@@ -375,11 +375,11 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             diff = yvalues1[-1] - yvalues2[-1]
             if diff > 0:
               if counter % 15 == 0:
-                print symbol + " Rising Wavetrend %.8f" % abs(diff)
+                print symbol + " " + timeframe_entered + " Rising Wavetrend %.8f" % abs(diff)
               wt_rising = True
             else:
               if counter % 15 == 0:
-                print symbol + " Falling Wavetrend %.8f" % abs(diff)
+                print symbol + " " + timeframe_entered + " Falling Wavetrend %.8f" % abs(diff)
 
           if config[symbol].trade_all_crossings == False:
             if yvalues1[-1] > 53:
@@ -397,16 +397,16 @@ def run_geforce(symbol, tab_index, timeframe_entered):
               diff = -53 - yvalues1[-1]
             
             if counter % 15 == 0 and wt_line_above_53 == True:
-              print symbol + " Wavetrend above 53"
+              print symbol + " " + timeframe_entered + " Wavetrend above 53"
 
             if counter % 15 == 0 and wt_line_above_53 == False:
-              print symbol + " Wavetrend below 53"
+              print symbol + " " + timeframe_entered + " Wavetrend below 53"
 
             if counter % 15 == 0 and wt_line_below_53 == True:
-              print symbol + " Wavetrend below -53"
+              print symbol + " " + timeframe_entered + " Wavetrend below -53"
 
             if counter % 15 == 0 and wt_line_below_53 == False:
-              print symbol + " Wavetrend above -53"
+              print symbol + " " + timeframe_entered + " Wavetrend above -53"
 
           if init == True:
             wt_was_rising = wt_rising
@@ -855,8 +855,6 @@ def getDataBinance(timeframe_entered, days_entered, currency_entered):
 
     return dt, open_, high, low, close, volume, limit
 
-tab_count = 0
-
 from operator import itemgetter
 DIRPATH = os.path.join(os.path.dirname(os.path.abspath(__file__)))
 
@@ -937,7 +935,8 @@ class Window(QtGui.QMainWindow):
             annotation = qs[i].get()
             aqs[i].put(annotation.get_window_extent(self.dcs[i].renderer))
           elif value == CANVAS_DRAW_IDLE:
-            self.dcs[i].draw_idle()
+            if self.tabWidget.currentIndex() == i:
+              self.dcs[i].draw_idle()
             aqs[i].put(0)
         
       if qs_local.qsize() > 0:
@@ -956,7 +955,7 @@ class Window(QtGui.QMainWindow):
       print "BUY"
       
       asset_balance = 0
-      symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
+      symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[0]
       symbol_price = get_symbol_price(symbol)
 
       amount_per_trade = translate_buy_amount_percent_reversed(self.comboBox_5.currentIndex())
@@ -999,7 +998,7 @@ class Window(QtGui.QMainWindow):
 
       print "SELL"
       
-      symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
+      symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[0]
       amount_per_trade = translate_buy_amount_percent_reversed(self.comboBox_5.currentIndex())
       
       sell_amount = truncate(float(client.get_asset_balance(get_asset_from_symbol(symbol))["free"]) * amount_per_trade, 2)
@@ -1039,7 +1038,7 @@ class Window(QtGui.QMainWindow):
         QtGui.QMessageBox.information(self, "WAVETREND ROBOT", "Entered sell theshold is not a number")
         return
         
-      selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
+      selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[0]
       if self.checkBox_4.isChecked() == True:
         config[selected_symbol].trade_auto = True
       else:
@@ -1070,7 +1069,7 @@ class Window(QtGui.QMainWindow):
       main.label_15.setText(quote.upper() + " Balance: " + quote_balance)      
     
     def tabOnChange(self, event):
-      selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
+      selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[0]
       symbol = selected_symbol
       main.groupBox.setTitle(selected_symbol)
       self.checkBox_4.setChecked(config[selected_symbol].trade_auto)
@@ -1083,8 +1082,9 @@ class Window(QtGui.QMainWindow):
       
     def addTab(self, symbol, timeframe_entered):
       self.tab_widgets.append(QtGui.QWidget())
-      tab_index = self.tabWidget.addTab(self.tab_widgets[-1], symbol)
+      tab_index = self.tabWidget.addTab(self.tab_widgets[-1], symbol + " " + timeframe_entered)
       self.tabWidget.setCurrentWidget(self.tab_widgets[-1])
+      main.tabWidget.setTabIcon(tab_index, QtGui.QIcon("coin.ico"))
       widget = QtGui.QVBoxLayout(self.tabWidget.widget(tab_index))
       dc = MplCanvas(self.tabWidget.widget(tab_index), dpi=100, symbol=symbol)
       widget.addWidget(dc)
@@ -1209,7 +1209,8 @@ class Dialog(QtGui.QDialog):
         if not main_shown:
           main = Window(symbol, timeframe_entered)
           main.updateBalances(symbol)
-          main.tabWidget.setTabText(main.tabWidget.count()-1, symbol)
+          main.tabWidget.setTabText(0, symbol + " " + timeframe_entered)
+          main.tabWidget.setTabIcon(0, QtGui.QIcon("coin.ico"))
           main.groupBox.setTitle(symbol)
           main.show()
           main_shown = True
