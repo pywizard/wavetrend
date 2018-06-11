@@ -533,7 +533,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
 
           ticker = prices[-1][4]
 
-          in_time = datetime.datetime.now()          
+          in_time = datetime.datetime.now()
           if timeframe_entered == "1m":
             in_time = ceil_dt(in_time, 60)
           elif timeframe_entered == "5m":
@@ -544,37 +544,22 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             in_time = ceil_dt(in_time, 30*60)
           elif timeframe_entered == "1h":            
             in_time = ceil_dt(in_time, 60*60)
-          elif timeframe_entered == "4h":
-            in_time = ceil_dt(in_time, 60*60*4)
-          elif timeframe_entered == "6h":
-            in_time = ceil_dt(in_time, 60*60*6)
-          elif timeframe_entered == "12h":
-            in_time = ceil_dt(in_time, 60*60*12)
-          elif timeframe_entered == "1d":
-            in_time = ceil_dt(in_time, 60*60*24)
 
           duration = in_time - datetime.datetime.now()
-          if duration.seconds < 60:
+          if duration.seconds <= 60:
             days, seconds = duration.days, duration.seconds
             hours = days * 24 + seconds // 3600
             minutes = (seconds % 3600) // 60
             seconds = seconds % 60
             time_to_hour = "%02d" % (seconds)
 
-          elif duration.seconds < 60*60:
+          elif duration.seconds <= 60*60*60:
             days, seconds = duration.days, duration.seconds
             hours = days * 24 + seconds // 3600
             minutes = (seconds % 3600) // 60
             seconds = seconds % 60
             time_to_hour = "%02d:%02d" % (minutes, seconds)
 
-          else:
-            days, seconds = duration.days, duration.seconds
-            hours = days * 24 + seconds // 3600
-            minutes = (seconds % 3600) // 60
-            seconds = seconds % 60
-            time_to_hour = "%02d:%02d:%02d" % (hours, minutes, seconds)          
-            
           if first == True:
             price_line = ax.axhline(ticker, color='black', linestyle="dotted", lw=.7)
             if symbol.endswith("USDT"):
@@ -582,15 +567,16 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             else:
               annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, "%.8f" % ticker, fontsize=7, color='black')
             annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
-            
+
             qs[tab_index].put(CANVAS_GET_SIZE)
             qs[tab_index].put(annotation)
             tbox = aqs[tab_index].get()
-            
+          
             dbox = tbox.transformed(ax.transData.inverted())
             y0 = dbox.height * 2.4
-            time_annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker - y0, time_to_hour, fontsize=7, color='black')
-            time_annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
+            if timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:
+              time_annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker - y0, time_to_hour, fontsize=7, color='black')
+              time_annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
           else:
             price_line.set_ydata(ticker)
             
@@ -601,16 +587,16 @@ def run_geforce(symbol, tab_index, timeframe_entered):
               
             annotation.set_y(ticker)
             annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
-            
             qs[tab_index].put(CANVAS_GET_SIZE)
             qs[tab_index].put(annotation)
             tbox = aqs[tab_index].get()
             
             dbox = tbox.transformed(ax.transData.inverted())
             y0 = dbox.height * 2.4
-            time_annotation.set_text(time_to_hour)
-            time_annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
-            time_annotation.set_y(ticker - y0)
+            if timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:            
+              time_annotation.set_text(time_to_hour)
+              time_annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
+              time_annotation.set_y(ticker - y0)
 
           if init == True:
             xl = ax.get_xlim()
