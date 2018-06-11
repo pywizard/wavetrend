@@ -91,7 +91,7 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
 
     colorup = "white"
     colordown = "black"
-    
+
     if first == False:
       quotes = [quotes[-1]]
     for q in quotes:
@@ -310,10 +310,20 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             qs[tab_index].put(FIGURE_ADD_SUBPLOT)
             ax = aqs[tab_index].get()
             ax3 = ax.twinx()
+            first_candle_date = date[0]
 
           prices = []
           for i in range(0, len(date)):
               prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
+
+          if first_candle_date != date[0] and first == False:          
+            qs[tab_index].put(FIGURE_CLEAR)
+            aqs[tab_index].get()
+            first = True
+            last_line1 = None
+            last_line2 = None
+            last_rect = None
+            continue
 
           prices2 = [x[4] for x in prices]
           dates2 = [x[0] for x in prices]
@@ -542,23 +552,15 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             in_time = ceil_dt(in_time, 15*60)
           elif timeframe_entered == "30m":
             in_time = ceil_dt(in_time, 30*60)
-          elif timeframe_entered == "1h":            
+          elif timeframe_entered == "1h":
             in_time = ceil_dt(in_time, 60*60)
 
           duration = in_time - datetime.datetime.now()
-          if duration.seconds <= 60:
-            days, seconds = duration.days, duration.seconds
-            hours = days * 24 + seconds // 3600
-            minutes = (seconds % 3600) // 60
-            seconds = seconds % 60
-            time_to_hour = "%02d" % (seconds)
-
-          elif duration.seconds <= 60*60*60:
-            days, seconds = duration.days, duration.seconds
-            hours = days * 24 + seconds // 3600
-            minutes = (seconds % 3600) // 60
-            seconds = seconds % 60
-            time_to_hour = "%02d:%02d" % (minutes, seconds)
+          days, seconds = duration.days, duration.seconds
+          hours = days * 24 + seconds // 3600
+          minutes = (seconds % 3600) // 60
+          seconds = seconds % 60
+          time_to_hour = "%02d:%02d" % (minutes, seconds)
 
           if first == True:
             price_line = ax.axhline(ticker, color='black', linestyle="dotted", lw=.7)
@@ -638,6 +640,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             ax3.set_position([bbox.x0, bbox.y0, bbox.width, bbox.height / 4])
             ax.autoscale_view()
             first = False
+
             
           prices[:] = []
           prices2[:] = []
@@ -654,14 +657,6 @@ def run_geforce(symbol, tab_index, timeframe_entered):
                     
         except:
           print get_full_stacktrace()
-
-        if datetime.datetime.now().minute == 0 and datetime.datetime.now().second < 5 and init == False:          
-          qs[tab_index].put(FIGURE_CLEAR)
-          aqs[tab_index].get()
-          first = True
-          last_line1 = None
-          last_line2 = None
-          last_rect = None          
           
         counter = counter + 1
         
