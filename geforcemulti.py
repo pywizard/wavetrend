@@ -46,7 +46,7 @@ class abstract():
 
 config = {}
 
-def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, width=0.2, colorup='white', colordown='black',
+def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, width=0.2, colorup='white', colordown='black',
                  alpha=1.0):
 
     """
@@ -83,7 +83,7 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, width=0.2
 
     """
 
-    width = 0.026
+    width = candle_width
     OFFSET = width / 2.0
 
     lines = []
@@ -267,13 +267,17 @@ CANVAS_GET_SIZE = 3
 CANVAS_DRAW_IDLE = 4
 SHOW_STATUSBAR_MESSAGE = 0
 
-def run_geforce(symbol, tab_index):
+days_table = {"1m": 0.17, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, "4h": 40, "6h": 60, "12h": 120, "1d": 240}
+
+def run_geforce(symbol, tab_index, timeframe_entered):
     global qs
     global aqs
+    global candle_width
+    global days_table
+    
     time.sleep(2)
 
-    timeframe_entered = "1h"
-    days_entered = "10"
+    days_entered = days_table[timeframe_entered]
     bought = False
     sold = False
 
@@ -289,7 +293,7 @@ def run_geforce(symbol, tab_index):
     last_rect = None
     while True:
         try:
-          date, open_, high, low, close, vol = getDataBinance(timeframe_entered, days_entered, symbol)
+          date, open_, high, low, close, vol, limit = getDataBinance(timeframe_entered, days_entered, symbol)
           
           if first == True:
             qs[tab_index].put(FIGURE_ADD_SUBPLOT)
@@ -531,9 +535,9 @@ def run_geforce(symbol, tab_index):
           if first == True:
             price_line = ax.axhline(ticker, color='black', linestyle="dotted", lw=.7)
             if symbol.endswith("USDT"):
-              annotation = ax.text(date[-1] + timedelta(hours=3), ticker, "%.2f" % ticker, fontsize=7, color='black')
+              annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, "%.2f" % ticker, fontsize=7, color='black')
             else:
-              annotation = ax.text(date[-1] + timedelta(hours=3), ticker, "%.8f" % ticker, fontsize=7, color='black')
+              annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, "%.8f" % ticker, fontsize=7, color='black')
             annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
             
             qs[tab_index].put(CANVAS_GET_SIZE)
@@ -542,7 +546,7 @@ def run_geforce(symbol, tab_index):
             
             dbox = tbox.transformed(ax.transData.inverted())
             y0 = dbox.height * 2.4
-            time_annotation = ax.text(date[-1] + timedelta(hours=3), ticker - y0, time_to_hour, fontsize=7, color='black')
+            time_annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker - y0, time_to_hour, fontsize=7, color='black')
             time_annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
           else:
             price_line.set_ydata(ticker)
@@ -565,7 +569,12 @@ def run_geforce(symbol, tab_index):
             time_annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
             time_annotation.set_y(ticker - y0)
 
-          last_line1, last_line2, last_rect = _candlestick(ax, prices, first, last_line1, last_line2, last_rect)
+          if init == True:
+            xl = ax.get_xlim()
+            candle_width = ((dbox.x0 - xl[0]) / limit) * 0.8
+          
+          last_line1, last_line2, last_rect = _candlestick(ax, prices, first, last_line1, last_line2, last_rect, candle_width)
+          
           if first == True:
             ax3.axhline(60, color='red', lw=.8)
             ax3.axhline(-60, color='green', lw=.8)
@@ -769,40 +778,40 @@ def peakdetect(v, delta, x = None):
 def getDataBinance(timeframe_entered, days_entered, currency_entered):
     limit = 0
     if timeframe_entered == "15m":
-        limit = int(days_entered) * 4 * 24
+        limit = int(days_entered * 4 * 24)
 
     if timeframe_entered == "1m":
-        limit = int(days_entered) * 60 * 24
+        limit = int(days_entered * 60 * 24)
 
     if timeframe_entered == "5m":
-        limit = int(days_entered) * 12 * 24
+        limit = int(days_entered * 12 * 24)
 
     if timeframe_entered == "30m":
-        limit = int(days_entered) * 2 * 24
+        limit = int(days_entered * 2 * 24)
 
     if timeframe_entered == "1h":
-        limit = int(days_entered) * 24
+        limit = int(days_entered * 24)
 
     if timeframe_entered == "4h":
-        limit = int(days_entered) *(24/4)
+        limit = int(days_entered * (24/4))
 
     if timeframe_entered == "6h":
-        limit = int(days_entered) * (24/6)
+        limit = int(days_entered * (24/6))
 
     if timeframe_entered == "12h":
-        limit = int(days_entered) * (24/12)
+        limit = int(days_entered * (24/12))
 
     if timeframe_entered == "1d":
         limit = int(days_entered)
 
     if timeframe_entered == "3d":
-        limit = int(days_entered) / 3
+        limit = int(days_entered / 3)
 
     if timeframe_entered == "1w":
-        limit = int(days_entered) / 7
+        limit = int(days_entered / 7)
 
     if timeframe_entered == "1M":
-        limit = int(days_entered) / 31
+        limit = int(days_entered / 31)
 
     dt = []
     open_ = []
@@ -820,7 +829,7 @@ def getDataBinance(timeframe_entered, days_entered, currency_entered):
       close.append(float(candle[4]))
       volume.append(float(candle[5]))
 
-    return dt, open_, high, low, close, volume
+    return dt, open_, high, low, close, volume, limit
 
 tab_count = 0
 
@@ -843,7 +852,7 @@ main_shown = False
 class Window(QtGui.QMainWindow):
     global tab_widgets
     global config
-    def __init__(self, symbol):
+    def __init__(self, symbol, timeframe_entered):
         QtGui.QDialog.__init__(self)
         resolution = QtGui.QDesktopWidget().screenGeometry()
         uic.loadUi(os.path.join(DIRPATH, 'mainwindowqt.ui'), self)
@@ -861,7 +870,7 @@ class Window(QtGui.QMainWindow):
         widget = QtGui.QVBoxLayout(self.tabWidget.widget(0))
         dc = MplCanvas(self.tabWidget.widget(0), dpi=100, symbol=symbol)
         widget.addWidget(dc)
-        
+                
         self.dcs = {}
         self.dcs[0] = dc
         
@@ -873,8 +882,8 @@ class Window(QtGui.QMainWindow):
         timer = QtCore.QTimer(self)
         timer.timeout.connect(self.queue_handler)
         timer.start(1)
-        
-        t = threading.Thread(target=run_geforce, args=(symbol, 0))
+                
+        t = threading.Thread(target=run_geforce, args=(symbol, 0, timeframe_entered))
         t.daemon = True
         t.start()
         
@@ -1048,7 +1057,7 @@ class Window(QtGui.QMainWindow):
       self.comboBox_4.setCurrentIndex(config[selected_symbol].buy_amount_percent_index)
       self.updateBalances(symbol)
       
-    def addTab(self, symbol):
+    def addTab(self, symbol, timeframe_entered):
       self.tab_widgets.append(QtGui.QWidget())
       tab_index = self.tabWidget.addTab(self.tab_widgets[-1], symbol)
       self.tabWidget.setCurrentWidget(self.tab_widgets[-1])
@@ -1062,7 +1071,7 @@ class Window(QtGui.QMainWindow):
       aqs[tab_index] = Queue.Queue()
       self.dcs[tab_index] = dc
       
-      t = threading.Thread(target=run_geforce, args=(symbol, tab_index))
+      t = threading.Thread(target=run_geforce, args=(symbol, tab_index, timeframe_entered))
       t.daemon = True
       t.start()
     
@@ -1070,7 +1079,7 @@ class Window(QtGui.QMainWindow):
       global dialog
       dialog = Dialog()
       dialog.show()
-        
+       
     def update_usdt_balance(self):
       global qslocal
       symbols = client.get_symbol_ticker()
@@ -1160,6 +1169,7 @@ class Dialog(QtGui.QDialog):
       if selectionModel.hasSelection():
         row = self.tableWidget.selectedItems()[0].row()
         symbol = str(self.tableWidget.item(row, 0).text())
+        timeframe_entered = str(self.comboBox.currentText())
   
         config[symbol] = abstract()
         config[symbol].trade_auto = False
@@ -1173,7 +1183,7 @@ class Dialog(QtGui.QDialog):
         global main_shown
 
         if not main_shown:
-          main = Window(symbol)
+          main = Window(symbol, timeframe_entered)
           main.updateBalances(symbol)
           main.tabWidget.setTabText(main.tabWidget.count()-1, symbol)
           main.groupBox.setTitle(symbol)
@@ -1187,7 +1197,7 @@ class Dialog(QtGui.QDialog):
           f.close()
         else:
           main.updateBalances(symbol)
-          main.addTab(symbol)
+          main.addTab(symbol, timeframe_entered)
           main.groupBox.setTitle(symbol)        
         self.close()
 
