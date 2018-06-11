@@ -416,6 +416,8 @@ def run_geforce(symbol, tab_index, timeframe_entered):
           sell_diff = config[symbol_with_timeframe].sell_threshold * -1
           
           cross = False
+          buy = False
+          sell = False
           
           if config[symbol_with_timeframe].trade_all_crossings == True:
             if wt_rising != wt_was_rising and wt_rising == True:
@@ -441,7 +443,8 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             
             if config[symbol_with_timeframe].trade_all_crossings == True:
               wt_was_rising = wt_rising
-              buy = wt_rising == True
+              if wt_rising == True
+                buy = True
             else:
               if cross_buy:
                 wt_line_was_below_53 = wt_line_below_53
@@ -491,7 +494,8 @@ def run_geforce(symbol, tab_index, timeframe_entered):
 
             if config[symbol_with_timeframe].trade_all_crossings == True:
               wt_was_rising = wt_rising
-              sell = wt_rising == False
+              if wt_rising == False:
+                sell = True
             else:
               if cross_sell:
                 wt_line_was_above_53 = wt_line_above_53
