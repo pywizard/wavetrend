@@ -483,11 +483,6 @@ def run_geforce(symbol, tab_index, timeframe_entered):
                   except:
                     print get_full_stacktrace()
                   time.sleep(5)
-                  if symbol.endswith("USDT"):
-                    to_sell = int(truncate(float(client.get_asset_balance("usdt")["free"]), 2))
-                  else:
-                    to_sell = truncate(float(client.get_asset_balance(get_asset_from_symbol(symbol))["free"]), 2)
-                  print "TO SELL: " + str(to_sell)
                   f = open("trades.txt", "a")
                   f.write("BUY %s MARKET @ %.8f\n" % (symbol, symbol_price))
                   f.close()
@@ -514,9 +509,8 @@ def run_geforce(symbol, tab_index, timeframe_entered):
                 print "SELL"
                 
                 asset_balance = truncate(float(client.get_asset_balance(get_asset_from_symbol(symbol))["free"]), 2)
-                
-                if to_sell == 0:
-                  to_sell = asset_balance
+                  
+                to_sell = asset_balance
                 
                 print asset_balance
                 
