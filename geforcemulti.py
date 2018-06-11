@@ -371,7 +371,8 @@ def run_geforce(symbol, tab_index, timeframe_entered):
 
           wt_rising = False
      
-          if config[symbol].trade_all_crossings == True:
+          symbol_with_timeframe = symbol + " " + timeframe_entered
+          if config[symbol_with_timeframe].trade_all_crossings == True:
             diff = yvalues1[-1] - yvalues2[-1]
             if diff > 0:
               if counter % 15 == 0:
@@ -381,7 +382,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
               if counter % 15 == 0:
                 print symbol + " " + timeframe_entered + " Falling Wavetrend %.8f" % abs(diff)
 
-          if config[symbol].trade_all_crossings == False:
+          if config[symbol_with_timeframe].trade_all_crossings == False:
             if yvalues1[-1] > 53:
               wt_line_above_53 = True
               diff = yvalues1[-1] - 53
@@ -413,16 +414,16 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             wt_line_was_above_53 = yvalues1[-1] > 53
             wt_line_was_below_53 = yvalues1[-1] < -53
           
-          buy_diff = config[symbol].buy_threshold
-          sell_diff = config[symbol].sell_threshold * -1
+          buy_diff = config[symbol_with_timeframe].buy_threshold
+          sell_diff = config[symbol_with_timeframe].sell_threshold * -1
           
           cross = False
           
-          if config[symbol].trade_all_crossings == True:
+          if config[symbol_with_timeframe].trade_all_crossings == True:
             if wt_rising != wt_was_rising and wt_rising == True:
-              cross = wt_rising != wt_was_rising and abs(diff) > abs(buy_diff) and config[symbol].trade_auto == True
+              cross = wt_rising != wt_was_rising and abs(diff) > abs(buy_diff) and config[symbol_with_timeframe].trade_auto == True
             elif wt_rising != wt_was_rising and wt_rising == False:
-              cross = wt_rising != wt_was_rising and abs(diff) < abs(sell_diff) and config[symbol].trade_auto == True
+              cross = wt_rising != wt_was_rising and abs(diff) < abs(sell_diff) and config[symbol_with_timeframe].trade_auto == True
           else:
             cross_buy = False
             if wt_line_was_below_53 == True and wt_line_below_53 == False:
@@ -433,14 +434,14 @@ def run_geforce(symbol, tab_index, timeframe_entered):
               cross_sell = True
             
             if cross_buy == True:
-              cross = abs(diff) > abs(buy_diff) and config[symbol].trade_auto == True
+              cross = abs(diff) > abs(buy_diff) and config[symbol_with_timeframe].trade_auto == True
             elif cross_sell == True:
-              cross = abs(diff) < abs(sell_diff) and config[symbol].trade_auto == True
+              cross = abs(diff) < abs(sell_diff) and config[symbol_with_timeframe].trade_auto == True
             
           if cross == True:
             print symbol + " INTERSECTION!!!"
             
-            if config[symbol].trade_all_crossings == True:
+            if config[symbol_with_timeframe].trade_all_crossings == True:
               wt_was_rising = wt_rising
               buy = wt_rising == True and not bought
             else:
@@ -461,7 +462,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
                 asset_balance = 0
                 symbol_price = get_symbol_price(symbol)
 
-                amount_per_trade = translate_buy_amount_percent(config[symbol].buy_amount_percent_index)
+                amount_per_trade = translate_buy_amount_percent(config[symbol_with_timeframe].buy_amount_percent_index)
                 if symbol.endswith("USDT"):
                   asset_balance = float(client.get_asset_balance("usdt")["free"])
                   buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 3)
@@ -497,7 +498,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
                   item = QtGui.QListWidgetItem("BUY %s MARKET @ %.8f" % (symbol, symbol_price))
                   main.listWidget_4.addItem(item)
 
-            if config[symbol].trade_all_crossings == True:
+            if config[symbol_with_timeframe].trade_all_crossings == True:
               wt_was_rising = wt_rising
               sell = wt_rising == False and not sold
             else:
@@ -1038,7 +1039,7 @@ class Window(QtGui.QMainWindow):
         QtGui.QMessageBox.information(self, "WAVETREND ROBOT", "Entered sell theshold is not a number")
         return
         
-      selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[0]
+      selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
       if self.checkBox_4.isChecked() == True:
         config[selected_symbol].trade_auto = True
       else:
@@ -1069,7 +1070,7 @@ class Window(QtGui.QMainWindow):
       main.label_15.setText(quote.upper() + " Balance: " + quote_balance)      
     
     def tabOnChange(self, event):
-      selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[0]
+      selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
       symbol = selected_symbol
       main.groupBox.setTitle(selected_symbol)
       self.checkBox_4.setChecked(config[selected_symbol].trade_auto)
@@ -1192,16 +1193,17 @@ class Dialog(QtGui.QDialog):
       selectionModel = self.tableWidget.selectionModel()
       if selectionModel.hasSelection():
         row = self.tableWidget.selectedItems()[0].row()
-        symbol = str(self.tableWidget.item(row, 0).text())
         timeframe_entered = str(self.comboBox.currentText())
+        symbol = str(self.tableWidget.item(row, 0).text())
+        symbol_with_timeframe = symbol + " " + timeframe_entered
   
-        config[symbol] = abstract()
-        config[symbol].trade_auto = False
-        config[symbol].trade_all_crossings = True
-        config[symbol].trade_lines_only = False
-        config[symbol].buy_threshold = 1.0
-        config[symbol].sell_threshold = 1.0
-        config[symbol].buy_amount_percent_index = 0
+        config[symbol_with_timeframe] = abstract()
+        config[symbol_with_timeframe].trade_auto = False
+        config[symbol_with_timeframe].trade_all_crossings = True
+        config[symbol_with_timeframe].trade_lines_only = False
+        config[symbol_with_timeframe].buy_threshold = 1.0
+        config[symbol_with_timeframe].sell_threshold = 1.0
+        config[symbol_with_timeframe].buy_amount_percent_index = 0
   
         global main
         global main_shown
@@ -1211,7 +1213,7 @@ class Dialog(QtGui.QDialog):
           main.updateBalances(symbol)
           main.tabWidget.setTabText(0, symbol + " " + timeframe_entered)
           main.tabWidget.setTabIcon(0, QtGui.QIcon("coin.ico"))
-          main.groupBox.setTitle(symbol)
+          main.groupBox.setTitle(symbol + " " + timeframe_entered)
           main.show()
           main_shown = True
           f = open("trades.txt")
