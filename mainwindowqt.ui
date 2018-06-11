@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>819</width>
-    <height>557</height>
+    <height>586</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -63,6 +63,13 @@
            <string>Tab 1</string>
           </attribute>
          </widget>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="label">
+         <property name="text">
+          <string/>
+         </property>
         </widget>
        </item>
        <item>

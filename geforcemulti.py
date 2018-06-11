@@ -889,6 +889,9 @@ class Window(QtGui.QMainWindow):
         self.pushButton_4.clicked.connect(self.configAcceptClicked)
         self.toolButton_2.clicked.connect(self.buy_clicked)
         self.toolButton_3.clicked.connect(self.sell_clicked)
+        self.label.setPixmap(QtGui.QPixmap("arrowr.png").scaled(16,16))
+        self.expanded = True
+        self.label.mousePressEvent = self.expand_collapse
     
         widget = QtGui.QVBoxLayout(self.tabWidget.widget(0))
         dc = MplCanvas(self.tabWidget.widget(0), dpi=100, symbol=symbol)
@@ -946,6 +949,16 @@ class Window(QtGui.QMainWindow):
           message = qs_local.get()
           self.statusbar.showMessage(message)
                 
+    def expand_collapse(self, event):
+      if self.expanded == True:
+        self.label.setPixmap(QtGui.QPixmap("arrowl.png").scaled(16,16))
+        self.groupBox.hide()
+        self.expanded = False
+      else:
+        self.label.setPixmap(QtGui.QPixmap("arrowr.png").scaled(16,16))
+        self.groupBox.show()
+        self.expanded = True
+        
     def buy_clicked(self, event):
       if is_windows:
         import win32api
