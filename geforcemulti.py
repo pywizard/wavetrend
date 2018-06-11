@@ -269,6 +269,17 @@ SHOW_STATUSBAR_MESSAGE = 0
 
 days_table = {"1m": 0.17, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, "4h": 40, "6h": 60, "12h": 120, "1d": 240}
 
+def ceil_dt(dt, seconds):
+    # how many secs have passed this hour
+    nsecs = dt.minute*60 + dt.second + dt.microsecond*1e-6  
+    # number of seconds to next quarter hour mark
+    # Non-analytic (brute force is fun) way:  
+    #   delta = next(x for x in xrange(0,3601,900) if x>=nsecs) - nsecs
+    # analytic way:
+    delta = math.ceil(nsecs / seconds) * seconds - nsecs
+    #time + number of seconds to quarter hour mark.
+    return dt + datetime.timedelta(seconds=delta)
+
 def run_geforce(symbol, tab_index, timeframe_entered):
     global qs
     global aqs
@@ -521,17 +532,49 @@ def run_geforce(symbol, tab_index, timeframe_entered):
                   main.listWidget_4.addItem(item)
 
           ticker = prices[-1][4]
-          in_one_hour = datetime.datetime.now()
-          in_one_hour = in_one_hour.replace(minute = 0, second = 0)
-          in_one_hour = in_one_hour + timedelta(hours=1)
-          duration = in_one_hour - datetime.datetime.now()
-          
-          days, seconds = duration.days, duration.seconds
-          hours = days * 24 + seconds // 3600
-          minutes = (seconds % 3600) // 60
-          seconds = seconds % 60
-          time_to_hour = "%02d:%02d" % (minutes, seconds)
 
+          in_time = datetime.datetime.now()          
+          if timeframe_entered == "1m":
+            in_time = ceil_dt(in_time, 60)
+          elif timeframe_entered == "5m":
+            in_time = ceil_dt(in_time, 5*60)
+          elif timeframe_entered == "15m":
+            in_time = ceil_dt(in_time, 15*60)
+          elif timeframe_entered == "30m":
+            in_time = ceil_dt(in_time, 30*60)
+          elif timeframe_entered == "1h":            
+            in_time = ceil_dt(in_time, 60*60)
+          elif timeframe_entered == "4h":
+            in_time = ceil_dt(in_time, 60*60*4)
+          elif timeframe_entered == "6h":
+            in_time = ceil_dt(in_time, 60*60*6)
+          elif timeframe_entered == "12h":
+            in_time = ceil_dt(in_time, 60*60*12)
+          elif timeframe_entered == "1d":
+            in_time = ceil_dt(in_time, 60*60*24)
+
+          duration = in_time - datetime.datetime.now()
+          if duration.seconds < 60:
+            days, seconds = duration.days, duration.seconds
+            hours = days * 24 + seconds // 3600
+            minutes = (seconds % 3600) // 60
+            seconds = seconds % 60
+            time_to_hour = "%02d" % (seconds)
+
+          elif duration.seconds < 60*60:
+            days, seconds = duration.days, duration.seconds
+            hours = days * 24 + seconds // 3600
+            minutes = (seconds % 3600) // 60
+            seconds = seconds % 60
+            time_to_hour = "%02d:%02d" % (minutes, seconds)
+
+          else:
+            days, seconds = duration.days, duration.seconds
+            hours = days * 24 + seconds // 3600
+            minutes = (seconds % 3600) // 60
+            seconds = seconds % 60
+            time_to_hour = "%02d:%02d:%02d" % (hours, minutes, seconds)          
+            
           if first == True:
             price_line = ax.axhline(ticker, color='black', linestyle="dotted", lw=.7)
             if symbol.endswith("USDT"):
