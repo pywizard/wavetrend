@@ -374,38 +374,38 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             diff = yvalues1[-1] - yvalues2[-1]
             if diff > 0:
               if counter % 15 == 0:
-                print symbol + " " + timeframe_entered + " Rising Wavetrend %.8f" % abs(diff)
+                print symbol + " " + timeframe_entered + " Rising Wavetrend, threshold = %.8f" % abs(diff)
               wt_rising = True
             else:
               if counter % 15 == 0:
-                print symbol + " " + timeframe_entered + " Falling Wavetrend %.8f" % abs(diff)
+                print symbol + " " + timeframe_entered + " Falling Wavetrend, threshold = %.8f" % abs(diff)
 
           if config[symbol_with_timeframe].trade_all_crossings == False:
             if yvalues1[-1] > 53:
               wt_line_above_53 = True
-              diff = yvalues1[-1] - 53
+              diff_top = yvalues1[-1] - 53
             else:
               wt_line_above_53 = False
-              diff = 53 - yvalues1[-1]
+              diff_top = 53 - yvalues1[-1]
             
             if yvalues1[-1] > -53:
               wt_line_below_53 = False
-              diff = yvalues1[-1] - -53
+              diff_bottom = yvalues1[-1] - -53
             else:
               wt_line_below_53 = True
-              diff = -53 - yvalues1[-1]
+              diff_bottom = -53 - yvalues1[-1]
             
             if counter % 15 == 0 and wt_line_above_53 == True:
-              print symbol + " " + timeframe_entered + " Wavetrend above 53"
+              print symbol + " " + timeframe_entered + " Wavetrend above 53, threshold = %.8f" % abs(diff_top)
 
             if counter % 15 == 0 and wt_line_above_53 == False:
-              print symbol + " " + timeframe_entered + " Wavetrend below 53"
+              print symbol + " " + timeframe_entered + " Wavetrend below 53, threshold = %.8f" % abs(diff_top)
 
             if counter % 15 == 0 and wt_line_below_53 == True:
-              print symbol + " " + timeframe_entered + " Wavetrend below -53"
+              print symbol + " " + timeframe_entered + " Wavetrend below -53, threshold = %.8f" % abs(diff_bottom)
 
             if counter % 15 == 0 and wt_line_below_53 == False:
-              print symbol + " " + timeframe_entered + " Wavetrend above -53"
+              print symbol + " " + timeframe_entered + " Wavetrend above -53, threshold = %.8f" % abs(diff_bottom)
 
           if init == True:
             wt_was_rising = wt_rising
@@ -413,7 +413,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             wt_line_was_below_53 = yvalues1[-1] < -53
           
           buy_diff = config[symbol_with_timeframe].buy_threshold
-          sell_diff = config[symbol_with_timeframe].sell_threshold * -1
+          sell_diff = config[symbol_with_timeframe].sell_threshold
           
           cross = False
           buy = False
@@ -428,10 +428,12 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             cross_buy = False
             if wt_line_was_below_53 == True and wt_line_below_53 == False:
               cross_buy = True
+              diff = diff_bottom
             
             cross_sell = False
             if wt_line_was_above_53 == True and wt_line_above_53 == False:
               cross_sell = True
+              diff = diff_top
             
             if cross_buy == True:
               cross = abs(diff) > abs(buy_diff) and config[symbol_with_timeframe].trade_auto == True
