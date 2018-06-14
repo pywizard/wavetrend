@@ -1,0 +1,31 @@
+Traceback (most recent call last):
+  File "c:\Python27\lib\threading.py", line 774, in __bootstrap
+    self.__bootstrap_inner()
+  File "c:\Python27\lib\threading.py", line 801, in __bootstrap_inner
+    self.run()
+  File "c:\Python27\lib\threading.py", line 754, in run
+    self.__target(*self.__args, **self.__kwargs)
+  File "geforcemulti.py", line 305, in run_geforce
+    date, open_, high, low, close, vol, limit = getDataBinance(timeframe_entered, days_entered, symbol)
+  File "geforcemulti.py", line 832, in getDataBinance
+    candles = client.get_klines(symbol=currency_entered, interval=timeframe_entered, limit=limit)
+  File "c:\Python27\lib\site-packages\binance\client.py", line 692, in get_klines
+    return self._get('klines', data=params)
+  File "c:\Python27\lib\site-packages\binance\client.py", line 206, in _get
+    return self._request_api('get', path, signed, version, **kwargs)
+  File "c:\Python27\lib\site-packages\binance\client.py", line 180, in _request_api
+    return self._request(method, uri, signed, **kwargs)
+  File "c:\Python27\lib\site-packages\binance\client.py", line 174, in _request
+    response = getattr(self.session, method)(uri, **kwargs)
+  File "c:\Python27\lib\site-packages\requests\sessions.py", line 521, in get
+    return self.request('GET', url, **kwargs)
+  File "c:\Python27\lib\site-packages\requests\sessions.py", line 508, in request
+    resp = self.send(prep, **send_kwargs)
+  File "c:\Python27\lib\site-packages\requests\sessions.py", line 658, in send
+    r.content
+  File "c:\Python27\lib\site-packages\requests\models.py", line 823, in content
+    self._content = bytes().join(self.iter_content(CONTENT_CHUNK_SIZE)) or bytes()
+  File "c:\Python27\lib\site-packages\requests\models.py", line 748, in generate
+    raise ChunkedEncodingError(e)
+ChunkedEncodingError: ('Connection broken: IncompleteRead(0 bytes read)', IncompleteRead(0 bytes read))
+

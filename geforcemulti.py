@@ -413,7 +413,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
                 if intersect_threshold > buy_threshold:
                     buy_intersect = True
             
-          if config[symbol_with_timeframe].trade_all_crossings == False:
+          if config[symbol_with_timeframe].trade_all_crossings == True:
             wt_difference = yvalues1[-1] - yvalues2[-1]
             if wt_difference > 0:
               wt_rising = True
