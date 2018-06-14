@@ -430,6 +430,13 @@ def run_geforce(symbol, tab_index, timeframe_entered):
                 if abs(wt_difference) > sell_threshold:
                   sell_intersect = True
                   wt_rising_before = wt_rising
+
+          if wt_rising == True:          
+            if counter % 15 == 0:
+              print symbol + " " + timeframe_entered + " Rising Wavetrend, threshold = %.8f" % abs(wt_difference)
+          else:
+            if counter % 15 == 0:
+              print symbol + " " + timeframe_entered + " Falling Wavetrend, threshold = %.8f" % abs(wt_difference)
           
           if counter % 15 == 0 and wt_y_current > 53:
             print symbol + " " + timeframe_entered + " Wavetrend above 53, threshold = %.8f" % (wt_y_current - 53)
