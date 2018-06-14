@@ -367,93 +367,86 @@ def run_geforce(symbol, tab_index, timeframe_entered):
           xl = ax.get_xlim()
           ax.set_xlim(date[start_x], xl[1])
 
-          wt_rising = False
-     
+          wt_y_current = yvalues1[-1]
           symbol_with_timeframe = symbol + " " + timeframe_entered
-          if config[symbol_with_timeframe].trade_all_crossings == True:
-            diff = yvalues1[-1] - yvalues2[-1]
-            if diff > 0:
-              if counter % 15 == 0:
-                print symbol + " " + timeframe_entered + " Rising Wavetrend, threshold = %.8f" % abs(diff)
+          
+          if init == True:
+            wt_y_before = yvalues1[-1]
+            intersect = False
+            intersect_type = "NONE"
+            sell_intersect = False
+            buy_intersect = False
+            buy_threshold = config[symbol_with_timeframe].buy_threshold
+            sell_threshold = config[symbol_with_timeframe].sell_threshold
+            wt_difference = yvalues1[-1] - yvalues2[-1]
+            if wt_difference > 0:
               wt_rising = True
+              wt_rising_before = True
             else:
-              if counter % 15 == 0:
-                print symbol + " " + timeframe_entered + " Falling Wavetrend, threshold = %.8f" % abs(diff)
+              wt_rising = False
+              wt_rising_before = False
+          
+          if wt_y_current > 53:
+            wt_y_before = yvalues1[-1]
+          elif wt_y_current < -53:
+            wt_y_before = yvalues1[-1]  
+          
+          if wt_y_current < 53:
+            if wt_y_before > 53:
+              intersect = True
+              intersect_threshold = 53 - yvalues1[-1]
+              intersect_type = "SELL"
+          
+          if wt_y_current > -53:
+            if wt_y_before < -53:
+              intersect = True
+              intersect_threshold = yvalues1[-1] + 53
+              intersect_type = "BUY"
 
           if config[symbol_with_timeframe].trade_all_crossings == False:
-            if yvalues1[-1] > 53:
-              wt_line_above_53 = True
-              diff_top = yvalues1[-1] - 53
+            if intersect == True:
+              if intersect_type == "SELL":
+                if intersect_threshold > sell_threshold:
+                    sell_intersect = True
+              
+              if intersect_type == "BUY":
+                if intersect_threshold > buy_threshold:
+                    buy_intersect = True
+            
+          if config[symbol_with_timeframe].trade_all_crossings == False:
+            wt_difference = yvalues1[-1] - yvalues2[-1]
+            if wt_difference > 0:
+              wt_rising = True
             else:
-              wt_line_above_53 = False
-              diff_top = 53 - yvalues1[-1]
-            
-            if yvalues1[-1] > -53:
-              wt_line_below_53 = False
-              diff_bottom = yvalues1[-1] - -53
-            else:
-              wt_line_below_53 = True
-              diff_bottom = -53 - yvalues1[-1]
-            
-            if counter % 15 == 0 and wt_line_above_53 == True:
-              print symbol + " " + timeframe_entered + " Wavetrend above 53, threshold = %.8f" % abs(diff_top)
+              wt_rising = False
 
-            if counter % 15 == 0 and wt_line_above_53 == False:
-              print symbol + " " + timeframe_entered + " Wavetrend below 53, threshold = %.8f" % abs(diff_top)
-
-            if counter % 15 == 0 and wt_line_below_53 == True:
-              print symbol + " " + timeframe_entered + " Wavetrend below -53, threshold = %.8f" % abs(diff_bottom)
-
-            if counter % 15 == 0 and wt_line_below_53 == False:
-              print symbol + " " + timeframe_entered + " Wavetrend above -53, threshold = %.8f" % abs(diff_bottom)
-
-          if init == True:
-            wt_was_rising = wt_rising
-            wt_line_was_above_53 = yvalues1[-1] > 53
-            wt_line_was_below_53 = yvalues1[-1] < -53
-          
-          buy_diff = config[symbol_with_timeframe].buy_threshold
-          sell_diff = config[symbol_with_timeframe].sell_threshold
-          
-          cross = False
-          buy = False
-          sell = False
-          
-          if config[symbol_with_timeframe].trade_all_crossings == True:
-            if wt_rising != wt_was_rising and wt_rising == True:
-              cross = wt_rising != wt_was_rising and abs(diff) > abs(buy_diff) and config[symbol_with_timeframe].trade_auto == True
-            elif wt_rising != wt_was_rising and wt_rising == False:
-              cross = wt_rising != wt_was_rising and abs(diff) < abs(sell_diff) and config[symbol_with_timeframe].trade_auto == True
-          else:
-            cross_buy = False
-            if wt_line_was_below_53 == True and wt_line_below_53 == False:
-              cross_buy = True
-              diff = diff_bottom
-            
-            cross_sell = False
-            if wt_line_was_above_53 == True and wt_line_above_53 == False:
-              cross_sell = True
-              diff = diff_top
-            
-            if cross_buy == True:
-              cross = abs(diff) > abs(buy_diff) and config[symbol_with_timeframe].trade_auto == True
-            elif cross_sell == True:
-              cross = abs(diff) > abs(sell_diff) and config[symbol_with_timeframe].trade_auto == True
-            
-          if cross == True:
-            print symbol + " INTERSECTION!!!"
-            
-            if config[symbol_with_timeframe].trade_all_crossings == True:
-              wt_was_rising = wt_rising
+            if wt_rising != wt_rising_before:
               if wt_rising == True:
-                buy = True
-            else:
-              if cross_buy:
-                wt_line_was_below_53 = wt_line_below_53
+                if abs(wt_difference) > buy_threshold:
+                  buy_intersect = True
+                  wt_rising_before = wt_rising
               
-              buy = cross_buy
-              
-            if buy == True:
+              if wt_rising == False:
+                if abs(wt_difference) > sell_threshold:
+                  sell_intersect = True
+                  wt_rising_before = wt_rising
+          
+          if counter % 15 == 0 and wt_y_current > 53:
+            print symbol + " " + timeframe_entered + " Wavetrend above 53, threshold = %.8f" % (wt_y_current - 53)
+
+          if counter % 15 == 0 and wt_y_current < 53:
+            print symbol + " " + timeframe_entered + " Wavetrend below 53, threshold = %.8f" % (53 - wt_y_current)
+
+          if counter % 15 == 0 and wt_y_current < -53:
+            print symbol + " " + timeframe_entered + " Wavetrend below -53, threshold = %.8f" % (-53 - wt_y_current)
+
+          if counter % 15 == 0 and wt_y_current > -53:
+            print symbol + " " + timeframe_entered + " Wavetrend above -53, threshold = %.8f" % (wt_y_current + 53)
+          
+          if buy_intersect == True or sell_intersect == True:            
+            print symbol + " INTERSECTION!!!"
+            if buy_intersect == True:
+                buy_intersect = False
                 #buy
                 if is_windows:
                   import win32api
@@ -493,19 +486,10 @@ def run_geforce(symbol, tab_index, timeframe_entered):
                   f.close()
                   item = QtGui.QListWidgetItem("BUY %s MARKET @ %.8f" % (symbol, symbol_price))
                   main.listWidget_4.addItem(item)
-
-            if config[symbol_with_timeframe].trade_all_crossings == True:
-              wt_was_rising = wt_rising
-              if wt_rising == False:
-                sell = True
-            else:
-              if cross_sell:
-                wt_line_was_above_53 = wt_line_above_53
               
-              sell = cross_sell
-              
-            if sell == True:
+            if sell_intersect == True:
                 #sell
+                sell_intersect = False
                 if is_windows:
                   import win32api
                   gt = client.get_server_time()
