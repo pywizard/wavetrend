@@ -471,14 +471,10 @@ def run_geforce(symbol, tab_index, timeframe_entered):
                 amount_per_trade = translate_buy_amount_percent(config[symbol_with_timeframe].buy_amount_percent_index)
                 if symbol.endswith("USDT"):
                   asset_balance = float(client.get_asset_balance("usdt")["free"])
-                  buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 3)
-                  if buy_amount < truncate((init_btc_balance / symbol_price) * amount_per_trade, 3):
-                      buy_amount = truncate((asset_balance / symbol_price) * 0.99, 3)
+                  buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
                 else:
                   asset_balance = float(client.get_asset_balance("btc")["free"])
                   buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
-                  if buy_amount < truncate((init_btc_balance /symbol_price) * amount_per_trade, 2):
-                      buy_amount = truncate((asset_balance / symbol_price) * 0.99, 2)
                 
                 print buy_amount
 
@@ -964,7 +960,7 @@ class Window(QtGui.QMainWindow):
       amount_per_trade = translate_buy_amount_percent_reversed(self.comboBox_5.currentIndex())
       if symbol.endswith("USDT"):
         asset_balance = float(client.get_asset_balance("usdt")["free"])
-        buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 3)
+        buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
       else:
         asset_balance = float(client.get_asset_balance("btc")["free"])
         buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
