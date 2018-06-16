@@ -456,6 +456,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             print symbol + " INTERSECTION!!!"
             if buy_intersect == True:
                 buy_intersect = False
+                intersect = False
                 #buy
                 if is_windows:
                   import win32api
@@ -499,6 +500,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             if sell_intersect == True:
                 #sell
                 sell_intersect = False
+                intersect = False
                 if is_windows:
                   import win32api
                   gt = client.get_server_time()
