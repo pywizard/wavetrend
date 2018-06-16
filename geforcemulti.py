@@ -408,10 +408,12 @@ def run_geforce(symbol, tab_index, timeframe_entered):
               if intersect_type == "SELL":
                 if intersect_threshold > sell_threshold:
                     sell_intersect = True
+                    wt_y_before = yvalues1[-1]
               
               if intersect_type == "BUY":
                 if intersect_threshold > buy_threshold:
                     buy_intersect = True
+                    wt_y_before = yvalues1[-1]
             
           if config[symbol_with_timeframe].trade_all_crossings == True:
             wt_difference = yvalues1[-1] - yvalues2[-1]
