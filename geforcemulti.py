@@ -31,21 +31,63 @@ import Queue
 from playsound import playsound
 import ccxt
 
-from binance.client import Client
-client = Client(api_key, api_secret)
-
-is_windows = False
-if platform.system() == "Windows":
-  is_windows = True
-  is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
-  if not is_admin:
-    print "Please run this program as Admin, since it requires to configure the system time."
-    sys.exit(1)
-
-import win32api
-gt = client.get_server_time()
-tt=time.gmtime(int((gt["serverTime"])/1000))
-win32api.SetSystemTime(tt[0],tt[1],0,tt[2],tt[3],tt[4],tt[5],0)
+if exchange == "HITBTC":
+  client = ccxt.hitbtc2({
+   'apiKey': api_key,
+   'secret': api_secret,
+   'enableRateLimit': True
+  })
+elif exchange == "BINANCE":
+   client = ccxt.binance({
+   'apiKey': api_key,
+   'secret': api_secret,
+   'enableRateLimit': True
+  }) 
+elif exchange == "BITSTAMP":
+   client = ccxt.bitstamp({
+   'apiKey': api_key,
+   'secret': api_secret,
+   'enableRateLimit': True
+  })
+elif exchange == "GEMINI":
+   client = ccxt.gemini({
+   'apiKey': api_key,
+   'secret': api_secret,
+   'enableRateLimit': True
+  })
+elif exchange == "OKEX":
+   client = ccxt.okex({
+   'apiKey': api_key,
+   'secret': api_secret,
+   'enableRateLimit': True
+  })
+elif exchange == "BITMEX":
+   client = ccxt.bitmex({
+   'apiKey': api_key,
+   'secret': api_secret,
+   'enableRateLimit': True
+  })
+elif exchange == "GDAX":
+   client = ccxt.gdax({
+   'apiKey': api_key,
+   'secret': api_secret,
+   'enableRateLimit': True
+  })
+elif exchange == "KRAKEN":
+   client = ccxt.kraken({
+   'apiKey': api_key,
+   'secret': api_secret,
+   'enableRateLimit': True
+  })
+elif exchange == "BITTREX":
+   client = ccxt.bittrex({
+   'apiKey': api_key,
+   'secret': api_secret,
+   'enableRateLimit': True
+  })
+else:
+  print "Please configure a valid Exchange."
+  sys.exit(1)
 
 class abstract():
   pass
@@ -114,6 +156,7 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
 
         if close >= open:
             color = colorup
+            color2 = colorup2
             lower = open
             higher = close
             height = close - open
@@ -141,6 +184,7 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
             )
         else:
             color = colordown
+            color2 = colordown2
             lower = close
             higher = open
             height = open - close
@@ -183,6 +227,7 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
           last_rect.set_y(lower)
           last_rect.set_height(height)
           last_rect.set_facecolor(color)
+          last_rect.set_edgecolor(color2)
         
     ax.autoscale_view()
 
@@ -218,10 +263,8 @@ class abstract():
   pass
 
 def get_symbol_price(symbol):
-  prices = client.get_all_tickers()
-  for sym in prices:
-    if sym["symbol"] == symbol.upper():
-      return float(sym["price"])
+  sym = client.fetch_ticker(symbol)
+  return float(sym["last"])
 
 def get_full_stacktrace():
     import traceback, sys
@@ -250,26 +293,10 @@ def truncate(f, n):
     return math.floor(f * 10 ** n) / 10 ** n
 
 def get_asset_from_symbol(symbol):
-  asset = ""
-  if symbol == "BTCUSDT":
-    asset = "BTC"
-  elif symbol.find("BTC") > -1:
-    asset = symbol.split("BTC")[0]
-  elif symbol.find("USDT") > -1:
-    asset = symbol.split("USDT")[0]
-
-  return asset.lower()
+  return symbol.split("/")[0]
 
 def get_quote_from_symbol(symbol):
-  quote = ""
-  if symbol == "BTCUSDT":
-    quote = "USDT"
-  elif symbol.find("BTC") > -1:
-    quote = "BTC"
-  elif symbol.find("USDT") > -1:
-    quote = "USDT"
-
-  return quote.lower()
+  return symbol.split("/")[1]
 
 def translate_buy_amount_percent(index):
   if index == 0:
@@ -337,7 +364,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
     last_rect = None
     while True:
         try:
-          date, open_, high, low, close, vol, limit = getDataBinance(timeframe_entered, days_entered, symbol)
+          date, open_, high, low, close, vol, limit = getData(timeframe_entered, days_entered, symbol)
           
           if first == True:
             qs[tab_index].put(FIGURE_ADD_SUBPLOT)
@@ -493,20 +520,17 @@ def run_geforce(symbol, tab_index, timeframe_entered):
                 buy_intersect = False
                 intersect = False
                 #buy
-                if is_windows:
-                  import win32api
-                  gt = client.get_server_time()
-                  tt=time.gmtime(int((gt["serverTime"])/1000))
-                  win32api.SetSystemTime(tt[0],tt[1],0,tt[2],tt[3],tt[4],tt[5],0)
-
                 print "BUY"
                 asset_balance = 0
                 symbol_price = get_symbol_price(symbol)
 
                 amount_per_trade = translate_buy_amount_percent(config[symbol_with_timeframe].buy_amount_percent_index)
                 if symbol.endswith("USDT"):
-                  asset_balance = float(client.get_asset_balance("usdt")["free"])
+                  asset_balance = float(client.fetch_balance("USDT")["free"])
                   buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
+                elif symbol.endswith("USD"):
+                  asset_balance = float(client.fetch_balance("USD")["free"])
+                  buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)                  
                 else:
                   asset_balance = float(client.get_asset_balance("btc")["free"])
                   buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
@@ -515,7 +539,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
 
                 if buy_amount != 0:
                   try:
-                    order = client.order_market_buy(symbol=symbol, quantity=buy_amount)
+                    order = client.create_market_buy_order(symbol, buy_amount)
                     playsound("beep.wav")
                     main.updateBalances(symbol)
                     prev_trade_time = datetime.datetime.now()
@@ -532,15 +556,9 @@ def run_geforce(symbol, tab_index, timeframe_entered):
                 #sell
                 sell_intersect = False
                 intersect = False
-                if is_windows:
-                  import win32api
-                  gt = client.get_server_time()
-                  tt=time.gmtime(int((gt["serverTime"])/1000))
-                  win32api.SetSystemTime(tt[0],tt[1],0,tt[2],tt[3],tt[4],tt[5],0)
-
                 print "SELL"
                 
-                asset_balance = truncate(float(client.get_asset_balance(get_asset_from_symbol(symbol))["free"]), 2)
+                asset_balance = truncate(float(client.fetch_balance(get_asset_from_symbol(symbol))["free"]), 2)
                   
                 to_sell = asset_balance
                 
@@ -550,7 +568,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
                   symbol_price = get_symbol_price(symbol)
                   print to_sell
                   try:
-                    order = client.order_market_sell(symbol=symbol, quantity=to_sell)
+                    order = client.create_market_sell_order(symbol, to_sell)
                     playsound("beep.wav")
                     main.updateBalances(symbol)
                     prev_trade_time = datetime.datetime.now()
@@ -585,7 +603,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
 
           if first == True:
             price_line = ax.axhline(ticker, color='gray', linestyle="dotted", lw=.9)
-            if symbol.endswith("USDT"):
+            if symbol.endswith("USDT") or symbol.endswith("USD"):
               annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, "%.2f" % ticker, fontsize=7, color=white)
             else:
               annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, "%.8f" % ticker, fontsize=7, color=white)
@@ -603,7 +621,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
           else:
             price_line.set_ydata(ticker)
             
-            if symbol.endswith("USDT"):
+            if symbol.endswith("USDT") or symbol.endswith("USD"):
               annotation.set_text("%.2f" % ticker)
             else:
               annotation.set_text("%.8f" % ticker)
@@ -828,7 +846,7 @@ def peakdetect(v, delta, x = None):
 
     return maxtab, mintab
 
-def getDataBinance(timeframe_entered, days_entered, currency_entered):
+def getData(timeframe_entered, days_entered, currency_entered):
     limit = 0
     if timeframe_entered == "15m":
         limit = int(days_entered * 4 * 24)
@@ -872,7 +890,7 @@ def getDataBinance(timeframe_entered, days_entered, currency_entered):
     low = []
     close = []
     volume = []
-    candles = client.get_klines(symbol=currency_entered, interval=timeframe_entered, limit=limit)
+    candles = client.fetch_ohlcv(currency_entered, timeframe_entered, limit=limit)
 
     for candle in candles:
       dt.append(datetime.datetime.fromtimestamp(int(candle[0]) / 1e3))
@@ -907,6 +925,7 @@ class Window(QtGui.QMainWindow):
         QtGui.QDialog.__init__(self)
         resolution = QtGui.QDesktopWidget().screenGeometry()
         uic.loadUi(os.path.join(DIRPATH, 'mainwindowqt.ui'), self)
+        self.setWindowTitle("WAVETREND ROBOT - " + exchange)
         self.setGeometry(0, 0, int(resolution.width()/1.1), int(resolution.height()/1.2))
         self.move((resolution.width() / 2) - (self.frameSize().width() / 2),
                   (resolution.height() / 2) - (self.frameSize().height() / 2))         
@@ -990,12 +1009,6 @@ class Window(QtGui.QMainWindow):
         self.expanded = True
         
     def buy_clicked(self, event):
-      if is_windows:
-        import win32api
-        gt = client.get_server_time()
-        tt=time.gmtime(int((gt["serverTime"])/1000))
-        win32api.SetSystemTime(tt[0],tt[1],0,tt[2],tt[3],tt[4],tt[5],0)
-
       print "BUY"
       
       asset_balance = 0
@@ -1004,10 +1017,13 @@ class Window(QtGui.QMainWindow):
 
       amount_per_trade = translate_buy_amount_percent_reversed(self.comboBox_5.currentIndex())
       if symbol.endswith("USDT"):
-        asset_balance = float(client.get_asset_balance("usdt")["free"])
+        asset_balance = float(client.fetch_balance("USDT")["free"])
         buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
+      elif symbol.endswith("USD"):
+        asset_balance = float(client.fetch_balance("USD")["free"])
+        buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)        
       else:
-        asset_balance = float(client.get_asset_balance("btc")["free"])
+        asset_balance = float(client.fetch_balance("BTC")["free"])
         buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
       
       if buy_amount == 0:
@@ -1020,7 +1036,7 @@ class Window(QtGui.QMainWindow):
       if reply == QtGui.QMessageBox.Yes:
           symbol_price = get_symbol_price(symbol)
           try:
-            client.order_market_buy(symbol=symbol, quantity=buy_amount)
+            client.create_market_buy_order(symbol, buy_amount)
             playsound("beep.wav")
             self.updateBalances(symbol)
           except:
@@ -1034,18 +1050,12 @@ class Window(QtGui.QMainWindow):
           f.write("BUY %s MARKET @ %.8f\n" % (symbol, symbol_price))
           f.close()
     def sell_clicked(self, event):
-      if is_windows:
-        import win32api
-        gt = client.get_server_time()
-        tt=time.gmtime(int((gt["serverTime"])/1000))
-        win32api.SetSystemTime(tt[0],tt[1],0,tt[2],tt[3],tt[4],tt[5],0)
-
       print "SELL"
       
       symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[0]
       amount_per_trade = translate_buy_amount_percent_reversed(self.comboBox_5.currentIndex())
       
-      sell_amount = truncate(float(client.get_asset_balance(get_asset_from_symbol(symbol))["free"]) * amount_per_trade, 2)
+      sell_amount = truncate(float(client.fetch_balance(get_asset_from_symbol(symbol))["free"]) * amount_per_trade, 2)
 
       if sell_amount == 0:
         return
@@ -1056,7 +1066,7 @@ class Window(QtGui.QMainWindow):
 
       if reply == QtGui.QMessageBox.Yes:
           try: 
-            client.order_market_sell(symbol=symbol, quantity=sell_amount)
+            client.create_market_sell_order(symbol, sell_amount)
             playsound("beep.wav")
             self.updateBalances(symbol)
           except:
@@ -1106,11 +1116,11 @@ class Window(QtGui.QMainWindow):
     
     def updateBalances(self, symbol):
       asset = get_asset_from_symbol(symbol)
-      asset_balance = client.get_asset_balance(asset)["free"]
-      main.label_14.setText(asset.upper() + " Balance: " + asset_balance)
+      asset_balance = client.fetch_balance()[asset]["free"]
+      main.label_14.setText(asset.upper() + " Balance: " + str(asset_balance))
       quote = get_quote_from_symbol(symbol)
-      quote_balance = client.get_asset_balance(quote)["free"]
-      main.label_15.setText(quote.upper() + " Balance: " + quote_balance)      
+      quote_balance = client.fetch_balance()[quote]["free"]
+      main.label_15.setText(quote.upper() + " Balance: " + str(quote_balance)) 
     
     def tabOnChange(self, event):
       selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
@@ -1150,47 +1160,61 @@ class Window(QtGui.QMainWindow):
        
     def update_usdt_balance(self):
       global qslocal
-      symbols = client.get_symbol_ticker()
+      symbols = client.fetch_tickers()
       self.usdt_symbols = []
       self.btc_symbols = []
-      for symbol in symbols:
-        if symbol["symbol"].endswith("USDT"):
-          self.usdt_symbols.append(symbol["symbol"])      
-        if symbol["symbol"].endswith("BTC"):
-          self.btc_symbols.append(symbol["symbol"])
+      for symbol,value in symbols.iteritems():
+        if symbol.endswith("USDT"):
+          self.usdt_symbols.append(symbol) 
+        if symbol.endswith("USD"):
+          self.usdt_symbols.append(symbol)
+        if symbol.endswith("BTC"):
+          self.btc_symbols.append(symbol)
       
       while True:
         time.sleep(5)
         try:
-          account = client.get_account()
-          ticker = client.get_ticker()
-          balances = account["balances"]
+          ticker = client.fetch_tickers()
+          balances = client.fetch_balance()
           usdt_balance = 0
           
-          btc_price = get_symbol_price("BTCUSDT")
-          for balance in balances:
+          if "BTC/USDT" in ticker:
+            btcusd_symbol = "BTC/USDT"
+          else:
+            btcusd_symbol = "BTC/USD"
+          
+          btc_price = get_symbol_price(btcusd_symbol)
+          for balance_symbol, balance in balances.iteritems():
+            if "free" not in balance:
+              continue
             if float(balance["free"]) == 0.0:
               continue
-            if balance["asset"] == "USDT":
+            if balance_symbol == "USDT":
               usdt_balance = usdt_balance + float(balance["free"])
-            elif balance["asset"] + "USDT" in self.usdt_symbols:
-              for symbol in ticker:
-                if symbol["symbol"] == balance["asset"] + "USDT":
-                  symbol_price = float(symbol["lastPrice"])
+            elif balance_symbol + "/USDT" in self.usdt_symbols:
+              for symbol_name,symbol in ticker.iteritems():
+                if symbol_name == balance_symbol + "/USDT":
+                  symbol_price = float(symbol["last"])
                   break
-              
               usdt_balance = usdt_balance + float(balance["free"]) * symbol_price
-            elif balance["asset"] + "BTC" in self.btc_symbols:
-              for symbol in ticker:
-                if symbol["symbol"] == balance["asset"] + "BTC":
-                  symbol_price = float(symbol["lastPrice"])
+            elif balance_symbol + "/USD" in self.usdt_symbols:
+              for symbol_name,symbol in ticker.iteritems():
+                if symbol_name == balance_symbol + "/USD":
+                  symbol_price = float(symbol["last"])
+                  break
+              usdt_balance = usdt_balance + float(balance["free"]) * symbol_price
+            elif balance_symbol + "/BTC" in self.btc_symbols:
+              for symbol_name,symbol in ticker.iteritems():
+                if symbol_name == balance_symbol + "/BTC":
+                  symbol_price = float(symbol["last"])
                   break
               usdt_balance = usdt_balance + float(balance["free"]) * symbol_price * btc_price
         
           qs_local.put(SHOW_STATUSBAR_MESSAGE)
-          qs_local.put("My Balance: " + "%.2f" % usdt_balance + " USDT")          
+          qs_local.put("USD Balance: " + "%.2f" % usdt_balance)
         except:
-          pass
+          print get_full_stacktrace()
+          
         time.sleep(35)
     
 class Dialog(QtGui.QDialog):
@@ -1199,16 +1223,25 @@ class Dialog(QtGui.QDialog):
         QtGui.QDialog.__init__(self)
         uic.loadUi(os.path.join(DIRPATH, 'windowqt.ui'), self)
         
-        coins = client.get_ticker()
-        btc_price = get_symbol_price("BTCUSDT")
+        coins = client.fetchTickers()
+
+        if "BTC/USDT" in coins:
+          btcusd_symbol = "BTC/USDT"
+        else:
+          btcusd_symbol = "BTC/USD"
+        
+        btc_price = get_symbol_price(btcusd_symbol)
         coins_ = []
-        for coin in coins:
-            if coin["symbol"].endswith("BTC"):
-              coin["volumeFloat"] =int(float(coin["quoteVolume"]) * btc_price)
-              coins_.append(coin)
-            if coin["symbol"].endswith("USDT"):
-              coin["volumeFloat"] = int(float(coin["quoteVolume"]))
-              coins_.append(coin)
+        for coin, value in coins.iteritems():            
+            if coin.endswith("BTC"):
+              coins[coin]["volumeFloat"] =int(float(coins[coin]["quoteVolume"]) * btc_price)
+              coins_.append(coins[coin])
+            if coin.endswith("USDT"):
+              coins[coin]["volumeFloat"] = int(float(coins[coin]["quoteVolume"]))
+              coins_.append(coins[coin])
+            if coin.endswith("USD"):
+              coins[coin]["volumeFloat"] = int(float(coins[coin]["quoteVolume"]))
+              coins_.append(coins[coin])
         coins = sorted(coins_, key=itemgetter("volumeFloat"), reverse=True)
         
         self.tableWidget.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
@@ -1218,19 +1251,22 @@ class Dialog(QtGui.QDialog):
             rowPosition = self.tableWidget.rowCount() - 1
             self.tableWidget.insertRow(rowPosition)
             self.tableWidget.setItem(rowPosition, 0, QtGui.QTableWidgetItem(coin["symbol"]))
-            self.tableWidget.setItem(rowPosition, 1, QtGui.QTableWidgetItem(coin["priceChange"]))
-            self.tableWidget.setItem(rowPosition, 2, QtGui.QTableWidgetItem(coin["priceChangePercent"]))
+            if "change" in coin and coin["change"]:
+              self.tableWidget.setItem(rowPosition, 1, QtGui.QTableWidgetItem(str("%.08f" % coin["change"])))
+            if "percentage" in coin and coin["percentage"]:
+              self.tableWidget.setItem(rowPosition, 2, QtGui.QTableWidgetItem(str(coin["percentage"])))
             self.tableWidget.setItem(rowPosition, 3, QtGui.QTableWidgetItem(str(coin["volumeFloat"])))
-            if float(coin["priceChange"]) < 0:
-              self.tableWidget.item(rowPosition, 0).setForeground(QtGui.QColor(255,0,0))
-              self.tableWidget.item(rowPosition, 1).setForeground(QtGui.QColor(255,0,0))
-              self.tableWidget.item(rowPosition, 2).setForeground(QtGui.QColor(255,0,0))
-              self.tableWidget.item(rowPosition, 3).setForeground(QtGui.QColor(255,0,0))
-            else:
-              self.tableWidget.item(rowPosition, 0).setForeground(QtGui.QColor(0,255,0))
-              self.tableWidget.item(rowPosition, 1).setForeground(QtGui.QColor(0,255,0))
-              self.tableWidget.item(rowPosition, 2).setForeground(QtGui.QColor(0,255,0))
-              self.tableWidget.item(rowPosition, 3).setForeground(QtGui.QColor(0,255,0))
+            if "change" in coin and coin["change"]:
+              if float(coin["change"]) < 0:
+                self.tableWidget.item(rowPosition, 0).setForeground(QtGui.QColor(255,0,0))
+                self.tableWidget.item(rowPosition, 1).setForeground(QtGui.QColor(255,0,0))
+                self.tableWidget.item(rowPosition, 2).setForeground(QtGui.QColor(255,0,0))
+                self.tableWidget.item(rowPosition, 3).setForeground(QtGui.QColor(255,0,0))
+              else:
+                self.tableWidget.item(rowPosition, 0).setForeground(QtGui.QColor(0,255,0))
+                self.tableWidget.item(rowPosition, 1).setForeground(QtGui.QColor(0,255,0))
+                self.tableWidget.item(rowPosition, 2).setForeground(QtGui.QColor(0,255,0))
+                self.tableWidget.item(rowPosition, 3).setForeground(QtGui.QColor(0,255,0))
 
     def accept(self):
       selectionModel = self.tableWidget.selectionModel()
@@ -1272,7 +1308,7 @@ class Dialog(QtGui.QDialog):
         self.close()
 
 def orderbook(exchange, symbol):
-  print(str(exchange))
+  #print(str(exchange))
   return exchange.fetch_order_book(symbol)
 
 def bid_ask_sum(symbol, bids, precision=10): # can be asks too instead of bids
@@ -1407,7 +1443,7 @@ class Orderbook():
         self.exchange_poloniex = ccxt.poloniex({
         'enableRateLimit': True,
         })
-        self.exchange_hitbtc = ccxt.hitbtc({
+        self.exchange_hitbtc = ccxt.hitbtc2({
         'enableRateLimit': True,
         })
         self.exchange_okex = ccxt.okex({
@@ -1598,11 +1634,11 @@ class OrderBookWidget(QtGui.QLabel):
         self.orderbook.loop(self)
 
 if __name__ == "__main__":
-  init_btc_balance = float(client.get_asset_balance("btc")["free"])
+  init_btc_balance = float(client.fetch_balance()["BTC"]["free"])
 
   app = QtGui.QApplication(sys.argv)
   with open("style.qss","r") as fh:
-    app.setStyleSheet(fh.read())  
+    app.setStyleSheet(fh.read())
   dialog = Dialog()
   dialog.show()
   os._exit(app.exec_())
