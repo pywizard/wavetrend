@@ -345,7 +345,6 @@ def ceil_dt(dt, seconds):
 def run_geforce(symbol, tab_index, timeframe_entered):
     global qs
     global aqs
-    global candle_width
     global days_table
     
     time.sleep(2)
@@ -1503,8 +1502,7 @@ class Orderbook():
               pos = [ask[0], float(ask[1]) / float(btc_price)]
               self.add_position(pos, False)
         except:
-          stacktrace = get_full_stacktrace
-          print stacktrace
+          print get_full_stacktrace()
           time.sleep(3)
         break
     
