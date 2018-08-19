@@ -363,19 +363,25 @@ def run_geforce(symbol, tab_index, timeframe_entered):
     last_rect = None
     while True:
         try:
-          date, open_, high, low, close, vol, limit = getData(timeframe_entered, days_entered, symbol)
+          if first == True:
+            date, open_, high, low, close, vol, limit, timestamp = getData(timeframe_entered, days_entered, symbol, False)
+          else:
+            date2, open2_, high2, low2, close2, vol2, limit2, timestamp2 = getData(timeframe_entered, days_entered, symbol, True)
           
           if first == True:
             qs[tab_index].put(FIGURE_ADD_SUBPLOT)
             ax = aqs[tab_index].get()
             ax3 = ax.twinx()
-            first_candle_date = date[0]
+            first_candle_date = timestamp[-1]
 
-          prices = []
-          for i in range(0, len(date)):
-              prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
+            prices = []
+            for i in range(0, len(date)):
+                prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
+          else:
+            prices[-1] = (date2num(date2[1]), open2_[1], high2[1], low2[1], close2[1], vol2[1], date2[1])
+            prices[-2] = (date2num(date2[0]), open2_[0], high2[0], low2[0], close2[0], vol2[0], date2[0])
 
-          if first_candle_date != date[0] and first == False:          
+          if first == False and first_candle_date != timestamp2[-1]:
             qs[tab_index].put(FIGURE_CLEAR)
             aqs[tab_index].get()
             first = True
@@ -688,7 +694,6 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             first = False
 
             
-          prices[:] = []
           prices2[:] = []
           dates2[:] = []
           dates3[:] = []
@@ -700,7 +705,6 @@ def run_geforce(symbol, tab_index, timeframe_entered):
 
           qs[tab_index].put(CANVAS_DRAW_IDLE)
           aqs[tab_index].get()
-                    
         except:
           print get_full_stacktrace()
           
@@ -845,43 +849,46 @@ def peakdetect(v, delta, x = None):
 
     return maxtab, mintab
 
-def getData(timeframe_entered, days_entered, currency_entered):
-    limit = 0
-    if timeframe_entered == "15m":
-        limit = int(days_entered * 4 * 24)
+def getData(timeframe_entered, days_entered, currency_entered, few_candles):
+    if few_candles == False:
+      limit = 0
+      if timeframe_entered == "15m":
+          limit = int(days_entered * 4 * 24)
 
-    if timeframe_entered == "1m":
-        limit = int(days_entered * 60 * 24)
+      if timeframe_entered == "1m":
+          limit = int(days_entered * 60 * 24)
 
-    if timeframe_entered == "5m":
-        limit = int(days_entered * 12 * 24)
+      if timeframe_entered == "5m":
+          limit = int(days_entered * 12 * 24)
 
-    if timeframe_entered == "30m":
-        limit = int(days_entered * 2 * 24)
+      if timeframe_entered == "30m":
+          limit = int(days_entered * 2 * 24)
 
-    if timeframe_entered == "1h":
-        limit = int(days_entered * 24)
+      if timeframe_entered == "1h":
+          limit = int(days_entered * 24)
 
-    if timeframe_entered == "4h":
-        limit = int(days_entered * (24/4))
+      if timeframe_entered == "4h":
+          limit = int(days_entered * (24/4))
 
-    if timeframe_entered == "6h":
-        limit = int(days_entered * (24/6))
+      if timeframe_entered == "6h":
+          limit = int(days_entered * (24/6))
 
-    if timeframe_entered == "12h":
-        limit = int(days_entered * (24/12))
+      if timeframe_entered == "12h":
+          limit = int(days_entered * (24/12))
 
-    if timeframe_entered == "1d":
-        limit = int(days_entered)
+      if timeframe_entered == "1d":
+          limit = int(days_entered)
 
-    if timeframe_entered == "3d":
-        limit = int(days_entered / 3)
+      if timeframe_entered == "3d":
+          limit = int(days_entered / 3)
 
-    if timeframe_entered == "1w":
-        limit = int(days_entered / 7)
+      if timeframe_entered == "1w":
+          limit = int(days_entered / 7)
 
-    if timeframe_entered == "1M":
-        limit = int(days_entered / 31)
+      if timeframe_entered == "1M":
+          limit = int(days_entered / 31)
+    else:
+      limit = 2
 
     dt = []
     open_ = []
@@ -889,6 +896,7 @@ def getData(timeframe_entered, days_entered, currency_entered):
     low = []
     close = []
     volume = []
+    timestamp = []
     candles = client.fetch_ohlcv(currency_entered, timeframe_entered, limit=limit)
 
     for candle in candles:
@@ -898,8 +906,9 @@ def getData(timeframe_entered, days_entered, currency_entered):
       low.append(float(candle[3]))
       close.append(float(candle[4]))
       volume.append(float(candle[5]))
+      timestamp.append(candle[0])
 
-    return dt, open_, high, low, close, volume, limit
+    return dt, open_, high, low, close, volume, limit, timestamp
 
 from operator import itemgetter
 DIRPATH = os.path.join(os.path.dirname(os.path.abspath(__file__)))
