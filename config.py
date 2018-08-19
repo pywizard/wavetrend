@@ -2,4 +2,4 @@
 exchange = "HITBTC"
 #hitbtc
 api_key = ""
-api_secret = "
+api_secret = ""

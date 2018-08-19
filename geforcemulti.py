@@ -326,7 +326,7 @@ FIGURE_ADD_SUBPLOT = 0
 FIGURE_TIGHT_LAYOUT = 1
 FIGURE_CLEAR = 2
 CANVAS_GET_SIZE = 3
-CANVAS_DRAW_IDLE = 4
+CANVAS_DRAW = 4
 SHOW_STATUSBAR_MESSAGE = 0
 
 days_table = {"1m": 0.17, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, "4h": 40, "6h": 60, "12h": 120, "1d": 240}
@@ -940,7 +940,7 @@ class ChartRunner(QtCore.QThread):
           yvalues2 = None
           gc.collect()
 
-          qs[self.tab_index].put(CANVAS_DRAW_IDLE)
+          qs[self.tab_index].put(CANVAS_DRAW)
           self.data_ready.emit()
           aqs[self.tab_index].get()
         except:
@@ -1042,7 +1042,7 @@ class Window(QtGui.QMainWindow):
         dc = MplCanvas(self.tabWidget.widget(0), dpi=100, symbol=symbol)
         widget.addWidget(dc)
 
-        self.horizontalLayout_3.insertWidget(1, OrderBookWidget(), alignment=QtCore.Qt.AlignTop)
+        self.horizontalLayout_3.insertWidget(1, OrderBookWidget(self), alignment=QtCore.Qt.AlignTop)
         
         self.dcs = {}
         self.dcs[0] = dc
@@ -1079,8 +1079,9 @@ class Window(QtGui.QMainWindow):
           elif value == CANVAS_GET_SIZE:
             annotation = qs[i].get()
             aqs[i].put(annotation.get_window_extent(self.dcs[i].renderer))
-          elif value == CANVAS_DRAW_IDLE:         
-            self.dcs[i].draw_idle()
+          elif value == CANVAS_DRAW:         
+            QtGui.QApplication.processEvents()
+            self.dcs[i].draw()
             aqs[i].put(0)
         
       if qs_local.qsize() > 0:
@@ -1446,8 +1447,12 @@ def display_market_depth(bids, asks, symbol, precision):
 
   return strs
 
-class Orderbook():
-    def __init__(self):        
+class Orderbook(QtCore.QThread):
+    data_ready = QtCore.pyqtSignal()
+  
+    def __init__(self, parent):
+        super(Orderbook, self).__init__(parent)
+
         self.exchange_gdax = ccxt.gdax({
         'enableRateLimit': True,
         })
@@ -1634,21 +1639,18 @@ class Orderbook():
             self.prev_sell = self.ob["trades"]["sell"]
 
             self.ex_queue.put(bookstr)
+            self.data_ready.emit()
             
             self.lastupdate = time.time()
           except:
             stacktrace = get_full_stacktrace()
             print stacktrace
-
-    def loop(self, lbl):
-        if self.ex_queue.empty() == False:
-          bookstr = self.ex_queue.get()
-          lbl.setText(bookstr)
           
 class OrderBookWidget(QtGui.QLabel):
     def __init__(self,parent=None):
         super(OrderBookWidget,self).__init__(parent)
         self.init_orderbook_widget()
+        self.parent = parent
  
     def init_orderbook_widget(self):
         self.setMinimumWidth(337)
@@ -1656,13 +1658,13 @@ class OrderBookWidget(QtGui.QLabel):
         self.setFont(newfont)
         self.setText("btcusd (combined)\nloading...")
         self.setStyleSheet("QLabel { background-color : #363C4E; color : #C6C7C8; }")
-        self.orderbook = Orderbook()
-        self.timer = QtCore.QTimer()
-        self.timer.timeout.connect(self.orderbook_widget_loop)
-        self.timer.start(1)
+        self.orderbook = Orderbook(self)
+        self.orderbook.data_ready.connect(self.orderbook_widget_update)
 
-    def orderbook_widget_loop(self):
-        self.orderbook.loop(self)
+    def orderbook_widget_update(self):
+        if self.orderbook.ex_queue.empty() == False:
+          bookstr = self.orderbook.ex_queue.get()
+          self.setText(bookstr)
 
 if __name__ == "__main__":
   init_btc_balance = float(client.fetch_balance()["BTC"]["free"])
