@@ -103,7 +103,7 @@
            <widget class="QComboBox" name="comboBox_5">
             <item>
              <property name="text">
-              <string>99%</string>
+              <string>90%</string>
              </property>
             </item>
             <item>
@@ -221,7 +221,7 @@
                </item>
                <item>
                 <property name="text">
-                 <string>99%</string>
+                 <string>90%</string>
                 </property>
                </item>
               </widget>

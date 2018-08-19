@@ -306,11 +306,11 @@ def translate_buy_amount_percent(index):
   elif index == 2:
     return .75
   elif index == 3:
-    return .99
+    return .90
 
 def translate_buy_amount_percent_reversed(index):
   if index == 0:
-    return .99
+    return .90
   elif index == 1:
     return .75
   elif index == 2:
@@ -531,13 +531,13 @@ def run_geforce(symbol, tab_index, timeframe_entered):
 
                 amount_per_trade = translate_buy_amount_percent(config[symbol_with_timeframe].buy_amount_percent_index)
                 if symbol.endswith("USDT"):
-                  asset_balance = float(client.fetch_balance("USDT")["free"])
+                  asset_balance = float(client.fetch_balance()["USDT"]["free"])
                   buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
                 elif symbol.endswith("USD"):
-                  asset_balance = float(client.fetch_balance("USD")["free"])
+                  asset_balance = float(client.fetch_balance()["USD"]["free"])
                   buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)                  
                 else:
-                  asset_balance = float(client.get_asset_balance("btc")["free"])
+                  asset_balance = float(client.fetch_balance()["BTC"]["free"])
                   buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
                 
                 print buy_amount
@@ -563,7 +563,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
                 intersect = False
                 print "SELL"
                 
-                asset_balance = truncate(float(client.fetch_balance(get_asset_from_symbol(symbol))["free"]), 2)
+                asset_balance = truncate(float(client.fetch_balance()[get_asset_from_symbol(symbol)]["free"]), 2)
                   
                 to_sell = asset_balance
                 
@@ -1025,13 +1025,13 @@ class Window(QtGui.QMainWindow):
 
       amount_per_trade = translate_buy_amount_percent_reversed(self.comboBox_5.currentIndex())
       if symbol.endswith("USDT"):
-        asset_balance = float(client.fetch_balance("USDT")["free"])
+        asset_balance = float(client.fetch_balance()["USDT"]["free"])
         buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
       elif symbol.endswith("USD"):
-        asset_balance = float(client.fetch_balance("USD")["free"])
+        asset_balance = float(client.fetch_balance()["USD"]["free"])
         buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)        
       else:
-        asset_balance = float(client.fetch_balance("BTC")["free"])
+        asset_balance = float(client.fetch_balance()["BTC"]["free"])
         buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
       
       if buy_amount == 0:
@@ -1063,7 +1063,7 @@ class Window(QtGui.QMainWindow):
       symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[0]
       amount_per_trade = translate_buy_amount_percent_reversed(self.comboBox_5.currentIndex())
       
-      sell_amount = truncate(float(client.fetch_balance(get_asset_from_symbol(symbol))["free"]) * amount_per_trade, 2)
+      sell_amount = truncate(float(client.fetch_balance()[get_asset_from_symbol(symbol)]["free"]) * amount_per_trade, 2)
 
       if sell_amount == 0:
         return
