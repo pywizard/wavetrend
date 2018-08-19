@@ -29,6 +29,10 @@ import ctypes
 import os
 import Queue
 from playsound import playsound
+import ccxt
+
+from binance.client import Client
+client = Client(api_key, api_secret)
 
 is_windows = False
 if platform.system() == "Windows":
@@ -38,13 +42,22 @@ if platform.system() == "Windows":
     print "Please run this program as Admin, since it requires to configure the system time."
     sys.exit(1)
 
-from binance.client import Client
-client = Client(api_key, api_secret)
+import win32api
+gt = client.get_server_time()
+tt=time.gmtime(int((gt["serverTime"])/1000))
+win32api.SetSystemTime(tt[0],tt[1],0,tt[2],tt[3],tt[4],tt[5],0)
 
 class abstract():
   pass
 
 config = {}
+
+green = "#50B787"
+greenish = "#136D6F"
+red = "#E0505E"
+black = "#131D27"
+darkish = "#363C4E"
+white = "#C6C7C8"
 
 def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, width=0.2, colorup='white', colordown='black',
                  alpha=1.0):
@@ -89,8 +102,10 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
     lines = []
     patches = []
 
-    colorup = "white"
-    colordown = "black"
+    colorup = "#13525E"
+    colordown = "#9F2207"
+    colorup2 = "#50B787"
+    colordown2 = "#E0505E"
 
     if first == False:
       quotes = [quotes[-1]]
@@ -102,35 +117,55 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
             lower = open
             higher = close
             height = close - open
+            vline1 = Line2D(
+                xdata=(t, t), ydata=(higher, high),
+                color=colorup2,
+                linewidth=0.5,
+                antialiased=True,
+            )
+
+            vline2 = Line2D(
+                xdata=(t, t), ydata=(low, lower),
+                color=colorup2,
+                linewidth=0.5,
+                antialiased=True,
+            )
+            
+            rect = Rectangle(
+                xy=(t - OFFSET, lower),
+                width=width,
+                height=height,
+                facecolor=color,
+                edgecolor=colorup2,
+                linewidth=0.5
+            )
         else:
             color = colordown
             lower = close
-            higher = close
+            higher = open
             height = open - close
+            vline1 = Line2D(
+                xdata=(t, t), ydata=(higher, high),
+                color=colordown2,
+                linewidth=0.5,
+                antialiased=True,
+            )
 
-        vline1 = Line2D(
-            xdata=(t, t), ydata=(higher, high),
-            color="black",
-            linewidth=0.5,
-            antialiased=True,
-        )
+            vline2 = Line2D(
+                xdata=(t, t), ydata=(low, lower),
+                color=colordown2,
+                linewidth=0.5,
+                antialiased=True,
+            )            
 
-        vline2 = Line2D(
-            xdata=(t, t), ydata=(low, lower),
-            color="black",
-            linewidth=0.5,
-            antialiased=True,
-        )
-
-        rect = Rectangle(
-            xy=(t - OFFSET, lower),
-            width=width,
-            height=height,
-            facecolor=color,
-            edgecolor="black",
-            linewidth=0.5
-        )
-        rect.set_alpha(alpha)
+            rect = Rectangle(
+                xy=(t - OFFSET, lower),
+                width=width,
+                height=height,
+                facecolor=color,
+                edgecolor=colordown2,
+                linewidth=0.5
+            )
 
         if first == True:
           lines.append(vline1)
@@ -338,16 +373,16 @@ def run_geforce(symbol, tab_index, timeframe_entered):
           bb_upper, bb_middle, bb_lower = BBANDS(np.array(close), timeperiod=20)
 
           if first == True:
-            wavetrend1 = ax3.plot(dates2, wt1, color="green", lw=.5)
-            wavetrend2 = ax3.plot(dates2, wt2, color="red", lw=.5)
+            wavetrend1 = ax3.plot(dates2, wt1, color=green, lw=.5)
+            wavetrend2 = ax3.plot(dates2, wt2, color=red, lw=.5)
           else:
             wavetrend1[0].set_ydata(wt1)
             wavetrend2[0].set_ydata(wt2)
 
           if first == True:
-            bb_upper_, = ax.plot(date, bb_upper, color="blue", lw=.5, antialiased=True, alpha=.5)
-            bb_middle_, = ax.plot(date, bb_middle, color="blue", lw=.5, antialiased=True, alpha=.5)
-            bb_lower_, = ax.plot(date, bb_lower, color="blue", lw=.5, antialiased=True, alpha=.5)
+            bb_upper_, = ax.plot(date, bb_upper, color=greenish, lw=.5, antialiased=True)
+            bb_middle_, = ax.plot(date, bb_middle, color=red, lw=.5, antialiased=True)
+            bb_lower_, = ax.plot(date, bb_lower, color=greenish, lw=.5, antialiased=True)
           else:
             bb_upper_.set_ydata(bb_upper)
             bb_middle_.set_ydata(bb_middle)
@@ -549,12 +584,12 @@ def run_geforce(symbol, tab_index, timeframe_entered):
           time_to_hour = "%02d:%02d" % (minutes, seconds)
 
           if first == True:
-            price_line = ax.axhline(ticker, color='black', linestyle="dotted", lw=.7)
+            price_line = ax.axhline(ticker, color='gray', linestyle="dotted", lw=.9)
             if symbol.endswith("USDT"):
-              annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, "%.2f" % ticker, fontsize=7, color='black')
+              annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, "%.2f" % ticker, fontsize=7, color=white)
             else:
-              annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, "%.8f" % ticker, fontsize=7, color='black')
-            annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
+              annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, "%.8f" % ticker, fontsize=7, color=white)
+            annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
 
             qs[tab_index].put(CANVAS_GET_SIZE)
             qs[tab_index].put(annotation)
@@ -563,8 +598,8 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             dbox = tbox.transformed(ax.transData.inverted())
             y0 = dbox.height * 2.4
             if timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:
-              time_annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker - y0, time_to_hour, fontsize=7, color='black')
-              time_annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
+              time_annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker - y0, time_to_hour, fontsize=7, color=white)
+              time_annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
           else:
             price_line.set_ydata(ticker)
             
@@ -574,7 +609,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
               annotation.set_text("%.8f" % ticker)
               
             annotation.set_y(ticker)
-            annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
+            annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
             qs[tab_index].put(CANVAS_GET_SIZE)
             qs[tab_index].put(annotation)
             tbox = aqs[tab_index].get()
@@ -583,7 +618,7 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             y0 = dbox.height * 2.4
             if timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:            
               time_annotation.set_text(time_to_hour)
-              time_annotation.set_bbox(dict(facecolor='white', edgecolor='black', lw=.5))
+              time_annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
               time_annotation.set_y(ticker - y0)
 
           if init == True:
@@ -593,12 +628,12 @@ def run_geforce(symbol, tab_index, timeframe_entered):
           last_line1, last_line2, last_rect = _candlestick(ax, prices, first, last_line1, last_line2, last_rect, candle_width)
           
           if first == True:
-            ax3.axhline(60, color='red', lw=.8)
-            ax3.axhline(-60, color='green', lw=.8)
+            ax3.axhline(60, color=red, lw=.8)
+            ax3.axhline(-60, color=green, lw=.8)
             ax3.axhline(0, color='gray', lw=.5)
-            ax3.axhline(53, color='red', linestyle="dotted", lw=.8)
-            ax3.axhline(-53, color='green', linestyle="dotted", lw=.8)
-            ax.set_axis_bgcolor('white')
+            ax3.axhline(53, color=red, linestyle="dotted", lw=.8)
+            ax3.axhline(-53, color=green, linestyle="dotted", lw=.8)
+            ax.set_axis_bgcolor(black)
 
             pad = 0.25
             yl = ax.get_ylim()
@@ -606,15 +641,23 @@ def run_geforce(symbol, tab_index, timeframe_entered):
             ax.set_xlabel(timeframe_entered)
             ax.set_ylabel(symbol)
 
-            ax.spines['top'].set_edgecolor((18/255.0,27/255.0,33/255.0))
-            ax.spines['left'].set_edgecolor((18/255.0,27/255.0,33/255.0))
-            ax.spines['right'].set_edgecolor((18/255.0,27/255.0,33/255.0))
-            ax.spines['bottom'].set_edgecolor((18/255.0,27/255.0,33/255.0))
-            ax.set_axis_bgcolor('white')
-            ax3.spines['left'].set_edgecolor('black')
-            ax3.spines['right'].set_edgecolor('black')
+            ax.spines['top'].set_edgecolor(darkish)
+            ax.spines['left'].set_edgecolor(darkish)
+            ax.spines['right'].set_edgecolor(darkish)
+            ax.spines['bottom'].set_edgecolor(darkish)
+            ax.set_axis_bgcolor(black)
+            ax.xaxis.label.set_color(white)
+            ax.yaxis.label.set_color(white)
+            ax.tick_params(axis='x', colors=white)
+            ax.tick_params(axis='y', colors=white)
+            ax3.spines['left'].set_edgecolor(darkish)
+            ax3.spines['right'].set_edgecolor(darkish)
             ax3.spines['top'].set_visible(False)
             ax3.spines['bottom'].set_visible(False)
+            ax3.xaxis.label.set_color(white)
+            ax3.yaxis.label.set_color(white)
+            ax3.tick_params(axis='x', colors=white)
+            ax3.tick_params(axis='y', colors=white)            
             ax.grid(alpha=.25)
             ax.grid(True)
 
@@ -846,7 +889,7 @@ DIRPATH = os.path.join(os.path.dirname(os.path.abspath(__file__)))
 
 class MplCanvas(FigureCanvas):
     def __init__(self, parent=None, width=5, height=4, dpi=100, symbol=None):
-        self.fig = Figure(facecolor='white')
+        self.fig = Figure(facecolor=black, edgecolor=white)
 
         FigureCanvas.__init__(self, self.fig)
         self.setParent(parent)
@@ -881,7 +924,9 @@ class Window(QtGui.QMainWindow):
         widget = QtGui.QVBoxLayout(self.tabWidget.widget(0))
         dc = MplCanvas(self.tabWidget.widget(0), dpi=100, symbol=symbol)
         widget.addWidget(dc)
-                
+
+        self.horizontalLayout_3.insertWidget(1, OrderBookWidget(), alignment=QtCore.Qt.AlignTop)
+        
         self.dcs = {}
         self.dcs[0] = dc
         
@@ -913,7 +958,7 @@ class Window(QtGui.QMainWindow):
         if qs[i].qsize() > 0:
           value = qs[i].get()
           if value == FIGURE_ADD_SUBPLOT:
-            aqs[i].put(self.dcs[i].fig.add_subplot(1,1,1))
+            aqs[i].put(self.dcs[i].fig.add_subplot(1,1,1,facecolor=black))
           elif value == FIGURE_TIGHT_LAYOUT:
             self.dcs[i].fig.tight_layout()
             aqs[i].put(0)
@@ -1177,15 +1222,15 @@ class Dialog(QtGui.QDialog):
             self.tableWidget.setItem(rowPosition, 2, QtGui.QTableWidgetItem(coin["priceChangePercent"]))
             self.tableWidget.setItem(rowPosition, 3, QtGui.QTableWidgetItem(str(coin["volumeFloat"])))
             if float(coin["priceChange"]) < 0:
-              self.tableWidget.item(rowPosition, 0).setBackground(QtGui.QColor(255,0,0))
-              self.tableWidget.item(rowPosition, 1).setBackground(QtGui.QColor(255,0,0))
-              self.tableWidget.item(rowPosition, 2).setBackground(QtGui.QColor(255,0,0))
-              self.tableWidget.item(rowPosition, 3).setBackground(QtGui.QColor(255,0,0))
+              self.tableWidget.item(rowPosition, 0).setForeground(QtGui.QColor(255,0,0))
+              self.tableWidget.item(rowPosition, 1).setForeground(QtGui.QColor(255,0,0))
+              self.tableWidget.item(rowPosition, 2).setForeground(QtGui.QColor(255,0,0))
+              self.tableWidget.item(rowPosition, 3).setForeground(QtGui.QColor(255,0,0))
             else:
-              self.tableWidget.item(rowPosition, 0).setBackground(QtGui.QColor(0,255,0))
-              self.tableWidget.item(rowPosition, 1).setBackground(QtGui.QColor(0,255,0))
-              self.tableWidget.item(rowPosition, 2).setBackground(QtGui.QColor(0,255,0))
-              self.tableWidget.item(rowPosition, 3).setBackground(QtGui.QColor(0,255,0))
+              self.tableWidget.item(rowPosition, 0).setForeground(QtGui.QColor(0,255,0))
+              self.tableWidget.item(rowPosition, 1).setForeground(QtGui.QColor(0,255,0))
+              self.tableWidget.item(rowPosition, 2).setForeground(QtGui.QColor(0,255,0))
+              self.tableWidget.item(rowPosition, 3).setForeground(QtGui.QColor(0,255,0))
 
     def accept(self):
       selectionModel = self.tableWidget.selectionModel()
@@ -1226,10 +1271,338 @@ class Dialog(QtGui.QDialog):
           main.groupBox.setTitle(symbol)        
         self.close()
 
+def orderbook(exchange, symbol):
+  print(str(exchange))
+  return exchange.fetch_order_book(symbol)
+
+def bid_ask_sum(symbol, bids, precision=10): # can be asks too instead of bids
+  bids_summed = []
+  whole_1 = 0
+  
+  highest_sum = 0
+    
+  for bid in bids:
+      price = bid[0]
+      qty = bid[1]
+      frac, whole_2 = math.modf(price / precision)
+      if whole_1 == whole_2:
+          continue
+      frac, whole_1 = math.modf(price / precision)
+      remainder = price % precision
+      qty_summed = 0
+      
+      for bid in bids:
+        price = bid[0]
+        qty = bid[1]
+        frac, whole = math.modf(price / precision)
+        if whole_1 == whole:
+          qty_summed += qty
+      
+      usd_summed = qty_summed * (whole_1 * precision + remainder)
+#      if symbol.endswith("BTC"):
+#        btc_price = self.exchange.fetch_ticker("BTC/USD")["last"]
+#        usd_summed = usd_summed * btc_price
+      
+      if usd_summed > 1000000:
+        usd_summed = "%.2f" % float(usd_summed/1000000) + " M"
+      elif usd_summed > 1000:
+        usd_summed = "%.2f" % float(usd_summed/1000000) + " M"
+      else:
+        continue
+      
+      if qty_summed > highest_sum:
+          highest_sum = qty_summed
+
+      if not symbol.endswith("BTC"):
+        bids_summed.append(["%.2f" % (whole_1 * precision + remainder), float("%.2f" % qty_summed), usd_summed]) 
+      else:
+        bids_summed.append(["%.8f" % (whole_1 * precision + remainder), float("%.8f" % qty_summed), usd_summed]) 
+
+  bids_score = []
+  for bid in bids_summed:
+      score = 0
+      qty = bid[1]
+      if qty > highest_sum / 5:
+        score = score + 1
+      if qty > highest_sum / 4:
+        score = score + 1
+      if qty > highest_sum / 3:
+        score = score + 1
+      if qty > highest_sum / 2:
+        score = score + 1
+      if qty >= highest_sum:
+        score = score + 1
+        
+      bids_score.append([score,bid])
+
+  return bids_score
+
+def display_market_depth(bids, asks, symbol, precision):
+  strs = []
+  
+  bids_str = bids
+  asks_str = asks
+  bids_str.reverse()
+  asks_str.reverse()
+
+  top_bid = float(bids_str[0][0])
+
+  bids2 = []
+  for bid in bids_str:
+      bids2.append([float(bid[0]), float(bid[1])])
+      if top_bid - float(bid[0]) > 300:
+        break
+      
+  asks2 = []
+  for ask in asks_str:
+      if float(ask[0]) > top_bid + 300:
+        continue
+      asks2.append([float(ask[0]), float(ask[1])])
+  
+  bids_summed = bid_ask_sum(symbol, bids2, precision)
+  asks_summed = bid_ask_sum(symbol, asks2, precision)
+
+  for bid in bids_summed:
+      try:
+        ask = asks_summed.pop()
+        if not symbol.endswith("BTC"):
+          asks = str(ask[1][0]) + " "  * (9 - len(str(ask[1][0]))) + str(ask[1][2]) + " " + "*" * ask[0]
+        else:
+          asks = "%.6f" % float(ask[1][0]) + " " + str(ask[1][1]) + " "  * (10 - len(str(ask[1][1]))) + str(ask[1][2]) + " " + "*" * ask[0]
+      except:
+        asks = ""
+      if not symbol.endswith("BTC"):            
+        strs.append(" " * (5-bid[0]) + "*" * bid[0] + " " + str(bid[1][0]) + " "  * (9 - len(str(bid[1][0]))) + str(bid[1][2]) + "\t" + asks)
+      else:
+        strs.append(" " * (5-bid[0]) + "*" * bid[0] + " " + "%.6f" % float(bid[1][0]) + " " + str(bid[1][1]) + " "  * (10 - len(str(bid[1][1]))) + str(bid[1][2]) + "\t" + asks)
+
+  return strs
+
+class Orderbook():
+    def __init__(self):        
+        self.exchange_gdax = ccxt.gdax({
+        'enableRateLimit': True,
+        })
+        self.exchange_bitfinex = ccxt.bitfinex({
+        'enableRateLimit': True,
+        })      
+        self.exchange_kraken = ccxt.kraken({
+        'enableRateLimit': True,
+        })
+        self.exchange_bittrex = ccxt.bittrex({
+        'enableRateLimit': True,
+        })
+        self.exchange_binance = ccxt.binance({
+        'enableRateLimit': True,
+        })  
+        self.exchange_bitmex = ccxt.bitmex({
+        'enableRateLimit': True,
+        })
+        self.exchange_bitstamp = ccxt.bitstamp({
+        'enableRateLimit': True,
+        }) 
+        self.exchange_gemini = ccxt.gemini({
+        'enableRateLimit': True,
+        })
+        self.exchange_poloniex = ccxt.poloniex({
+        'enableRateLimit': True,
+        })
+        self.exchange_hitbtc = ccxt.hitbtc({
+        'enableRateLimit': True,
+        })
+        self.exchange_okex = ccxt.okex({
+        'enableRateLimit': True,
+        })
+        
+        self.lastupdate = 0
+        self.prev_buy = 0
+        self.prev_sell = 0
+        
+        self.ex_queue = Queue.Queue()
+        t = threading.Thread(target=self.collect_ex)
+        t.start()
+
+    def add_position(self, pos, isbid):
+      if isbid:
+        if pos[0] not in self.ob["bids"]:
+          self.ob["bids"][pos[0]] = pos[1]
+        else:
+          self.ob["bids"][pos[0]] += pos[1]
+
+      if not isbid:
+        if pos[0] not in self.ob["asks"]:
+          self.ob["asks"][pos[0]] = pos[1]
+        else:
+          self.ob["asks"][pos[0]] += pos[1]
+
+    def update_trades(self, trades):
+      counter = 0
+      for trade in trades:
+        if trade["side"] == "buy":
+          self.ob["trades"]["buy"] += trade["price"] * trade["amount"]
+        elif trade["side"] == "sell":
+          self.ob["trades"]["sell"] += trade["price"] * trade["amount"]
+        counter = counter + 1
+        if counter > 100:
+          break
+    
+    def collect_ex_threadable(self, exchange, symbol, is_bitmex=False):
+      while True:
+        try:
+          if not is_bitmex:
+            ob_exchange = orderbook(exchange, symbol)
+            for pos in ob_exchange["bids"]:
+              self.add_position(pos, True)
+            for pos in ob_exchange["asks"]:
+              self.add_position(pos, False)
+            ob_trades = exchange.fetch_trades(symbol, limit=100)
+            self.update_trades(ob_trades)
+          else:
+            ob_exchange = orderbook(self.exchange_bitmex, "BTC/USD")
+            btc_price = self.exchange_bitmex.fetch_ticker("BTC/USD")["last"]
+            for bid in ob_exchange["bids"]:
+              pos = [bid[0], float(bid[1]) / float(btc_price)]
+              self.add_position(pos, True)
+            for ask in ob_exchange["asks"]:
+              pos = [ask[0], float(ask[1]) / float(btc_price)]
+              self.add_position(pos, False)
+        except:
+          stacktrace = get_full_stacktrace
+          print stacktrace
+          time.sleep(3)
+        break
+    
+    def collect_ex(self):
+      while True:
+        if time.time() - self.lastupdate > 5 or self.lastupdate == 0:
+          try:
+            self.ob={}
+            self.ob["bids"] = {}
+            self.ob["asks"] = {}
+            self.ob["trades"] = {}
+            self.ob["trades"]["buy"] = 0
+            self.ob["trades"]["sell"] = 0
+            
+            threads = []
+            
+            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_gdax, "BTC/USD",))
+            threads.append(t)
+            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_bitfinex, "BTC/USDT",))
+            threads.append(t)
+            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_kraken, "BTC/USD",))
+            threads.append(t)
+            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_bittrex, "BTC/USD",))
+            threads.append(t)
+            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_binance, "BTC/USDT",))
+            threads.append(t)
+            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_bitstamp, "BTC/USD",))
+            threads.append(t)
+            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_gemini, "BTC/USD",))
+            threads.append(t)
+            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_hitbtc, "BTC/USDT",))
+            threads.append(t)
+            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_okex, "BTC/USDT",))
+            threads.append(t)
+            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_bitmex, "BTC/USD", True,))
+            threads.append(t)            
+            
+            for t in threads:            
+              t.daemon = True
+              t.start()
+            
+            for t in threads:
+              t.join()
+
+            ob_bids = sorted((float(x),y) for x,y in self.ob["bids"].items())
+            ob_asks = sorted((float(x),y) for x,y in self.ob["asks"].items())
+
+            bookstr = "btcusd (combined)\n\n"
+            ob_accum = display_market_depth(ob_bids, ob_asks, "BTC/USD", 7)
+            for ob in ob_accum:
+              bookstr = bookstr + ob + "\n"
+            
+            buy_usd = self.ob["trades"]["buy"]
+            sell_usd = self.ob["trades"]["sell"]
+            
+            buy_percent = ""
+            sell_percent = ""
+            if self.prev_buy != 0:
+              if buy_usd > self.prev_buy:
+                increase = buy_usd - self.prev_buy
+                increase = (increase / self.prev_buy) * 100
+                buy_percent = "+%.2f" % increase + "%"
+              else:
+                decrease = self.prev_buy - buy_usd
+                decrease = (decrease / self.prev_buy) * 100
+                buy_percent = "-%.2f" % decrease + "%"
+                
+              sell_percent = 0
+              if sell_usd > self.prev_sell:
+                increase = sell_usd - self.prev_sell
+                increase = (increase / self.prev_sell) * 100
+                sell_percent = "+%.2f" % increase + "%"
+              else:
+                decrease = self.prev_sell - sell_usd
+                decrease = (decrease / self.prev_sell) * 100
+                sell_percent = "-%.2f" % decrease + "%"
+            
+            if buy_usd > 1000000:
+              buy_usd = "%.2f" % float(buy_usd/1000000) + " M"
+            elif buy_usd > 1000:
+              buy_usd = "%.2f" % float(buy_usd/1000000) + " M"
+            else:
+              buy_usd = int(buy_usd)
+              
+            if sell_usd > 1000000:
+              sell_usd = "%.2f" % float(sell_usd/1000000) + " M"
+            elif sell_usd > 1000:
+              sell_usd = "%.2f" % float(sell_usd/1000000) + " M"
+            else:
+              sell_usd = int(sell_usd)                         
+            
+            bookstr = bookstr + "BUY: " + buy_usd + " " + buy_percent
+            bookstr = bookstr + "\nSELL: " + sell_usd + " " + sell_percent
+
+            self.prev_buy = self.ob["trades"]["buy"]
+            self.prev_sell = self.ob["trades"]["sell"]
+
+            self.ex_queue.put(bookstr)
+            
+            self.lastupdate = time.time()
+          except:
+            stacktrace = get_full_stacktrace()
+            print stacktrace
+
+    def loop(self, lbl):
+        if self.ex_queue.empty() == False:
+          bookstr = self.ex_queue.get()
+          lbl.setText(bookstr)
+          
+class OrderBookWidget(QtGui.QLabel):
+    def __init__(self,parent=None):
+        super(OrderBookWidget,self).__init__(parent)
+        self.init_orderbook_widget()
+ 
+    def init_orderbook_widget(self):
+        self.setMinimumWidth(337)
+        newfont = QtGui.QFont("Courier New", 9, QtGui.QFont.Bold) 
+        self.setFont(newfont)
+        self.setText("btcusd (combined)\nloading...")
+        self.setStyleSheet("QLabel { background-color : #363C4E; color : #C6C7C8; }")
+        self.orderbook = Orderbook()
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(self.orderbook_widget_loop)
+        self.timer.start(1)
+
+    def orderbook_widget_loop(self):
+        self.orderbook.loop(self)
+
 if __name__ == "__main__":
   init_btc_balance = float(client.get_asset_balance("btc")["free"])
 
   app = QtGui.QApplication(sys.argv)
+  with open("style.qss","r") as fh:
+    app.setStyleSheet(fh.read())  
   dialog = Dialog()
   dialog.show()
   os._exit(app.exec_())
