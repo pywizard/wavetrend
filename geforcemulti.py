@@ -1286,7 +1286,7 @@ class Dialog(QtGui.QDialog):
   
         config[symbol_with_timeframe] = abstract()
         config[symbol_with_timeframe].trade_auto = False
-        config[symbol_with_timeframe].trade_all_crossings = True
+        config[symbol_with_timeframe].trade_all_crossings = False
         config[symbol_with_timeframe].trade_lines_only = False
         config[symbol_with_timeframe].buy_threshold = 1.0
         config[symbol_with_timeframe].sell_threshold = 1.0
