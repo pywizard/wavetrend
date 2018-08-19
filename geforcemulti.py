@@ -342,376 +342,6 @@ def ceil_dt(dt, seconds):
     #time + number of seconds to quarter hour mark.
     return dt + datetime.timedelta(seconds=delta)
 
-def run_geforce(symbol, tab_index, timeframe_entered):
-    global qs
-    global aqs
-    global days_table
-    
-    time.sleep(2)
-
-    days_entered = days_table[timeframe_entered]
-
-    to_sell = 0
-
-    init = True
-    prev_trade_time = 0
-    counter = 0
-    wt_was_rising = False
-    first = True
-    last_line1 = None
-    last_line2 = None
-    last_rect = None
-    while True:
-        try:
-          if first == True:
-            date, open_, high, low, close, vol, limit, timestamp = getData(timeframe_entered, days_entered, symbol, False)
-          else:
-            date2, open2_, high2, low2, close2, vol2, limit2, timestamp2 = getData(timeframe_entered, days_entered, symbol, True)
-          
-          if first == True:
-            qs[tab_index].put(FIGURE_ADD_SUBPLOT)
-            ax = aqs[tab_index].get()
-            ax3 = ax.twinx()
-            first_candle_date = timestamp[-1]
-
-            prices = []
-            for i in range(0, len(date)):
-                prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
-          else:
-            prices[-1] = (date2num(date2[1]), open2_[1], high2[1], low2[1], close2[1], vol2[1], date2[1])
-            prices[-2] = (date2num(date2[0]), open2_[0], high2[0], low2[0], close2[0], vol2[0], date2[0])
-
-          if first == False and first_candle_date != timestamp2[-1]:
-            qs[tab_index].put(FIGURE_CLEAR)
-            aqs[tab_index].get()
-            first = True
-            last_line1 = None
-            last_line2 = None
-            last_rect = None
-            continue
-
-          prices2 = [x[4] for x in prices]
-          dates2 = [x[0] for x in prices]
-          dates3 = [x[6] for x in prices]
-
-          n1, n2, period = 10, 21, 60
-          ap = (np.array(high) + np.array(low) + np.array(close)) / 3
-          esa = talib.EMA(ap, timeperiod=n1)
-          d = talib.EMA(abs(ap - esa), timeperiod=n1)
-          ci = (ap - esa) / (0.015 * d)
-          wt1 = talib.EMA(ci, timeperiod=n2)
-          wt2 = talib.SMA(wt1, timeperiod=4)
-
-          bb_upper, bb_middle, bb_lower = BBANDS(np.array(close), timeperiod=20)
-
-          if first == True:
-            wavetrend1 = ax3.plot(dates2, wt1, color=green, lw=.5)
-            wavetrend2 = ax3.plot(dates2, wt2, color=red, lw=.5)
-          else:
-            wavetrend1[0].set_ydata(wt1)
-            wavetrend2[0].set_ydata(wt2)
-
-          if first == True:
-            bb_upper_, = ax.plot(date, bb_upper, color=greenish, lw=.5, antialiased=True)
-            bb_middle_, = ax.plot(date, bb_middle, color=red, lw=.5, antialiased=True)
-            bb_lower_, = ax.plot(date, bb_lower, color=greenish, lw=.5, antialiased=True)
-          else:
-            bb_upper_.set_ydata(bb_upper)
-            bb_middle_.set_ydata(bb_middle)
-            bb_lower_.set_ydata(bb_lower)
-
-          xvalues1 = wavetrend1[0].get_xdata()
-          yvalues1 = wavetrend1[0].get_ydata()
-          xvalues2 = wavetrend2[0].get_xdata()
-          yvalues2 = wavetrend2[0].get_ydata()
-
-          start_x = 0
-          for i in xrange(0, len(wt1)):
-              if not np.isnan(wt1[i]):
-                start_x = i
-                break
-
-          xl = ax.get_xlim()
-          ax.set_xlim(date[start_x], xl[1])
-
-          wt_y_current = yvalues1[-1]
-          symbol_with_timeframe = symbol + " " + timeframe_entered
-          
-          if init == True:
-            wt_y_before = yvalues1[-1]
-            intersect = False
-            intersect_type = "NONE"
-            sell_intersect = False
-            buy_intersect = False
-            buy_threshold = config[symbol_with_timeframe].buy_threshold
-            sell_threshold = config[symbol_with_timeframe].sell_threshold
-            wt_difference = yvalues1[-1] - yvalues2[-1]
-            if wt_difference > 0:
-              wt_rising = True
-              wt_rising_before = True
-            else:
-              wt_rising = False
-              wt_rising_before = False
-          
-          if wt_y_current > 53:
-            wt_y_before = yvalues1[-1]
-          elif wt_y_current < -53:
-            wt_y_before = yvalues1[-1]  
-          
-          if wt_y_current < 53:
-            if wt_y_before > 53:
-              intersect = True
-              intersect_threshold = 53 - yvalues1[-1]
-              intersect_type = "SELL"
-          
-          if wt_y_current > -53:
-            if wt_y_before < -53:
-              intersect = True
-              intersect_threshold = yvalues1[-1] + 53
-              intersect_type = "BUY"
-
-          if config[symbol_with_timeframe].trade_all_crossings == False:
-            if intersect == True:
-              if intersect_type == "SELL":
-                if intersect_threshold > sell_threshold:
-                    sell_intersect = True
-                    wt_y_before = yvalues1[-1]
-              
-              if intersect_type == "BUY":
-                if intersect_threshold > buy_threshold:
-                    buy_intersect = True
-                    wt_y_before = yvalues1[-1]
-            
-          if config[symbol_with_timeframe].trade_all_crossings == True:
-            wt_difference = yvalues1[-1] - yvalues2[-1]
-            if wt_difference > 0:
-              wt_rising = True
-            else:
-              wt_rising = False
-
-            if wt_rising != wt_rising_before:
-              if wt_rising == True:
-                if abs(wt_difference) > buy_threshold:
-                  buy_intersect = True
-                  wt_rising_before = wt_rising
-              
-              if wt_rising == False:
-                if abs(wt_difference) > sell_threshold:
-                  sell_intersect = True
-                  wt_rising_before = wt_rising
-
-          if wt_rising == True:          
-            if counter % 15 == 0:
-              print symbol + " " + timeframe_entered + " Rising Wavetrend, threshold = %.8f" % abs(wt_difference)
-          else:
-            if counter % 15 == 0:
-              print symbol + " " + timeframe_entered + " Falling Wavetrend, threshold = %.8f" % abs(wt_difference)
-          
-          if counter % 15 == 0 and wt_y_current > 53:
-            print symbol + " " + timeframe_entered + " Wavetrend above 53, threshold = %.8f" % (wt_y_current - 53)
-
-          if counter % 15 == 0 and wt_y_current < 53:
-            print symbol + " " + timeframe_entered + " Wavetrend below 53, threshold = %.8f" % (53 - wt_y_current)
-
-          if counter % 15 == 0 and wt_y_current < -53:
-            print symbol + " " + timeframe_entered + " Wavetrend below -53, threshold = %.8f" % (-53 - wt_y_current)
-
-          if counter % 15 == 0 and wt_y_current > -53:
-            print symbol + " " + timeframe_entered + " Wavetrend above -53, threshold = %.8f" % (wt_y_current + 53)
-          
-          if buy_intersect == True or sell_intersect == True:            
-            print symbol + " INTERSECTION!!!"
-            if buy_intersect == True:
-                buy_intersect = False
-                intersect = False
-                #buy
-                print "BUY"
-                asset_balance = 0
-                symbol_price = get_symbol_price(symbol)
-
-                amount_per_trade = translate_buy_amount_percent(config[symbol_with_timeframe].buy_amount_percent_index)
-                if symbol.endswith("USDT"):
-                  asset_balance = float(client.fetch_balance()["USDT"]["free"])
-                  buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
-                elif symbol.endswith("USD"):
-                  asset_balance = float(client.fetch_balance()["USD"]["free"])
-                  buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)                  
-                else:
-                  asset_balance = float(client.fetch_balance()["BTC"]["free"])
-                  buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
-                
-                print buy_amount
-
-                if buy_amount != 0:
-                  try:
-                    order = client.create_market_buy_order(symbol, buy_amount)
-                    playsound("beep.wav")
-                    main.updateBalances(symbol)
-                    prev_trade_time = datetime.datetime.now()
-                  except:
-                    print get_full_stacktrace()
-                  time.sleep(5)
-                  f = open("trades.txt", "a")
-                  f.write("BUY %s MARKET @ %.8f\n" % (symbol, symbol_price))
-                  f.close()
-                  item = QtGui.QListWidgetItem("BUY %s MARKET @ %.8f" % (symbol, symbol_price))
-                  main.listWidget_4.addItem(item)
-              
-            if sell_intersect == True:
-                #sell
-                sell_intersect = False
-                intersect = False
-                print "SELL"
-                
-                asset_balance = truncate(float(client.fetch_balance()[get_asset_from_symbol(symbol)]["free"]), 2)
-                  
-                to_sell = asset_balance
-                
-                print asset_balance
-                
-                if asset_balance != 0:
-                  symbol_price = get_symbol_price(symbol)
-                  print to_sell
-                  try:
-                    order = client.create_market_sell_order(symbol, to_sell)
-                    playsound("beep.wav")
-                    main.updateBalances(symbol)
-                    prev_trade_time = datetime.datetime.now()
-                  except:
-                    print get_full_stacktrace()
-                  f = open("trades.txt", "a")
-                  f.write("SELL %s MARKET @ %.8f\n" % (symbol, symbol_price))
-                  f.close()
-                  item = QtGui.QListWidgetItem("SELL %s MARKET @ %.8f" % (symbol, symbol_price))
-                  main.listWidget_4.addItem(item)
-
-          ticker = prices[-1][4]
-
-          in_time = datetime.datetime.now()
-          if timeframe_entered == "1m":
-            in_time = ceil_dt(in_time, 60)
-          elif timeframe_entered == "5m":
-            in_time = ceil_dt(in_time, 5*60)
-          elif timeframe_entered == "15m":
-            in_time = ceil_dt(in_time, 15*60)
-          elif timeframe_entered == "30m":
-            in_time = ceil_dt(in_time, 30*60)
-          elif timeframe_entered == "1h":
-            in_time = ceil_dt(in_time, 60*60)
-
-          duration = in_time - datetime.datetime.now()
-          days, seconds = duration.days, duration.seconds
-          hours = days * 24 + seconds // 3600
-          minutes = (seconds % 3600) // 60
-          seconds = seconds % 60
-          time_to_hour = "%02d:%02d" % (minutes, seconds)
-
-          if first == True:
-            price_line = ax.axhline(ticker, color='gray', linestyle="dotted", lw=.9)
-            if symbol.endswith("USDT") or symbol.endswith("USD"):
-              annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, "%.2f" % ticker, fontsize=7, color=white)
-            else:
-              annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, "%.8f" % ticker, fontsize=7, color=white)
-            annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
-
-            qs[tab_index].put(CANVAS_GET_SIZE)
-            qs[tab_index].put(annotation)
-            tbox = aqs[tab_index].get()
-          
-            dbox = tbox.transformed(ax.transData.inverted())
-            y0 = dbox.height * 2.4
-            if timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:
-              time_annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker - y0, time_to_hour, fontsize=7, color=white)
-              time_annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
-          else:
-            price_line.set_ydata(ticker)
-            
-            if symbol.endswith("USDT") or symbol.endswith("USD"):
-              annotation.set_text("%.2f" % ticker)
-            else:
-              annotation.set_text("%.8f" % ticker)
-              
-            annotation.set_y(ticker)
-            annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
-            qs[tab_index].put(CANVAS_GET_SIZE)
-            qs[tab_index].put(annotation)
-            tbox = aqs[tab_index].get()
-            
-            dbox = tbox.transformed(ax.transData.inverted())
-            y0 = dbox.height * 2.4
-            if timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:            
-              time_annotation.set_text(time_to_hour)
-              time_annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
-              time_annotation.set_y(ticker - y0)
-
-          if init == True:
-            xl = ax.get_xlim()
-            candle_width = ((dbox.x0 - xl[0]) / limit) * 0.8
-          
-          last_line1, last_line2, last_rect = _candlestick(ax, prices, first, last_line1, last_line2, last_rect, candle_width)
-          
-          if first == True:
-            ax3.axhline(60, color=red, lw=.8)
-            ax3.axhline(-60, color=green, lw=.8)
-            ax3.axhline(0, color='gray', lw=.5)
-            ax3.axhline(53, color=red, linestyle="dotted", lw=.8)
-            ax3.axhline(-53, color=green, linestyle="dotted", lw=.8)
-            ax.set_axis_bgcolor(black)
-
-            pad = 0.25
-            yl = ax.get_ylim()
-            ax.set_ylim(yl[0]-(yl[1]-yl[0])*pad,yl[1])
-            ax.set_xlabel(timeframe_entered)
-            ax.set_ylabel(symbol)
-
-            ax.spines['top'].set_edgecolor(darkish)
-            ax.spines['left'].set_edgecolor(darkish)
-            ax.spines['right'].set_edgecolor(darkish)
-            ax.spines['bottom'].set_edgecolor(darkish)
-            ax.set_axis_bgcolor(black)
-            ax.xaxis.label.set_color(white)
-            ax.yaxis.label.set_color(white)
-            ax.tick_params(axis='x', colors=white)
-            ax.tick_params(axis='y', colors=white)
-            ax3.spines['left'].set_edgecolor(darkish)
-            ax3.spines['right'].set_edgecolor(darkish)
-            ax3.spines['top'].set_visible(False)
-            ax3.spines['bottom'].set_visible(False)
-            ax3.xaxis.label.set_color(white)
-            ax3.yaxis.label.set_color(white)
-            ax3.tick_params(axis='x', colors=white)
-            ax3.tick_params(axis='y', colors=white)            
-            ax.grid(alpha=.25)
-            ax.grid(True)
-
-            if init == True:
-              qs[tab_index].put(FIGURE_TIGHT_LAYOUT)
-              aqs[tab_index].get()
-
-            bbox = ax.get_position()
-            ax3.set_position([bbox.x0, bbox.y0, bbox.width, bbox.height / 4])
-            ax.autoscale_view()
-            first = False
-
-            
-          prices2[:] = []
-          dates2[:] = []
-          dates3[:] = []
-          xvalues1 = None
-          yvalues1 = None
-          xvalues2 = None
-          yvalues2 = None
-          gc.collect()
-
-          qs[tab_index].put(CANVAS_DRAW_IDLE)
-          aqs[tab_index].get()
-        except:
-          print get_full_stacktrace()
-          
-        counter = counter + 1
-        
-        init = False
-
 def relative_strength(prices, n=14):
     """
     compute the n period relative strength indicator
@@ -897,7 +527,14 @@ def getData(timeframe_entered, days_entered, currency_entered, few_candles):
     close = []
     volume = []
     timestamp = []
-    candles = client.fetch_ohlcv(currency_entered, timeframe_entered, limit=limit)
+    
+    while True:
+      try:
+        candles = client.fetch_ohlcv(currency_entered, timeframe_entered, limit=limit)
+        break
+      except:
+        time.sleep(.5)
+        continue
 
     for candle in candles:
       dt.append(datetime.datetime.fromtimestamp(int(candle[0]) / 1e3))
@@ -926,11 +563,464 @@ class MplCanvas(FigureCanvas):
         FigureCanvas.updateGeometry(self)
         
 main_shown = False
+
+class ChartRunner(QtCore.QThread):
+  data_ready = QtCore.pyqtSignal()
+  
+  def __init__(self, parent, symbol, tab_index, timeframe_entered):
+    super(ChartRunner, self).__init__(parent)
+    self.symbol = symbol
+    self.tab_index = tab_index
+    self.timeframe_entered = timeframe_entered
+
+  def run(self):
+    global qs
+    global aqs
+    global days_table
+        
+    time.sleep(2)
+
+    days_entered = days_table[self.timeframe_entered]
+    symbol = self.symbol
+
+    to_sell = 0
+
+    init = True
+    prev_trade_time = 0
+    counter = 0
+    wt_was_rising = False
+    first = True
+    last_line1 = None
+    last_line2 = None
+    last_rect = None
+    while True:
+        try:
+          if first == True:
+            date, open_, high, low, close, vol, limit, timestamp = getData(self.timeframe_entered, days_entered, symbol, False)
+          else:
+            date2, open2_, high2, low2, close2, vol2, limit2, timestamp2 = getData(self.timeframe_entered, days_entered, symbol, True)
+          
+          if first == True:
+            qs[self.tab_index].put(FIGURE_ADD_SUBPLOT)
+            self.data_ready.emit()
+            ax = aqs[self.tab_index].get()
+            ax3 = ax.twinx()
+            first_candle_date = timestamp[-1]
+
+            prices = []
+            for i in range(0, len(date)):
+                prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
+          else:
+            prices[-1] = (date2num(date2[1]), open2_[1], high2[1], low2[1], close2[1], vol2[1], date2[1])
+            prices[-2] = (date2num(date2[0]), open2_[0], high2[0], low2[0], close2[0], vol2[0], date2[0])
+
+          if first == False and first_candle_date != timestamp2[-1]:
+            qs[self.tab_index].put(FIGURE_CLEAR)
+            self.data_ready.emit()
+            aqs[self.tab_index].get()
+            first = True
+            last_line1 = None
+            last_line2 = None
+            last_rect = None
+            continue
+
+          prices2 = [x[4] for x in prices]
+          dates2 = [x[0] for x in prices]
+          dates3 = [x[6] for x in prices]
+
+          n1, n2, period = 10, 21, 60
+          ap = (np.array(high) + np.array(low) + np.array(close)) / 3
+          esa = talib.EMA(ap, timeperiod=n1)
+          d = talib.EMA(abs(ap - esa), timeperiod=n1)
+          ci = (ap - esa) / (0.015 * d)
+          wt1 = talib.EMA(ci, timeperiod=n2)
+          wt2 = talib.SMA(wt1, timeperiod=4)
+
+          bb_upper, bb_middle, bb_lower = BBANDS(np.array(close), timeperiod=20)
+
+          if first == True:
+            wavetrend1 = ax3.plot(dates2, wt1, color=green, lw=.5)
+            wavetrend2 = ax3.plot(dates2, wt2, color=red, lw=.5)
+          else:
+            wavetrend1[0].set_ydata(wt1)
+            wavetrend2[0].set_ydata(wt2)
+
+          if first == True:
+            bb_upper_, = ax.plot(date, bb_upper, color=greenish, lw=.5, antialiased=True)
+            bb_middle_, = ax.plot(date, bb_middle, color=red, lw=.5, antialiased=True)
+            bb_lower_, = ax.plot(date, bb_lower, color=greenish, lw=.5, antialiased=True)
+          else:
+            bb_upper_.set_ydata(bb_upper)
+            bb_middle_.set_ydata(bb_middle)
+            bb_lower_.set_ydata(bb_lower)
+
+          xvalues1 = wavetrend1[0].get_xdata()
+          yvalues1 = wavetrend1[0].get_ydata()
+          xvalues2 = wavetrend2[0].get_xdata()
+          yvalues2 = wavetrend2[0].get_ydata()
+
+          start_x = 0
+          for i in xrange(0, len(wt1)):
+              if not np.isnan(wt1[i]):
+                start_x = i
+                break
+
+          xl = ax.get_xlim()
+          ax.set_xlim(date[start_x], xl[1])
+
+          wt_y_current = yvalues1[-1]
+          symbol_with_timeframe = symbol + " " + self.timeframe_entered
+          
+          if init == True:
+            wt_y_before = yvalues1[-1]
+            intersect = False
+            intersect_type = "NONE"
+            sell_intersect = False
+            buy_intersect = False
+            buy_threshold = config[symbol_with_timeframe].buy_threshold
+            sell_threshold = config[symbol_with_timeframe].sell_threshold
+            wt_difference = yvalues1[-1] - yvalues2[-1]
+            if wt_difference > 0:
+              wt_rising = True
+              wt_rising_before = True
+            else:
+              wt_rising = False
+              wt_rising_before = False
+          
+          if wt_y_current > 53:
+            wt_y_before = yvalues1[-1]
+          elif wt_y_current < -53:
+            wt_y_before = yvalues1[-1]  
+          
+          if wt_y_current < 53:
+            if wt_y_before > 53:
+              intersect = True
+              intersect_threshold = 53 - yvalues1[-1]
+              intersect_type = "SELL"
+          
+          if wt_y_current > -53:
+            if wt_y_before < -53:
+              intersect = True
+              intersect_threshold = yvalues1[-1] + 53
+              intersect_type = "BUY"
+
+          if config[symbol_with_timeframe].trade_all_crossings == False:
+            if intersect == True:
+              if intersect_type == "SELL":
+                if intersect_threshold > sell_threshold:
+                    sell_intersect = True
+                    wt_y_before = yvalues1[-1]
+              
+              if intersect_type == "BUY":
+                if intersect_threshold > buy_threshold:
+                    buy_intersect = True
+                    wt_y_before = yvalues1[-1]
+            
+          if config[symbol_with_timeframe].trade_all_crossings == True:
+            wt_difference = yvalues1[-1] - yvalues2[-1]
+            if wt_difference > 0:
+              wt_rising = True
+            else:
+              wt_rising = False
+
+            if wt_rising != wt_rising_before:
+              if wt_rising == True:
+                if abs(wt_difference) > buy_threshold:
+                  buy_intersect = True
+                  wt_rising_before = wt_rising
+              
+              if wt_rising == False:
+                if abs(wt_difference) > sell_threshold:
+                  sell_intersect = True
+                  wt_rising_before = wt_rising
+
+          if wt_rising == True:          
+            if counter % 15 == 0:
+              print symbol + " " + self.timeframe_entered + " Rising Wavetrend, threshold = %.8f" % abs(wt_difference)
+          else:
+            if counter % 15 == 0:
+              print symbol + " " + self.timeframe_entered + " Falling Wavetrend, threshold = %.8f" % abs(wt_difference)
+          
+          if counter % 15 == 0 and wt_y_current > 53:
+            print symbol + " " + self.timeframe_entered + " Wavetrend above 53, threshold = %.8f" % (wt_y_current - 53)
+
+          if counter % 15 == 0 and wt_y_current < 53:
+            print symbol + " " + self.timeframe_entered + " Wavetrend below 53, threshold = %.8f" % (53 - wt_y_current)
+
+          if counter % 15 == 0 and wt_y_current < -53:
+            print symbol + " " + self.timeframe_entered + " Wavetrend below -53, threshold = %.8f" % (-53 - wt_y_current)
+
+          if counter % 15 == 0 and wt_y_current > -53:
+            print symbol + " " + self.timeframe_entered + " Wavetrend above -53, threshold = %.8f" % (wt_y_current + 53)
+          
+          if buy_intersect == True or sell_intersect == True:            
+            print symbol + " INTERSECTION!!!"
+            if buy_intersect == True:
+                buy_intersect = False
+                intersect = False
+                #buy
+                print "BUY"
+                asset_balance = 0
+                symbol_price = get_symbol_price(symbol)
+
+                amount_per_trade = translate_buy_amount_percent(config[symbol_with_timeframe].buy_amount_percent_index)
+                if symbol.endswith("USDT"):
+                  asset_balance = float(client.fetch_balance()["USDT"]["free"])
+                  buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
+                elif symbol.endswith("USD"):
+                  asset_balance = float(client.fetch_balance()["USD"]["free"])
+                  buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)                  
+                else:
+                  asset_balance = float(client.fetch_balance()["BTC"]["free"])
+                  buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
+                
+                print buy_amount
+
+                if buy_amount != 0:
+                  try:
+                    order = client.create_market_buy_order(symbol, buy_amount)
+                    playsound("beep.wav")
+                    main.updateBalances(symbol)
+                    prev_trade_time = datetime.datetime.now()
+                  except:
+                    print get_full_stacktrace()
+                  time.sleep(5)
+                  f = open("trades.txt", "a")
+                  f.write("BUY %s MARKET @ %.8f\n" % (symbol, symbol_price))
+                  f.close()
+                  item = QtGui.QListWidgetItem("BUY %s MARKET @ %.8f" % (symbol, symbol_price))
+                  main.listWidget_4.addItem(item)
+              
+            if sell_intersect == True:
+                #sell
+                sell_intersect = False
+                intersect = False
+                print "SELL"
+                
+                asset_balance = truncate(float(client.fetch_balance()[get_asset_from_symbol(symbol)]["free"]), 2)
+                  
+                to_sell = asset_balance
+                
+                print asset_balance
+                
+                if asset_balance != 0:
+                  symbol_price = get_symbol_price(symbol)
+                  print to_sell
+                  try:
+                    order = client.create_market_sell_order(symbol, to_sell)
+                    playsound("beep.wav")
+                    main.updateBalances(symbol)
+                    prev_trade_time = datetime.datetime.now()
+                  except:
+                    print get_full_stacktrace()
+                  f = open("trades.txt", "a")
+                  f.write("SELL %s MARKET @ %.8f\n" % (symbol, symbol_price))
+                  f.close()
+                  item = QtGui.QListWidgetItem("SELL %s MARKET @ %.8f" % (symbol, symbol_price))
+                  main.listWidget_4.addItem(item)
+
+          ticker = prices[-1][4]
+
+          in_time = datetime.datetime.now()
+          if self.timeframe_entered == "1m":
+            in_time = ceil_dt(in_time, 60)
+          elif self.timeframe_entered == "5m":
+            in_time = ceil_dt(in_time, 5*60)
+          elif self.timeframe_entered == "15m":
+            in_time = ceil_dt(in_time, 15*60)
+          elif self.timeframe_entered == "30m":
+            in_time = ceil_dt(in_time, 30*60)
+          elif self.timeframe_entered == "1h":
+            in_time = ceil_dt(in_time, 60*60)
+
+          duration = in_time - datetime.datetime.now()
+          days, seconds = duration.days, duration.seconds
+          hours = days * 24 + seconds // 3600
+          minutes = (seconds % 3600) // 60
+          seconds = seconds % 60
+          time_to_hour = "%02d:%02d" % (minutes, seconds)
+
+          if first == True:
+            price_line = ax.axhline(ticker, color='gray', linestyle="dotted", lw=.9)
+            if symbol.endswith("USDT") or symbol.endswith("USD"):
+              annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, "%.2f" % ticker, fontsize=7, color=white)
+            else:
+              annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, "%.8f" % ticker, fontsize=7, color=white)
+            annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
+
+            qs[self.tab_index].put(CANVAS_GET_SIZE)
+            qs[self.tab_index].put(annotation)
+            self.data_ready.emit()          
+            tbox = aqs[self.tab_index].get()
+          
+            dbox = tbox.transformed(ax.transData.inverted())
+            y0 = dbox.height * 2.4
+            if self.timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:
+              time_annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker - y0, time_to_hour, fontsize=7, color=white)
+              time_annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
+          else:
+            price_line.set_ydata(ticker)
+            
+            if symbol.endswith("USDT") or symbol.endswith("USD"):
+              annotation.set_text("%.2f" % ticker)
+            else:
+              annotation.set_text("%.8f" % ticker)
+              
+            annotation.set_y(ticker)
+            annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
+            qs[self.tab_index].put(CANVAS_GET_SIZE)
+            qs[self.tab_index].put(annotation)
+            self.data_ready.emit()
+            tbox = aqs[self.tab_index].get()
+            
+            dbox = tbox.transformed(ax.transData.inverted())
+            y0 = dbox.height * 2.4
+            if self.timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:            
+              time_annotation.set_text(time_to_hour)
+              time_annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
+              time_annotation.set_y(ticker - y0)
+
+          if init == True:
+            xl = ax.get_xlim()
+            candle_width = ((dbox.x0 - xl[0]) / limit) * 0.8
+          
+          last_line1, last_line2, last_rect = _candlestick(ax, prices, first, last_line1, last_line2, last_rect, candle_width)
+          
+          if first == True:
+            ax3.axhline(60, color=red, lw=.8)
+            ax3.axhline(-60, color=green, lw=.8)
+            ax3.axhline(0, color='gray', lw=.5)
+            ax3.axhline(53, color=red, linestyle="dotted", lw=.8)
+            ax3.axhline(-53, color=green, linestyle="dotted", lw=.8)
+            ax.set_axis_bgcolor(black)
+
+            pad = 0.25
+            yl = ax.get_ylim()
+            ax.set_ylim(yl[0]-(yl[1]-yl[0])*pad,yl[1])
+            ax.set_xlabel(self.timeframe_entered)
+            ax.set_ylabel(symbol)
+
+            ax.spines['top'].set_edgecolor(darkish)
+            ax.spines['left'].set_edgecolor(darkish)
+            ax.spines['right'].set_edgecolor(darkish)
+            ax.spines['bottom'].set_edgecolor(darkish)
+            ax.set_axis_bgcolor(black)
+            ax.xaxis.label.set_color(white)
+            ax.yaxis.label.set_color(white)
+            ax.tick_params(axis='x', colors=white)
+            ax.tick_params(axis='y', colors=white)
+            ax3.spines['left'].set_edgecolor(darkish)
+            ax3.spines['right'].set_edgecolor(darkish)
+            ax3.spines['top'].set_visible(False)
+            ax3.spines['bottom'].set_visible(False)
+            ax3.xaxis.label.set_color(white)
+            ax3.yaxis.label.set_color(white)
+            ax3.tick_params(axis='x', colors=white)
+            ax3.tick_params(axis='y', colors=white)            
+            ax.grid(alpha=.25)
+            ax.grid(True)
+
+            if init == True:
+              qs[self.tab_index].put(FIGURE_TIGHT_LAYOUT)
+              self.data_ready.emit()
+              aqs[self.tab_index].get()
+
+            bbox = ax.get_position()
+            ax3.set_position([bbox.x0, bbox.y0, bbox.width, bbox.height / 4])
+            ax.autoscale_view()
+            first = False
+
+            
+          prices2[:] = []
+          dates2[:] = []
+          dates3[:] = []
+          xvalues1 = None
+          yvalues1 = None
+          xvalues2 = None
+          yvalues2 = None
+          gc.collect()
+
+          qs[self.tab_index].put(CANVAS_DRAW_IDLE)
+          self.data_ready.emit()
+          aqs[self.tab_index].get()
+        except:
+          print get_full_stacktrace()
+          
+        counter = counter + 1
+        
+        init = False
+
+class UpdateUsdBalanceRunner(QtCore.QThread):
+  data_ready = QtCore.pyqtSignal()
+  
+  def __init__(self, parent):
+    super(UpdateUsdBalanceRunner, self).__init__(parent)
+    
+  def run(self):
+    global qslocal
+    symbols = client.fetch_tickers()
+    self.usdt_symbols = []
+    self.btc_symbols = []
+    for symbol,value in symbols.iteritems():
+      if symbol.endswith("USDT"):
+        self.usdt_symbols.append(symbol) 
+      if symbol.endswith("USD"):
+        self.usdt_symbols.append(symbol)
+      if symbol.endswith("BTC"):
+        self.btc_symbols.append(symbol)
+    
+    while True:
+      time.sleep(5)
+      try:
+        ticker = client.fetch_tickers()
+        balances = client.fetch_balance()
+        usdt_balance = 0
+        
+        if "BTC/USDT" in ticker:
+          btcusd_symbol = "BTC/USDT"
+        else:
+          btcusd_symbol = "BTC/USD"
+        
+        btc_price = get_symbol_price(btcusd_symbol)
+        for balance_symbol, balance in balances.iteritems():
+          if "free" not in balance:
+            continue
+          if float(balance["free"]) == 0.0:
+            continue
+          if balance_symbol == "USDT":
+            usdt_balance = usdt_balance + float(balance["free"])
+          elif balance_symbol + "/USDT" in self.usdt_symbols:
+            for symbol_name,symbol in ticker.iteritems():
+              if symbol_name == balance_symbol + "/USDT":
+                symbol_price = float(symbol["last"])
+                break
+            usdt_balance = usdt_balance + float(balance["free"]) * symbol_price
+          elif balance_symbol + "/USD" in self.usdt_symbols:
+            for symbol_name,symbol in ticker.iteritems():
+              if symbol_name == balance_symbol + "/USD":
+                symbol_price = float(symbol["last"])
+                break
+            usdt_balance = usdt_balance + float(balance["free"]) * symbol_price
+          elif balance_symbol + "/BTC" in self.btc_symbols:
+            for symbol_name,symbol in ticker.iteritems():
+              if symbol_name == balance_symbol + "/BTC":
+                symbol_price = float(symbol["last"])
+                break
+            usdt_balance = usdt_balance + float(balance["free"]) * symbol_price * btc_price
+      
+        qs_local.put(SHOW_STATUSBAR_MESSAGE)
+        qs_local.put("USD Balance: " + "%.2f" % usdt_balance)
+        self.data_ready.emit()
+      except:
+        print get_full_stacktrace()
+        
+      time.sleep(35)
+
 class Window(QtGui.QMainWindow):
     global tab_widgets
     global config
     def __init__(self, symbol, timeframe_entered):
-        QtGui.QDialog.__init__(self)
+        QtGui.QMainWindow.__init__(self)
         resolution = QtGui.QDesktopWidget().screenGeometry()
         uic.loadUi(os.path.join(DIRPATH, 'mainwindowqt.ui'), self)
         self.setWindowTitle("WAVETREND ROBOT - " + exchange)
@@ -962,27 +1052,21 @@ class Window(QtGui.QMainWindow):
         qs[0] = Queue.Queue()
         aqs[0] = Queue.Queue()
         
-        timer = QtCore.QTimer(self)
-        timer.timeout.connect(self.queue_handler)
-        timer.start(1)
-                
-        t = threading.Thread(target=run_geforce, args=(symbol, 0, timeframe_entered))
-        t.daemon = True
-        t.start()
+        self.chart_runner_thread = ChartRunner(self, symbol, 0, timeframe_entered)
+        self.chart_runner_thread.data_ready.connect(self.queue_handle)
+        self.chart_runner_thread.start()
         
-        t = threading.Thread(target=self.update_usdt_balance)
-        t.daemon = True
-        t.start()
-    
-    def queue_handler(self):
+        self.updateusdbalance_runner_thread = UpdateUsdBalanceRunner(self)
+        self.updateusdbalance_runner_thread.data_ready.connect(self.queue_handle)
+        self.updateusdbalance_runner_thread.start()
+        
+    def queue_handle(self):
       global qs
       global aqs
       global qs_local
-      if QtGui.QApplication.hasPendingEvents():
-        return
-      
+
       for i in xrange(0, len(qs)):
-        if qs[i].qsize() > 0:
+        if self.tabWidget.currentIndex() == i and hasattr(self.dcs[i], "renderer") and qs[i].qsize() > 0:
           value = qs[i].get()
           if value == FIGURE_ADD_SUBPLOT:
             aqs[i].put(self.dcs[i].fig.add_subplot(1,1,1,facecolor=black))
@@ -995,17 +1079,16 @@ class Window(QtGui.QMainWindow):
           elif value == CANVAS_GET_SIZE:
             annotation = qs[i].get()
             aqs[i].put(annotation.get_window_extent(self.dcs[i].renderer))
-          elif value == CANVAS_DRAW_IDLE:
-            if self.tabWidget.currentIndex() == i:
-              self.dcs[i].draw_idle()
+          elif value == CANVAS_DRAW_IDLE:         
+            self.dcs[i].draw_idle()
             aqs[i].put(0)
         
       if qs_local.qsize() > 0:
         value = qs_local.get()
         if value == SHOW_STATUSBAR_MESSAGE:
           message = qs_local.get()
-          self.statusbar.showMessage(message)
-                
+          self.statusbar.showMessage(message)    
+ 
     def expand_collapse(self, event):
       if self.expanded == True:
         self.label.setPixmap(QtGui.QPixmap("arrowl.png").scaled(16,16))
@@ -1157,73 +1240,14 @@ class Window(QtGui.QMainWindow):
       aqs[tab_index] = Queue.Queue()
       self.dcs[tab_index] = dc
       
-      t = threading.Thread(target=run_geforce, args=(symbol, tab_index, timeframe_entered))
-      t.daemon = True
-      t.start()
+      self.chart_runner_thread = ChartRunner(self, symbol, tab_index, timeframe_entered)
+      self.chart_runner_thread.data_ready.connect(self.queue_handle)
+      self.chart_runner_thread.start()
     
     def add_coin_clicked(self, event):
       global dialog
       dialog = Dialog()
       dialog.show()
-       
-    def update_usdt_balance(self):
-      global qslocal
-      symbols = client.fetch_tickers()
-      self.usdt_symbols = []
-      self.btc_symbols = []
-      for symbol,value in symbols.iteritems():
-        if symbol.endswith("USDT"):
-          self.usdt_symbols.append(symbol) 
-        if symbol.endswith("USD"):
-          self.usdt_symbols.append(symbol)
-        if symbol.endswith("BTC"):
-          self.btc_symbols.append(symbol)
-      
-      while True:
-        time.sleep(5)
-        try:
-          ticker = client.fetch_tickers()
-          balances = client.fetch_balance()
-          usdt_balance = 0
-          
-          if "BTC/USDT" in ticker:
-            btcusd_symbol = "BTC/USDT"
-          else:
-            btcusd_symbol = "BTC/USD"
-          
-          btc_price = get_symbol_price(btcusd_symbol)
-          for balance_symbol, balance in balances.iteritems():
-            if "free" not in balance:
-              continue
-            if float(balance["free"]) == 0.0:
-              continue
-            if balance_symbol == "USDT":
-              usdt_balance = usdt_balance + float(balance["free"])
-            elif balance_symbol + "/USDT" in self.usdt_symbols:
-              for symbol_name,symbol in ticker.iteritems():
-                if symbol_name == balance_symbol + "/USDT":
-                  symbol_price = float(symbol["last"])
-                  break
-              usdt_balance = usdt_balance + float(balance["free"]) * symbol_price
-            elif balance_symbol + "/USD" in self.usdt_symbols:
-              for symbol_name,symbol in ticker.iteritems():
-                if symbol_name == balance_symbol + "/USD":
-                  symbol_price = float(symbol["last"])
-                  break
-              usdt_balance = usdt_balance + float(balance["free"]) * symbol_price
-            elif balance_symbol + "/BTC" in self.btc_symbols:
-              for symbol_name,symbol in ticker.iteritems():
-                if symbol_name == balance_symbol + "/BTC":
-                  symbol_price = float(symbol["last"])
-                  break
-              usdt_balance = usdt_balance + float(balance["free"]) * symbol_price * btc_price
-        
-          qs_local.put(SHOW_STATUSBAR_MESSAGE)
-          qs_local.put("USD Balance: " + "%.2f" % usdt_balance)
-        except:
-          print get_full_stacktrace()
-          
-        time.sleep(35)
     
 class Dialog(QtGui.QDialog):
     global config
