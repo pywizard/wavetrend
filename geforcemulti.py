@@ -335,7 +335,7 @@ days_table = {"1m": 0.17, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, "4h": 40, "
 
 def ceil_dt(dt, seconds):
     # how many secs have passed this hour
-    nsecs = dt.minute*60 + dt.second + dt.microsecond*1e-6  
+    nsecs = dt.minute*60 + dt.second + dt.microsecond*1e-6
     # number of seconds to next quarter hour mark
     # Non-analytic (brute force is fun) way:  
     #   delta = next(x for x in xrange(0,3601,900) if x>=nsecs) - nsecs
@@ -481,74 +481,6 @@ def peakdetect(v, delta, x = None):
 
     return maxtab, mintab
 
-def getData(timeframe_entered, days_entered, currency_entered, few_candles):
-    if few_candles == False:
-      limit = 0
-      if timeframe_entered == "15m":
-          limit = int(days_entered * 4 * 24)
-
-      if timeframe_entered == "1m":
-          limit = int(days_entered * 60 * 24)
-
-      if timeframe_entered == "5m":
-          limit = int(days_entered * 12 * 24)
-
-      if timeframe_entered == "30m":
-          limit = int(days_entered * 2 * 24)
-
-      if timeframe_entered == "1h":
-          limit = int(days_entered * 24)
-
-      if timeframe_entered == "4h":
-          limit = int(days_entered * (24/4))
-
-      if timeframe_entered == "6h":
-          limit = int(days_entered * (24/6))
-
-      if timeframe_entered == "12h":
-          limit = int(days_entered * (24/12))
-
-      if timeframe_entered == "1d":
-          limit = int(days_entered)
-
-      if timeframe_entered == "3d":
-          limit = int(days_entered / 3)
-
-      if timeframe_entered == "1w":
-          limit = int(days_entered / 7)
-
-      if timeframe_entered == "1M":
-          limit = int(days_entered / 31)
-    else:
-      limit = 2
-
-    dt = []
-    open_ = []
-    high = []
-    low = []
-    close = []
-    volume = []
-    timestamp = []
-    
-    while True:
-      try:
-        candles = client.fetch_ohlcv(currency_entered, timeframe_entered, limit=limit)
-        break
-      except:
-        time.sleep(.5)
-        continue
-
-    for candle in candles:
-      dt.append(datetime.datetime.fromtimestamp(int(candle[0]) / 1e3))
-      open_.append(float(candle[1]))
-      high.append(float(candle[2]))
-      low.append(float(candle[3]))
-      close.append(float(candle[4]))
-      volume.append(float(candle[5]))
-      timestamp.append(candle[0])
-
-    return dt, open_, high, low, close, volume, limit, timestamp
-
 from operator import itemgetter
 DIRPATH = os.path.join(os.path.dirname(os.path.abspath(__file__)))
 
@@ -575,15 +507,80 @@ class ChartRunner(QtCore.QThread):
     self.tab_index = tab_index
     self.timeframe_entered = timeframe_entered
 
+  def getData(self, timeframe_entered, days_entered, currency_entered, few_candles):
+      if few_candles == False:
+        limit = 0
+        if timeframe_entered == "15m":
+            limit = int(days_entered * 4 * 24)
+
+        if timeframe_entered == "1m":
+            limit = int(days_entered * 60 * 24)
+
+        if timeframe_entered == "5m":
+            limit = int(days_entered * 12 * 24)
+
+        if timeframe_entered == "30m":
+            limit = int(days_entered * 2 * 24)
+
+        if timeframe_entered == "1h":
+            limit = int(days_entered * 24)
+
+        if timeframe_entered == "4h":
+            limit = int(days_entered * (24/4))
+
+        if timeframe_entered == "6h":
+            limit = int(days_entered * (24/6))
+
+        if timeframe_entered == "12h":
+            limit = int(days_entered * (24/12))
+
+        if timeframe_entered == "1d":
+            limit = int(days_entered)
+
+        if timeframe_entered == "3d":
+            limit = int(days_entered / 3)
+
+        if timeframe_entered == "1w":
+            limit = int(days_entered / 7)
+
+        if timeframe_entered == "1M":
+            limit = int(days_entered / 31)
+      else:
+        limit = 10
+
+      dt = []
+      open_ = []
+      high = []
+      low = []
+      close = []
+      volume = []
+      
+      while True:
+        try:
+          candles = client.fetch_ohlcv(currency_entered, timeframe_entered, limit=limit)
+          break
+        except:
+          print get_full_stacktrace()
+          continue
+
+      for candle in candles:
+        dt.append(datetime.datetime.fromtimestamp(int(candle[0]) / 1000))
+        open_.append(float(candle[1]))
+        high.append(float(candle[2]))
+        low.append(float(candle[3]))
+        close.append(float(candle[4]))
+        volume.append(float(candle[5]))
+
+      return dt, open_, high, low, close, volume, limit
+
   def run(self):
     global qs
     global aqs
-    global days_table
-        
-    time.sleep(2)
 
     days_entered = days_table[self.timeframe_entered]
+    timeframe_entered = self.timeframe_entered
     symbol = self.symbol
+    tab_index = self.tab_index
 
     to_sell = 0
 
@@ -594,32 +591,34 @@ class ChartRunner(QtCore.QThread):
     first = True
     last_line1 = None
     last_line2 = None
-    last_rect = None
+    last_rect = None    
+    prices = []
     while True:
         try:
           if first == True:
-            date, open_, high, low, close, vol, limit, timestamp = getData(self.timeframe_entered, days_entered, symbol, False)
+            date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol, False)
           else:
-            date2, open2_, high2, low2, close2, vol2, limit2, timestamp2 = getData(self.timeframe_entered, days_entered, symbol, True)
+            date2, open2_, high2, low2, close2, vol2, limit2 = self.getData(timeframe_entered, days_entered, symbol, True)
           
           if first == True:
-            qs[self.tab_index].put(FIGURE_ADD_SUBPLOT)
+            qs[tab_index].put(FIGURE_ADD_SUBPLOT)
             self.data_ready.emit()
             ax = aqs[self.tab_index].get()
             ax3 = ax.twinx()
-            first_candle_date = timestamp[-1]
-
-            prices = []
+            previous_candle = [date[-2], open_[-2], high[-2], low[-2], close[-2], vol[-2]]
+            len_candles = len(date)
+            
+            prices[:] = []
             for i in range(0, len(date)):
                 prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
           else:
-            prices[-1] = (date2num(date2[1]), open2_[1], high2[1], low2[1], close2[1], vol2[1], date2[1])
-            prices[-2] = (date2num(date2[0]), open2_[0], high2[0], low2[0], close2[0], vol2[0], date2[0])
-
-          if first == False and first_candle_date != timestamp2[-1]:
-            qs[self.tab_index].put(FIGURE_CLEAR)
+            prices[-1] = (date2num(date2[-1]), open2_[-1], high2[-1], low2[-1], close2[-1], vol2[-1], date2[-1])
+            prices[-2] = (date2num(date2[-2]), open2_[-2], high2[-2], low2[-2], close2[-2], vol2[-2], date2[-2])
+            
+          if first == False and previous_candle != [date2[-2], open2_[-2], high2[-2], low2[-2], close2[-2], vol2[-2]] and len(date2) == 10:
+            qs[tab_index].put(FIGURE_CLEAR)
             self.data_ready.emit()
-            aqs[self.tab_index].get()
+            aqs[tab_index].get()
             first = True
             last_line1 = None
             last_line2 = None
@@ -671,7 +670,7 @@ class ChartRunner(QtCore.QThread):
           ax.set_xlim(date[start_x], xl[1])
 
           wt_y_current = yvalues1[-1]
-          symbol_with_timeframe = symbol + " " + self.timeframe_entered
+          symbol_with_timeframe = symbol + " " + timeframe_entered
           
           if init == True:
             wt_y_before = yvalues1[-1]
@@ -738,22 +737,22 @@ class ChartRunner(QtCore.QThread):
 
           if wt_rising == True:          
             if counter % 15 == 0:
-              print symbol + " " + self.timeframe_entered + " Rising Wavetrend, threshold = %.8f" % abs(wt_difference)
+              print symbol + " " + timeframe_entered + " Rising Wavetrend, threshold = %.8f" % abs(wt_difference)
           else:
             if counter % 15 == 0:
-              print symbol + " " + self.timeframe_entered + " Falling Wavetrend, threshold = %.8f" % abs(wt_difference)
+              print symbol + " " + timeframe_entered + " Falling Wavetrend, threshold = %.8f" % abs(wt_difference)
           
           if counter % 15 == 0 and wt_y_current > 53:
-            print symbol + " " + self.timeframe_entered + " Wavetrend above 53, threshold = %.8f" % (wt_y_current - 53)
+            print symbol + " " + timeframe_entered + " Wavetrend above 53, threshold = %.8f" % (wt_y_current - 53)
 
           if counter % 15 == 0 and wt_y_current < 53:
-            print symbol + " " + self.timeframe_entered + " Wavetrend below 53, threshold = %.8f" % (53 - wt_y_current)
+            print symbol + " " + timeframe_entered + " Wavetrend below 53, threshold = %.8f" % (53 - wt_y_current)
 
           if counter % 15 == 0 and wt_y_current < -53:
-            print symbol + " " + self.timeframe_entered + " Wavetrend below -53, threshold = %.8f" % (-53 - wt_y_current)
+            print symbol + " " + timeframe_entered + " Wavetrend below -53, threshold = %.8f" % (-53 - wt_y_current)
 
           if counter % 15 == 0 and wt_y_current > -53:
-            print symbol + " " + self.timeframe_entered + " Wavetrend above -53, threshold = %.8f" % (wt_y_current + 53)
+            print symbol + " " + timeframe_entered + " Wavetrend above -53, threshold = %.8f" % (wt_y_current + 53)
           
           if buy_intersect == True or sell_intersect == True:            
             print symbol + " INTERSECTION!!!"
@@ -824,15 +823,15 @@ class ChartRunner(QtCore.QThread):
           ticker = prices[-1][4]
 
           in_time = datetime.datetime.now()
-          if self.timeframe_entered == "1m":
+          if timeframe_entered == "1m":
             in_time = ceil_dt(in_time, 60)
-          elif self.timeframe_entered == "5m":
+          elif timeframe_entered == "5m":
             in_time = ceil_dt(in_time, 5*60)
-          elif self.timeframe_entered == "15m":
+          elif timeframe_entered == "15m":
             in_time = ceil_dt(in_time, 15*60)
-          elif self.timeframe_entered == "30m":
+          elif timeframe_entered == "30m":
             in_time = ceil_dt(in_time, 30*60)
-          elif self.timeframe_entered == "1h":
+          elif timeframe_entered == "1h":
             in_time = ceil_dt(in_time, 60*60)
 
           duration = in_time - datetime.datetime.now()
@@ -850,14 +849,14 @@ class ChartRunner(QtCore.QThread):
               annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, "%.8f" % ticker, fontsize=7, color=white)
             annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
 
-            qs[self.tab_index].put(CANVAS_GET_SIZE)
-            qs[self.tab_index].put(annotation)
-            self.data_ready.emit()          
-            tbox = aqs[self.tab_index].get()
+            qs[tab_index].put(CANVAS_GET_SIZE)
+            qs[tab_index].put(annotation)
+            self.data_ready.emit()
+            tbox = aqs[tab_index].get()
           
             dbox = tbox.transformed(ax.transData.inverted())
             y0 = dbox.height * 2.4
-            if self.timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:
+            if timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:
               time_annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker - y0, time_to_hour, fontsize=7, color=white)
               time_annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
           else:
@@ -870,14 +869,14 @@ class ChartRunner(QtCore.QThread):
               
             annotation.set_y(ticker)
             annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
-            qs[self.tab_index].put(CANVAS_GET_SIZE)
-            qs[self.tab_index].put(annotation)
+            qs[tab_index].put(CANVAS_GET_SIZE)
+            qs[tab_index].put(annotation)
             self.data_ready.emit()
-            tbox = aqs[self.tab_index].get()
+            tbox = aqs[tab_index].get()
             
             dbox = tbox.transformed(ax.transData.inverted())
             y0 = dbox.height * 2.4
-            if self.timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:            
+            if timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:            
               time_annotation.set_text(time_to_hour)
               time_annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
               time_annotation.set_y(ticker - y0)
@@ -899,7 +898,7 @@ class ChartRunner(QtCore.QThread):
             pad = 0.25
             yl = ax.get_ylim()
             ax.set_ylim(yl[0]-(yl[1]-yl[0])*pad,yl[1])
-            ax.set_xlabel(self.timeframe_entered)
+            ax.set_xlabel(timeframe_entered)
             ax.set_ylabel(symbol)
 
             ax.spines['top'].set_edgecolor(darkish)
@@ -923,9 +922,9 @@ class ChartRunner(QtCore.QThread):
             ax.grid(True)
 
             if init == True:
-              qs[self.tab_index].put(FIGURE_TIGHT_LAYOUT)
+              qs[tab_index].put(FIGURE_TIGHT_LAYOUT)
               self.data_ready.emit()
-              aqs[self.tab_index].get()
+              aqs[tab_index].get()
 
             bbox = ax.get_position()
             ax3.set_position([bbox.x0, bbox.y0, bbox.width, bbox.height / 4])
@@ -942,9 +941,9 @@ class ChartRunner(QtCore.QThread):
           yvalues2 = None
           gc.collect()
 
-          qs[self.tab_index].put(CANVAS_DRAW)
+          qs[tab_index].put(CANVAS_DRAW)
           self.data_ready.emit()
-          aqs[self.tab_index].get()
+          aqs[tab_index].get()
         except:
           print get_full_stacktrace()
           
