@@ -153,7 +153,7 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
       quotes = [quotes[-1]]
     for q in quotes:
         t, open, high, low, close = q[:5]
-
+        
         if close >= open:
             color = colorup
             color2 = colorup2
@@ -224,6 +224,8 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
         else:
           last_line1.set_ydata((high, higher))
           last_line2.set_ydata((low, lower))
+          last_line1.set_color(color2)
+          last_line2.set_color(color2)          
           last_rect.set_y(lower)
           last_rect.set_height(height)
           last_rect.set_facecolor(color)
@@ -1256,6 +1258,8 @@ class Dialog(QtGui.QDialog):
     def __init__(self):
         QtGui.QDialog.__init__(self)
         uic.loadUi(os.path.join(DIRPATH, 'windowqt.ui'), self)
+        self.setFixedSize(555, 575)
+        self.tableWidget.horizontalHeader().setResizeMode(QtGui.QHeaderView.Stretch)
         
         coins = client.fetchTickers()
 
