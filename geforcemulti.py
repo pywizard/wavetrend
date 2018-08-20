@@ -1066,7 +1066,7 @@ class Window(QtGui.QMainWindow):
       global qs_local
 
       for i in xrange(0, len(qs)):
-        if self.tabWidget.currentIndex() == i and hasattr(self.dcs[i], "renderer") and qs[i].qsize() > 0:
+        if hasattr(self.dcs[i], "renderer") and qs[i].qsize() > 0:
           value = qs[i].get()
           if value == FIGURE_ADD_SUBPLOT:
             aqs[i].put(self.dcs[i].fig.add_subplot(1,1,1,facecolor=black))
@@ -1081,7 +1081,8 @@ class Window(QtGui.QMainWindow):
             aqs[i].put(annotation.get_window_extent(self.dcs[i].renderer))
           elif value == CANVAS_DRAW:         
             QtGui.QApplication.processEvents()
-            self.dcs[i].draw()
+            if self.tabWidget.currentIndex() == i:
+              self.dcs[i].draw()
             aqs[i].put(0)
         
       if qs_local.qsize() > 0:
