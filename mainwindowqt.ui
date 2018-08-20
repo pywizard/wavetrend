@@ -32,13 +32,44 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout_2">
     <item>
-     <widget class="QToolButton" name="toolButton">
-      <property name="text">
-       <string>Add Coin</string>
+     <widget class="QFrame" name="frame_2">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
       </property>
-      <property name="toolButtonStyle">
-       <enum>Qt::ToolButtonIconOnly</enum>
+      <property name="frameShape">
+       <enum>QFrame::StyledPanel</enum>
       </property>
+      <property name="frameShadow">
+       <enum>QFrame::Raised</enum>
+      </property>
+      <layout class="QHBoxLayout" name="horizontalLayout_2">
+       <item>
+        <widget class="QToolButton" name="toolButton">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>Add Coin</string>
+         </property>
+         <property name="toolButtonStyle">
+          <enum>Qt::ToolButtonIconOnly</enum>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QToolButton" name="toolButton_2">
+         <property name="text">
+          <string>Trade Coin</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
      </widget>
     </item>
     <item>
@@ -63,189 +94,6 @@
            <string>Tab 1</string>
           </attribute>
          </widget>
-        </widget>
-       </item>
-       <item>
-        <widget class="QLabel" name="label">
-         <property name="text">
-          <string/>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QGroupBox" name="groupBox">
-         <property name="title">
-          <string>COIN</string>
-         </property>
-         <layout class="QVBoxLayout" name="verticalLayout_6">
-          <item>
-           <widget class="QLabel" name="label_14">
-            <property name="text">
-             <string>COIN Balance</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="label_15">
-            <property name="text">
-             <string>QUOTE Balance</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="label_13">
-            <property name="text">
-             <string>Trade Amount %</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="comboBox_5">
-            <item>
-             <property name="text">
-              <string>90%</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>75%</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>50%</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>25%</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-          <item>
-           <widget class="QToolButton" name="toolButton_2">
-            <property name="text">
-             <string>BUY</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QToolButton" name="toolButton_3">
-            <property name="text">
-             <string>SELL</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QGroupBox" name="groupBox_2">
-            <property name="title">
-             <string>Wavetrend</string>
-            </property>
-            <layout class="QVBoxLayout" name="verticalLayout_5">
-             <item>
-              <widget class="QCheckBox" name="checkBox_4">
-               <property name="text">
-                <string>Auto Trade</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QRadioButton" name="radioButton_8">
-               <property name="text">
-                <string>Trade all crossings</string>
-               </property>
-               <property name="checked">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QRadioButton" name="radioButton_7">
-               <property name="text">
-                <string>Trade when crossing 53 down/-53 up</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_10">
-               <property name="text">
-                <string>Buy Threshold</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="lineEdit_7">
-               <property name="text">
-                <string>1</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_12">
-               <property name="text">
-                <string>Sell Threshold</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="lineEdit_8">
-               <property name="text">
-                <string>1</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_11">
-               <property name="text">
-                <string>Buy Amount Percentage</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QComboBox" name="comboBox_4">
-               <item>
-                <property name="text">
-                 <string>25%</string>
-                </property>
-               </item>
-               <item>
-                <property name="text">
-                 <string>50%</string>
-                </property>
-               </item>
-               <item>
-                <property name="text">
-                 <string>75%</string>
-                </property>
-               </item>
-               <item>
-                <property name="text">
-                 <string>90%</string>
-                </property>
-               </item>
-              </widget>
-             </item>
-             <item>
-              <widget class="QPushButton" name="pushButton_4">
-               <property name="text">
-                <string>Accept</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QListWidget" name="listWidget_4">
-               <item>
-                <property name="text">
-                 <string>=== TRADES === </string>
-                </property>
-               </item>
-              </widget>
-             </item>
-            </layout>
-           </widget>
-          </item>
-         </layout>
         </widget>
        </item>
       </layout>

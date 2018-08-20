@@ -781,7 +781,6 @@ class ChartRunner(QtCore.QThread):
                   try:
                     order = client.create_market_buy_order(symbol, buy_amount)
                     playsound("beep.wav")
-                    main.updateBalances(symbol)
                     prev_trade_time = datetime.datetime.now()
                   except:
                     print get_full_stacktrace()
@@ -810,7 +809,6 @@ class ChartRunner(QtCore.QThread):
                   try:
                     order = client.create_market_sell_order(symbol, to_sell)
                     playsound("beep.wav")
-                    main.updateBalances(symbol)
                     prev_trade_time = datetime.datetime.now()
                   except:
                     print get_full_stacktrace()
@@ -1029,15 +1027,10 @@ class Window(QtGui.QMainWindow):
         self.move((resolution.width() / 2) - (self.frameSize().width() / 2),
                   (resolution.height() / 2) - (self.frameSize().height() / 2))         
         self.toolButton.clicked.connect(self.add_coin_clicked)
+        self.toolButton_2.clicked.connect(self.trade_coin_clicked)
         self.tab_widgets = []
         self.tab_widgets.append(self.tabWidget.widget(0))
         self.tabWidget.currentChanged.connect(self.tabOnChange)
-        self.pushButton_4.clicked.connect(self.configAcceptClicked)
-        self.toolButton_2.clicked.connect(self.buy_clicked)
-        self.toolButton_3.clicked.connect(self.sell_clicked)
-        self.label.setPixmap(QtGui.QPixmap("arrowr.png").scaled(16,16))
-        self.expanded = True
-        self.label.mousePressEvent = self.expand_collapse
     
         widget = QtGui.QVBoxLayout(self.tabWidget.widget(0))
         dc = MplCanvas(self.tabWidget.widget(0), dpi=100, symbol=symbol)
@@ -1091,17 +1084,7 @@ class Window(QtGui.QMainWindow):
         if value == SHOW_STATUSBAR_MESSAGE:
           message = qs_local.get()
           self.statusbar.showMessage(message)    
- 
-    def expand_collapse(self, event):
-      if self.expanded == True:
-        self.label.setPixmap(QtGui.QPixmap("arrowl.png").scaled(16,16))
-        self.groupBox.hide()
-        self.expanded = False
-      else:
-        self.label.setPixmap(QtGui.QPixmap("arrowr.png").scaled(16,16))
-        self.groupBox.show()
-        self.expanded = True
-        
+         
     def buy_clicked(self, event):
       print "BUY"
       
@@ -1132,7 +1115,6 @@ class Window(QtGui.QMainWindow):
           try:
             client.create_market_buy_order(symbol, buy_amount)
             playsound("beep.wav")
-            self.updateBalances(symbol)
           except:
             pass
             
@@ -1162,7 +1144,6 @@ class Window(QtGui.QMainWindow):
           try: 
             client.create_market_sell_order(symbol, sell_amount)
             playsound("beep.wav")
-            self.updateBalances(symbol)
           except:
             pass
           
@@ -1219,14 +1200,6 @@ class Window(QtGui.QMainWindow):
     def tabOnChange(self, event):
       selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
       symbol = selected_symbol
-      main.groupBox.setTitle(selected_symbol)
-      self.checkBox_4.setChecked(config[selected_symbol].trade_auto)
-      self.radioButton_8.setChecked(config[selected_symbol].trade_all_crossings)
-      self.radioButton_7.setChecked(config[selected_symbol].trade_lines_only)
-      self.lineEdit_7.setText(str(config[selected_symbol].buy_threshold))
-      self.lineEdit_8.setText(str(config[selected_symbol].sell_threshold))
-      self.comboBox_4.setCurrentIndex(config[selected_symbol].buy_amount_percent_index)
-      self.updateBalances(symbol.split(" ")[0])
       
     def addTab(self, symbol, timeframe_entered):
       self.tab_widgets.append(QtGui.QWidget())
@@ -1251,7 +1224,173 @@ class Window(QtGui.QMainWindow):
       global dialog
       dialog = Dialog()
       dialog.show()
+
+    def trade_coin_clicked(self, event):
+      self.trade_dialog = TradeDialog(self)
+      self.trade_dialog.show()
+      
+class TradeDialog(QtGui.QDialog):
+  def __init__(self, parent):
+    QtGui.QDialog.__init__(self)
+    uic.loadUi(os.path.join(DIRPATH, 'trade.ui'), self)
+    self.symbol = str(parent.tabWidget.tabText(parent.tabWidget.currentIndex())).split(" ")[0]
+    symbol = self.symbol
+    self.trade_coin_price = get_symbol_price(symbol)
+    trade_coin_price_str = "%.02f" % self.trade_coin_price
+    self.setWindowTitle("Trade " + symbol)
+    asset = get_asset_from_symbol(symbol)
+    quote = get_quote_from_symbol(symbol)
+    self.quote_free_balance = client.fetch_balance()[quote]["free"]
+    self.asset_free_balance = client.fetch_balance()[asset]["free"]
+    self.labelFreebalance.setText("%.06f" % self.quote_free_balance + " " + quote)
+    self.labelFreebalance2.setText("%.06f" % self.asset_free_balance + " " + asset)
     
+    self.labelFreebalance_4.setText("%.06f" % self.quote_free_balance + " " + quote)
+    self.labelFreebalance2_3.setText("%.06f" % self.asset_free_balance + " " + asset)    
+    
+    self.editAmount.textChanged.connect(self.editamount_textChanged)
+    self.editAmount2.textChanged.connect(self.editamount2_textChanged)
+    self.editAmount_4.textChanged.connect(self.editamount_4_textChanged)
+    self.editAmount2_3.textChanged.connect(self.editamount2_3_textChanged)
+    
+    self.editPrice.textChanged.connect(self.editamount_textChanged)
+    self.editPrice2.textChanged.connect(self.editamount2_textChanged)
+    self.editPrice.setText(trade_coin_price_str)
+    self.editPrice2.setText(trade_coin_price_str)
+    
+    self.label_29.setText(asset)
+    self.label_30.setText(quote)
+    self.label_41.setText(asset)
+    self.label_47.setText(quote)
+    
+    self.label_3.setText(asset)
+    self.label_5.setText(quote)
+    self.label_7.setText(quote)
+    self.label_22.setText(asset)
+    self.label_24.setText(quote)
+    self.label_23.setText(quote)
+    
+    self.labelFreebalance.mousePressEvent = self.buyLimitLabelClicked
+    self.labelFreebalance2.mousePressEvent = self.sellLimitLabelClicked
+    self.labelFreebalance_4.mousePressEvent = self.buyMarketLabelClicked
+    self.labelFreebalance2_3.mousePressEvent = self.sellMarketLabelClicked
+    
+    self.toolButton.clicked.connect(self.buylimit_clicked)
+    self.toolButton_3.clicked.connect(self.selllimit_clicked)
+    
+    self.toolButton_4.clicked.connect(self.buymarket_clicked)
+    self.toolButton_6.clicked.connect(self.sellmarket_clicked)    
+
+  def buylimit_clicked(self, event):
+    amount = truncate(float(self.editAmount.text()), 2)
+    price = float(self.editPrice.text())
+    
+    symbol_price = get_symbol_price(self.symbol)
+    if price > symbol_price:
+      return
+    
+    try:
+      client.create_limit_buy_order(self.symbol, amount, price)
+    except:
+      print get_full_stacktrace()
+      return
+    
+    self.close()
+    
+  def selllimit_clicked(self, event):
+    amount = truncate(float(self.editAmount2.text()), 2)
+    price = float(self.editPrice2.text())
+
+    symbol_price = get_symbol_price(self.symbol)
+    if price < symbol_price:
+      return    
+    
+    try:
+      client.create_limit_sell_order(self.symbol, amount, price)
+    except:
+      print get_full_stacktrace()
+      return
+
+    self.close()
+    
+  def buymarket_clicked(self, event):
+    amount = truncate(float(self.editAmount_4.text()), 2)
+
+    try:
+      client.create_market_buy_order(self.symbol, amount)
+    except:
+      print get_full_stacktrace()
+      return
+    
+    self.close()
+    
+  def sellmarket_clicked(self, event):
+    amount = truncate(float(self.editAmount2_3.text()), 2)
+    
+    try:
+      client.create_market_sell_order(self.symbol, amount)
+    except:
+      print get_full_stacktrace()
+      return
+
+    self.close()    
+
+  def buyLimitLabelClicked(self, event):
+    if self.editPrice.text() == "":
+      return
+    price = float(self.editPrice.text())
+    self.editAmount.setText("%.02f" % (self.quote_free_balance / self.trade_coin_price))
+    total = (self.quote_free_balance / self.trade_coin_price) * price
+    if truncate(self.quote_free_balance / self.trade_coin_price, 2) == 0:
+      self.editTotal.setText("")
+    else:
+      self.editTotal.setText("%.04f" % (total))
+  
+  def sellLimitLabelClicked(self, event):
+    if self.editPrice.text() == "":
+      return    
+    price = float(self.editPrice2.text())
+    asset_free_balance = truncate(self.asset_free_balance, 2)
+    self.editAmount2.setText("%.02f" % asset_free_balance)
+    self.editTotal2.setText("%.04f" % (asset_free_balance * price))
+  
+  def editamount_textChanged(self, event):
+    if self.editPrice.text() == "":
+      return
+    price = float(self.editPrice.text())
+    amount = truncate(float(self.editAmount.text()), 2)
+    self.editTotal.setText("%.04f" % (amount * price))
+    
+  def editamount2_textChanged(self, event):
+    price = float(self.editPrice2.text())
+    amount = truncate(float(self.editAmount2.text()), 2)
+    self.editTotal2.setText("%.04f" % (amount * price))
+  
+  def buyMarketLabelClicked(self, event):
+    price = get_symbol_price(self.symbol)
+    self.editAmount_4.setText("%.02f" % (self.quote_free_balance / self.trade_coin_price))
+    total = (self.quote_free_balance / self.trade_coin_price) * price
+    if truncate(self.quote_free_balance / self.trade_coin_price, 2) == 0:
+      self.editTotal_3.setText("")
+    else:
+      self.editTotal_3.setText("%.04f" % (total))
+  
+  def sellMarketLabelClicked(self, event):
+    price = get_symbol_price(self.symbol)
+    asset_free_balance = truncate(self.asset_free_balance, 2)
+    self.editAmount2_3.setText("%.02f" % asset_free_balance)
+    self.editTotal2_3.setText("%.04f" % (asset_free_balance * price))
+    
+  def editamount_4_textChanged(self, event):
+    price = self.trade_coin_price
+    amount = truncate(float(self.editAmount_4.text()), 2)
+    self.editTotal_3.setText("%.04f" % (amount * price))
+
+  def editamount2_3_textChanged(self, event):
+    price = self.trade_coin_price
+    amount = truncate(float(self.editAmount2_3.text()), 2)
+    self.editTotal2_3.setText("%.04f" % (amount * price))
+
 class Dialog(QtGui.QDialog):
     global config
     def __init__(self):
@@ -1326,10 +1465,8 @@ class Dialog(QtGui.QDialog):
 
         if not main_shown:
           main = Window(symbol, timeframe_entered)
-          main.updateBalances(symbol)
           main.tabWidget.setTabText(0, symbol + " " + timeframe_entered)
           main.tabWidget.setTabIcon(0, QtGui.QIcon("coin.ico"))
-          main.groupBox.setTitle(symbol + " " + timeframe_entered)
           main.show()
           main_shown = True
           f = open("trades.txt")
@@ -1339,9 +1476,7 @@ class Dialog(QtGui.QDialog):
             main.listWidget_4.addItem(item)
           f.close()
         else:
-          main.updateBalances(symbol)
           main.addTab(symbol, timeframe_entered)
-          main.groupBox.setTitle(symbol)        
         self.close()
 
 def orderbook(exchange, symbol):
