@@ -76,51 +76,6 @@
      <height>22</height>
     </rect>
    </property>
-   <item>
-    <property name="text">
-     <string>1h</string>
-    </property>
-   </item>
-   <item>
-    <property name="text">
-     <string>1m</string>
-    </property>
-   </item>
-   <item>
-    <property name="text">
-     <string>5m</string>
-    </property>
-   </item>
-   <item>
-    <property name="text">
-     <string>15m</string>
-    </property>
-   </item>
-   <item>
-    <property name="text">
-     <string>30m</string>
-    </property>
-   </item>
-   <item>
-    <property name="text">
-     <string>4h</string>
-    </property>
-   </item>
-   <item>
-    <property name="text">
-     <string>6h</string>
-    </property>
-   </item>
-   <item>
-    <property name="text">
-     <string>12h</string>
-    </property>
-   </item>
-   <item>
-    <property name="text">
-     <string>1d</string>
-    </property>
-   </item>
   </widget>
  </widget>
  <resources/>

@@ -563,6 +563,7 @@ class ChartRunner(QtCore.QThread):
           break
         except:
           print get_full_stacktrace()
+          time.sleep(1)
           continue
 
       for candle in candles:
@@ -611,14 +612,9 @@ class ChartRunner(QtCore.QThread):
             len_candles = len(date)
             
             prices[:] = []
-            highest_price = 0
-            lowest_price = 999999999999
             for i in range(0, len(date)):
                 prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
-                if high[i] > highest_price:
-                  highest_price = high[i]
-                if low[i] < lowest_price:
-                  lowest_price = low[i]
+
 
             ax.yaxis.tick_right()
             ax.yaxis.set_label_position("right")
@@ -628,9 +624,6 @@ class ChartRunner(QtCore.QThread):
             ax.yaxis.set_tick_params(labelsize=9)
             ax3.xaxis.set_tick_params(labelsize=9)
             ax3.yaxis.set_tick_params(labelsize=9)
-            
-            ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
-
           else:
             prices[-1] = (date2num(date2[-1]), open2_[-1], high2[-1], low2[-1], close2[-1], vol2[-1], date2[-1])
             prices[-2] = (date2num(date2[-2]), open2_[-2], high2[-2], low2[-2], close2[-2], vol2[-2], date2[-2])
@@ -686,6 +679,26 @@ class ChartRunner(QtCore.QThread):
               if not np.isnan(wt1[i]):
                 start_x = i
                 break
+
+          if first == True:
+            
+            highest_price = 0
+            lowest_price = 999999999999
+
+            for i in range(start_x, len(date)):
+              if high[i] > highest_price:
+                highest_price = high[i]
+              if low[i] < lowest_price:
+                lowest_price = low[i]
+                
+              
+              ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
+              pad_lower = .25
+              pad_upper = .05
+              ax.set_ylim((lowest_price, highest_price))
+              
+              yl = ax.get_ylim()
+              ax.set_ylim(yl[0]-(yl[1]-yl[0])*pad_lower, highest_price + ((highest_price-lowest_price)*pad_upper))
 
           xl = ax.get_xlim()
           ax.set_xlim(date[start_x], xl[1])
@@ -913,10 +926,6 @@ class ChartRunner(QtCore.QThread):
             ax3.axhline(53, color=red, linestyle="dotted", lw=.8)
             ax3.axhline(-53, color=green, linestyle="dotted", lw=.8)
             ax.set_axis_bgcolor(black)
-
-            pad = 0.25
-            yl = ax.get_ylim()
-            ax.set_ylim(yl[0]-(yl[1]-yl[0])*pad,yl[1])
 
             ax.spines['top'].set_edgecolor(darkish)
             ax.spines['left'].set_edgecolor(darkish)
@@ -1424,6 +1433,12 @@ class Dialog(QtGui.QDialog):
         uic.loadUi(os.path.join(DIRPATH, 'windowqt.ui'), self)
         self.setFixedSize(555, 575)
         self.tableWidget.horizontalHeader().setResizeMode(QtGui.QHeaderView.Stretch)
+        
+        self.comboBox.addItem("1h")
+        for key, value in client.timeframes.iteritems():
+          if key == "1h" or key == "1w" or key == "1M":
+            continue
+          self.comboBox.addItem(key)
         
         coins = client.fetchTickers()
 
