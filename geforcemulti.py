@@ -9,6 +9,7 @@ import numpy as np
 from numpy import NaN, Inf, arange, isscalar, asarray, array
 from matplotlib.finance import *
 from matplotlib.widgets import MultiCursor
+import matplotlib.ticker as matplotlib_ticker
 from datetime import timedelta
 import sys
 import hashlib
@@ -95,7 +96,7 @@ class abstract():
 config = {}
 
 green = "#50B787"
-greenish = "#136D6F"
+greenish = "#138484"
 red = "#E0505E"
 black = "#131D27"
 darkish = "#363C4E"
@@ -139,15 +140,16 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
     """
 
     width = candle_width
+    line_width = 0.9
     OFFSET = width / 2.0
 
     lines = []
     patches = []
 
-    colorup = "#13525E"
-    colordown = "#9F2207"
-    colorup2 = "#50B787"
-    colordown2 = "#E0505E"
+    colorup = "#134F5C"
+    colordown = "#A61C00"
+    colorup2 = "#53B987"
+    colordown2 = "#EB4D5C"
 
     if first == False:
       quotes = [quotes[-1]]
@@ -163,14 +165,14 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
             vline1 = Line2D(
                 xdata=(t, t), ydata=(higher, high),
                 color=colorup2,
-                linewidth=0.5,
+                linewidth=line_width,
                 antialiased=True,
             )
 
             vline2 = Line2D(
                 xdata=(t, t), ydata=(low, lower),
                 color=colorup2,
-                linewidth=0.5,
+                linewidth=line_width,
                 antialiased=True,
             )
             
@@ -180,7 +182,7 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
                 height=height,
                 facecolor=color,
                 edgecolor=colorup2,
-                linewidth=0.5
+                linewidth=line_width
             )
         else:
             color = colordown
@@ -191,14 +193,14 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
             vline1 = Line2D(
                 xdata=(t, t), ydata=(higher, high),
                 color=colordown2,
-                linewidth=0.5,
+                linewidth=line_width,
                 antialiased=True,
             )
 
             vline2 = Line2D(
                 xdata=(t, t), ydata=(low, lower),
                 color=colordown2,
-                linewidth=0.5,
+                linewidth=line_width,
                 antialiased=True,
             )            
 
@@ -208,7 +210,7 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
                 height=height,
                 facecolor=color,
                 edgecolor=colordown2,
-                linewidth=0.5
+                linewidth=line_width
             )
 
         if first == True:
@@ -604,13 +606,31 @@ class ChartRunner(QtCore.QThread):
             qs[tab_index].put(FIGURE_ADD_SUBPLOT)
             self.data_ready.emit()
             ax = aqs[self.tab_index].get()
-            ax3 = ax.twinx()
+            ax3 = ax.twinx()            
             previous_candle = [date[-2], open_[-2], high[-2], low[-2], close[-2], vol[-2]]
             len_candles = len(date)
             
             prices[:] = []
+            highest_price = 0
+            lowest_price = 999999999999
             for i in range(0, len(date)):
                 prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
+                if high[i] > highest_price:
+                  highest_price = high[i]
+                if low[i] < lowest_price:
+                  lowest_price = low[i]
+
+            ax.yaxis.tick_right()
+            ax.yaxis.set_label_position("right")
+            ax3.yaxis.tick_left()
+            ax3.yaxis.set_label_position("left")
+            ax.xaxis.set_tick_params(labelsize=9)
+            ax.yaxis.set_tick_params(labelsize=9)
+            ax3.xaxis.set_tick_params(labelsize=9)
+            ax3.yaxis.set_tick_params(labelsize=9)
+            
+            ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
+
           else:
             prices[-1] = (date2num(date2[-1]), open2_[-1], high2[-1], low2[-1], close2[-1], vol2[-1], date2[-1])
             prices[-2] = (date2num(date2[-2]), open2_[-2], high2[-2], low2[-2], close2[-2], vol2[-2], date2[-2])
@@ -650,6 +670,7 @@ class ChartRunner(QtCore.QThread):
             bb_upper_, = ax.plot(date, bb_upper, color=greenish, lw=.5, antialiased=True)
             bb_middle_, = ax.plot(date, bb_middle, color=red, lw=.5, antialiased=True)
             bb_lower_, = ax.plot(date, bb_lower, color=greenish, lw=.5, antialiased=True)
+            ax.fill_between(date, bb_lower, bb_upper, where=bb_upper >= bb_lower, facecolor=greenish, interpolate=True, alpha=.05)
           else:
             bb_upper_.set_ydata(bb_upper)
             bb_middle_.set_ydata(bb_middle)
@@ -896,8 +917,6 @@ class ChartRunner(QtCore.QThread):
             pad = 0.25
             yl = ax.get_ylim()
             ax.set_ylim(yl[0]-(yl[1]-yl[0])*pad,yl[1])
-            ax.set_xlabel(timeframe_entered)
-            ax.set_ylabel(symbol)
 
             ax.spines['top'].set_edgecolor(darkish)
             ax.spines['left'].set_edgecolor(darkish)
@@ -1233,6 +1252,7 @@ class TradeDialog(QtGui.QDialog):
   def __init__(self, parent):
     QtGui.QDialog.__init__(self)
     uic.loadUi(os.path.join(DIRPATH, 'trade.ui'), self)
+    self.setFixedSize(612, 385)
     self.symbol = str(parent.tabWidget.tabText(parent.tabWidget.currentIndex())).split(" ")[0]
     symbol = self.symbol
     self.trade_coin_price = get_symbol_price(symbol)
