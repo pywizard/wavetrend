@@ -1261,7 +1261,7 @@ class TradeDialog(QtGui.QDialog):
   def __init__(self, parent):
     QtGui.QDialog.__init__(self)
     uic.loadUi(os.path.join(DIRPATH, 'trade.ui'), self)
-    self.setFixedSize(612, 385)
+    self.setFixedSize(713, 385)
     self.symbol = str(parent.tabWidget.tabText(parent.tabWidget.currentIndex())).split(" ")[0]
     symbol = self.symbol
     self.trade_coin_price = get_symbol_price(symbol)
