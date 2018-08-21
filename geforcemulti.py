@@ -982,30 +982,30 @@ class UpdateUsdBalanceRunner(QtCore.QThread):
         
         btc_price = get_symbol_price(btcusd_symbol)
         for balance_symbol, balance in balances.iteritems():
-          if "free" not in balance:
+          if "total" not in balance:
             continue
-          if float(balance["free"]) == 0.0:
+          if float(balance["total"]) == 0.0:
             continue
           if balance_symbol == "USDT":
-            usdt_balance = usdt_balance + float(balance["free"])
+            usdt_balance = usdt_balance + float(balance["total"])
           elif balance_symbol + "/USDT" in self.usdt_symbols:
             for symbol_name,symbol in ticker.iteritems():
               if symbol_name == balance_symbol + "/USDT":
                 symbol_price = float(symbol["last"])
                 break
-            usdt_balance = usdt_balance + float(balance["free"]) * symbol_price
+            usdt_balance = usdt_balance + float(balance["total"]) * symbol_price
           elif balance_symbol + "/USD" in self.usdt_symbols:
             for symbol_name,symbol in ticker.iteritems():
               if symbol_name == balance_symbol + "/USD":
                 symbol_price = float(symbol["last"])
                 break
-            usdt_balance = usdt_balance + float(balance["free"]) * symbol_price
+            usdt_balance = usdt_balance + float(balance["total"]) * symbol_price
           elif balance_symbol + "/BTC" in self.btc_symbols:
             for symbol_name,symbol in ticker.iteritems():
               if symbol_name == balance_symbol + "/BTC":
                 symbol_price = float(symbol["last"])
                 break
-            usdt_balance = usdt_balance + float(balance["free"]) * symbol_price * btc_price
+            usdt_balance = usdt_balance + float(balance["total"]) * symbol_price * btc_price
       
         qs_local.put(SHOW_STATUSBAR_MESSAGE)
         qs_local.put("USD Balance: " + "%.2f" % usdt_balance)
@@ -1236,7 +1236,7 @@ class TradeDialog(QtGui.QDialog):
     self.symbol = str(parent.tabWidget.tabText(parent.tabWidget.currentIndex())).split(" ")[0]
     symbol = self.symbol
     self.trade_coin_price = get_symbol_price(symbol)
-    trade_coin_price_str = "%.02f" % self.trade_coin_price
+    trade_coin_price_str = "%.06f" % self.trade_coin_price
     self.setWindowTitle("Trade " + symbol)
     asset = get_asset_from_symbol(symbol)
     quote = get_quote_from_symbol(symbol)
@@ -1355,16 +1355,22 @@ class TradeDialog(QtGui.QDialog):
     self.editTotal2.setText("%.04f" % (asset_free_balance * price))
   
   def editamount_textChanged(self, event):
-    if self.editPrice.text() == "":
-      return
-    price = float(self.editPrice.text())
-    amount = truncate(float(self.editAmount.text()), 2)
-    self.editTotal.setText("%.04f" % (amount * price))
+    try:
+      if self.editPrice.text() == "":
+        return
+      price = float(self.editPrice.text())
+      amount = truncate(float(self.editAmount.text()), 2)
+      self.editTotal.setText("%.04f" % (amount * price))
+    except:
+      pass
     
   def editamount2_textChanged(self, event):
-    price = float(self.editPrice2.text())
-    amount = truncate(float(self.editAmount2.text()), 2)
-    self.editTotal2.setText("%.04f" % (amount * price))
+    try:
+      price = float(self.editPrice2.text())
+      amount = truncate(float(self.editAmount2.text()), 2)
+      self.editTotal2.setText("%.04f" % (amount * price))
+    except:
+      pass
   
   def buyMarketLabelClicked(self, event):
     price = get_symbol_price(self.symbol)
@@ -1814,3 +1820,4 @@ if __name__ == "__main__":
   dialog = Dialog()
   dialog.show()
   os._exit(app.exec_())
+  
