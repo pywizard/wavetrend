@@ -985,21 +985,22 @@ class UpdateUsdBalanceRunner(QtCore.QThread):
     
   def run(self):
     global qslocal
-    symbols = client.fetch_tickers()
-    self.usdt_symbols = []
-    self.btc_symbols = []
-    for symbol,value in symbols.iteritems():
-      if symbol.endswith("USDT"):
-        self.usdt_symbols.append(symbol) 
-      if symbol.endswith("USD"):
-        self.usdt_symbols.append(symbol)
-      if symbol.endswith("BTC"):
-        self.btc_symbols.append(symbol)
     
     while True:
       time.sleep(5)
       try:
         ticker = client.fetch_tickers()
+
+        self.usdt_symbols = []
+        self.btc_symbols = []
+        for symbol,value in ticker.iteritems():
+          if symbol.endswith("USDT"):
+            self.usdt_symbols.append(symbol) 
+          if symbol.endswith("USD"):
+            self.usdt_symbols.append(symbol)
+          if symbol.endswith("BTC"):
+            self.btc_symbols.append(symbol)
+
         balances = client.fetch_balance()
         usdt_balance = 0
         
@@ -1510,12 +1511,12 @@ class Dialog(QtGui.QDialog):
           main.tabWidget.setTabIcon(0, QtGui.QIcon("coin.ico"))
           main.show()
           main_shown = True
-          f = open("trades.txt")
-          lines = f.readlines()
-          for line in lines:
-            item = QtGui.QListWidgetItem(line)
-            main.listWidget_4.addItem(item)
-          f.close()
+#          f = open("trades.txt")
+#          lines = f.readlines()
+#          for line in lines:
+#            item = QtGui.QListWidgetItem(line)
+#            main.listWidget_4.addItem(item)
+#          f.close()
         else:
           main.addTab(symbol, timeframe_entered)
         self.close()
