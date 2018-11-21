@@ -3,3 +3,9 @@ exchange = "HITBTC"
 #hitbtc
 api_key = ""
 api_secret = ""
+#binance
+#api_key = ""
+#api_secret = ""
+auto_trade = "NO"
+go_long = "NO"
+go_short = "NO"

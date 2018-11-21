@@ -4,16 +4,13 @@ import matplotlib
 matplotlib.use("Agg")
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-import platform
 import numpy as np
 from numpy import NaN, Inf, arange, isscalar, asarray, array
-from matplotlib.finance import *
-from matplotlib.widgets import MultiCursor
 import matplotlib.ticker as matplotlib_ticker
+from matplotlib.dates import date2num
+from matplotlib.finance import *
 from datetime import timedelta
 import sys
-import hashlib
-import hmac
 import time
 import datetime
 from PyQt4 import QtGui, QtCore, uic
@@ -24,13 +21,22 @@ import pandas as pd
 import talib
 import math
 import gc
-from config import *
-import platform
-import ctypes
 import os
 import Queue
 from playsound import playsound
 import ccxt
+from indicators import *
+from colors import *
+
+conf = {}
+execfile("config.txt", conf) 
+
+exchange = conf["exchange"]
+api_key = conf["api_key"]
+api_secret = conf["api_secret"]
+auto_trade = conf["auto_trade"]
+go_long = conf["go_long"]
+go_short = conf["go_short"]
 
 if exchange == "HITBTC":
   client = ccxt.hitbtc2({
@@ -90,17 +96,15 @@ else:
   print "Please configure a valid Exchange."
   sys.exit(1)
 
+ticker = client.fetch_tickers()
+is_usdt = False
+if "BTC/USDT" in ticker:
+  is_usdt = True
+
 class abstract():
   pass
 
 config = {}
-
-green = "#50B787"
-greenish = "#138484"
-red = "#E0505E"
-black = "#131D27"
-darkish = "#363C4E"
-white = "#C6C7C8"
 
 def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, width=0.2, colorup='white', colordown='black',
                  alpha=1.0):
@@ -286,13 +290,6 @@ def get_full_stacktrace():
     f.close()
     return stackstr
 
-def BBANDS(real, timeperiod=5, nbdevup=2, nbdevdn=2):
-    ma = pd.rolling_mean(real, timeperiod, min_periods=timeperiod)
-    std = pd.rolling_std(real, timeperiod, min_periods=timeperiod)
-    lo = ma - nbdevdn * std
-    hi = ma + nbdevup * std
-    return hi, ma, lo
-
 def truncate(f, n):
     return math.floor(f * 10 ** n) / 10 ** n
 
@@ -398,19 +395,6 @@ def shiftme(arr, num):
       result[i+num] = arr[i]
 
     return result
-
-def ichimoku_clouds(high, low, close, n1=9, n2=26, n3=52):
-        """
-        Calculate Ichimoku Clouds.
-        """
-        conversion = (pd.rolling_max(high, n1) + pd.rolling_min(low, n1)) / 2.0
-        base = (pd.rolling_max(high, n2) + pd.rolling_min(low, n2)) / 2.0
-        leading_a = (conversion + base) / 2.0
-        leading_b = (pd.rolling_max(high, n3) + pd.rolling_min(low, n3)) / 2.0
-        lagging = close.shift(-n2)
-        leading_a = shiftme(leading_a, n2)
-        leading_b = shiftme(leading_b, n2)
-        return conversion, base, leading_a, leading_b, lagging
 
 def peakdetect(v, delta, x = None):
     """
@@ -596,6 +580,8 @@ class ChartRunner(QtCore.QThread):
     last_line2 = None
     last_rect = None    
     prices = []
+    indicators = []
+    indicator_axes = []
     while True:
         try:
           if first == True:
@@ -607,23 +593,15 @@ class ChartRunner(QtCore.QThread):
             qs[tab_index].put(FIGURE_ADD_SUBPLOT)
             self.data_ready.emit()
             ax = aqs[self.tab_index].get()
-            ax3 = ax.twinx()            
             previous_candle = [date[-2], open_[-2], high[-2], low[-2], close[-2], vol[-2]]
             len_candles = len(date)
             
             prices[:] = []
             for i in range(0, len(date)):
                 prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
-
-
-            ax.yaxis.tick_right()
-            ax.yaxis.set_label_position("right")
-            ax3.yaxis.tick_left()
-            ax3.yaxis.set_label_position("left")
+            
             ax.xaxis.set_tick_params(labelsize=9)
             ax.yaxis.set_tick_params(labelsize=9)
-            ax3.xaxis.set_tick_params(labelsize=9)
-            ax3.yaxis.set_tick_params(labelsize=9)
           else:
             prices[-1] = (date2num(date2[-1]), open2_[-1], high2[-1], low2[-1], close2[-1], vol2[-1], date2[-1])
             prices[-2] = (date2num(date2[-2]), open2_[-2], high2[-2], low2[-2], close2[-2], vol2[-2], date2[-2])
@@ -642,6 +620,15 @@ class ChartRunner(QtCore.QThread):
           dates2 = [x[0] for x in prices]
           dates3 = [x[6] for x in prices]
 
+          if init == True:
+            DMI = indicator_DMI()
+            BBANDS = indicator_BBANDS()
+            RSI = indicator_RSI()
+            indicators.append(BBANDS)
+            indicators.append(RSI)
+            indicators.append(DMI)
+
+          '''
           n1, n2, period = 10, 21, 60
           ap = (np.array(high) + np.array(low) + np.array(close)) / 3
           esa = talib.EMA(ap, timeperiod=n1)
@@ -649,36 +636,37 @@ class ChartRunner(QtCore.QThread):
           ci = (ap - esa) / (0.015 * d)
           wt1 = talib.EMA(ci, timeperiod=n2)
           wt2 = talib.SMA(wt1, timeperiod=4)
-
-          bb_upper, bb_middle, bb_lower = BBANDS(np.array(close), timeperiod=20)
-
-          if first == True:
-            wavetrend1 = ax3.plot(dates2, wt1, color=green, lw=.5)
-            wavetrend2 = ax3.plot(dates2, wt2, color=red, lw=.5)
-          else:
-            wavetrend1[0].set_ydata(wt1)
-            wavetrend2[0].set_ydata(wt2)
-
-          if first == True:
-            bb_upper_, = ax.plot(date, bb_upper, color=greenish, lw=.5, antialiased=True)
-            bb_middle_, = ax.plot(date, bb_middle, color=red, lw=.5, antialiased=True)
-            bb_lower_, = ax.plot(date, bb_lower, color=greenish, lw=.5, antialiased=True)
-            ax.fill_between(date, bb_lower, bb_upper, where=bb_upper >= bb_lower, facecolor=greenish, interpolate=True, alpha=.05)
-          else:
-            bb_upper_.set_ydata(bb_upper)
-            bb_middle_.set_ydata(bb_middle)
-            bb_lower_.set_ydata(bb_lower)
-
-          xvalues1 = wavetrend1[0].get_xdata()
-          yvalues1 = wavetrend1[0].get_ydata()
-          xvalues2 = wavetrend2[0].get_xdata()
-          yvalues2 = wavetrend2[0].get_ydata()
-
+          '''
+          
           start_x = 0
-          for i in xrange(0, len(wt1)):
-              if not np.isnan(wt1[i]):
-                start_x = i
-                break
+          for indicator in indicators:
+            indicator.generate_values(open, high, low, close)
+            if first == True:
+              if indicator.overlay_chart:
+                indicator.plot_once(ax, dates2)
+              else:
+                new_ax = ax.twinx()
+                new_ax.yaxis.tick_left()
+                new_ax.yaxis.set_label_position("left")
+                new_ax.xaxis.set_tick_params(labelsize=9)
+                new_ax.yaxis.set_tick_params(labelsize=9)                
+                new_ax.spines['left'].set_edgecolor(darkish)
+                new_ax.spines['right'].set_edgecolor(darkish)
+                new_ax.xaxis.label.set_color(white)
+                new_ax.yaxis.label.set_color(white)
+                new_ax.tick_params(axis='x', colors=white)
+                new_ax.tick_params(axis='y', colors=white)            
+                new_ax.grid(alpha=.25)
+                new_ax.grid(True)
+                
+                indicator_axes.append(new_ax)
+                indicator.plot_once(new_ax, dates2)
+            else:
+              indicator.update()
+            
+            xaxis_start = indicator.xaxis_get_start()
+            if xaxis_start > start_x:
+              start_x = xaxis_start
 
           if first == True:
             
@@ -691,18 +679,14 @@ class ChartRunner(QtCore.QThread):
               if low[i] < lowest_price:
                 lowest_price = low[i]
                 
-              
-              ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
-              pad_lower = .25
-              pad_upper = .05
-              ax.set_ylim((lowest_price, highest_price))
-              
-              yl = ax.get_ylim()
-              ax.set_ylim(yl[0]-(yl[1]-yl[0])*pad_lower, highest_price + ((highest_price-lowest_price)*pad_upper))
-
+            ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
+            ax.set_ylim((lowest_price, highest_price))                
+                
           xl = ax.get_xlim()
           ax.set_xlim(date[start_x], xl[1])
 
+
+          '''
           wt_y_current = yvalues1[-1]
           symbol_with_timeframe = symbol + " " + timeframe_entered
           
@@ -851,7 +835,7 @@ class ChartRunner(QtCore.QThread):
                   f.close()
                   item = QtGui.QListWidgetItem("SELL %s MARKET @ %.8f" % (symbol, symbol_price))
                   main.listWidget_4.addItem(item)
-
+            '''
           ticker = prices[-1][4]
 
           in_time = datetime.datetime.now()
@@ -920,13 +904,10 @@ class ChartRunner(QtCore.QThread):
           last_line1, last_line2, last_rect = _candlestick(ax, prices, first, last_line1, last_line2, last_rect, candle_width)
           
           if first == True:
-            ax3.axhline(60, color=red, lw=.8)
-            ax3.axhline(-60, color=green, lw=.8)
-            ax3.axhline(0, color='gray', lw=.5)
-            ax3.axhline(53, color=red, linestyle="dotted", lw=.8)
-            ax3.axhline(-53, color=green, linestyle="dotted", lw=.8)
+            ax.autoscale_view()
             ax.set_axis_bgcolor(black)
-
+            ax.yaxis.tick_right()
+            ax.yaxis.set_label_position("right")
             ax.spines['top'].set_edgecolor(darkish)
             ax.spines['left'].set_edgecolor(darkish)
             ax.spines['right'].set_edgecolor(darkish)
@@ -936,14 +917,6 @@ class ChartRunner(QtCore.QThread):
             ax.yaxis.label.set_color(white)
             ax.tick_params(axis='x', colors=white)
             ax.tick_params(axis='y', colors=white)
-            ax3.spines['left'].set_edgecolor(darkish)
-            ax3.spines['right'].set_edgecolor(darkish)
-            ax3.spines['top'].set_visible(False)
-            ax3.spines['bottom'].set_visible(False)
-            ax3.xaxis.label.set_color(white)
-            ax3.yaxis.label.set_color(white)
-            ax3.tick_params(axis='x', colors=white)
-            ax3.tick_params(axis='y', colors=white)            
             ax.grid(alpha=.25)
             ax.grid(True)
 
@@ -952,19 +925,51 @@ class ChartRunner(QtCore.QThread):
               self.data_ready.emit()
               aqs[tab_index].get()
 
-            bbox = ax.get_position()
-            ax3.set_position([bbox.x0, bbox.y0, bbox.width, bbox.height / 4])
-            ax.autoscale_view()
-            first = False
+          if first == True:
+            axis_num = 0
+            axis_height = None
+            all_axes_height = 0
+            for axis in indicator_axes:
+              axis_num = axis_num + 1
+              bbox = ax.get_position()
+              if axis_num == 1:
+                axis.set_position([bbox.x0, bbox.y0, bbox.width, bbox.height / 7])
+                bbox = axis.get_position()
+                axis_height = bbox.height 
+              else:
+                axis.set_position([bbox.x0, bbox.y0 + axis_height, bbox.width, bbox.height / 7])
+                bbox = axis.get_position()
+                axis_height = bbox.height
+                
+              all_axes_height = all_axes_height + axis_height
+              
+            yl = ax.get_ylim()
+            pad_upper = .05
+            
+            ax_bbox = ax.get_position()
+            ax.set_position([ax_bbox.x0, ax_bbox.y0 + all_axes_height, ax_bbox.width, ax_bbox.height - all_axes_height])
+            
+            first_axis = True
+            for axis in indicator_axes:
+              axis.get_xaxis().set_visible(True)
+              if first_axis:
+                first_axis = False
+                continue
+              for t in axis.xaxis.get_major_ticks():
+                t.tick1On = t.tick2On = False
+                t.label1On = t.label2On = False            
+            
+            for t in ax.xaxis.get_major_ticks():
+              t.tick1On = t.tick2On = False
+              t.label1On = t.label2On = False
+                            
+            #ax.set_ylim(yl[0] - (yl[0] / 5)*(len(indicator_axes)-1), highest_price + ((highest_price-lowest_price)*pad_upper))
 
+          first = False            
             
           prices2[:] = []
           dates2[:] = []
           dates3[:] = []
-          xvalues1 = None
-          yvalues1 = None
-          xvalues2 = None
-          yvalues2 = None
           gc.collect()
 
           qs[tab_index].put(CANVAS_DRAW)
@@ -1587,7 +1592,9 @@ def bid_ask_sum(symbol, bids, precision=10): # can be asks too instead of bids
 
   return bids_score
 
+auto_last_trade = 0
 def display_market_depth(bids, asks, symbol, precision):
+  global auto_last_trade
   strs = []
   
   bids_str = bids
@@ -1612,6 +1619,9 @@ def display_market_depth(bids, asks, symbol, precision):
   bids_summed = bid_ask_sum(symbol, bids2, precision)
   asks_summed = bid_ask_sum(symbol, asks2, precision)
 
+  bids_summed2 = copy.deepcopy(bids_summed)
+  asks_summed2 = copy.deepcopy(asks_summed)
+  
   for bid in bids_summed:
       try:
         ask = asks_summed.pop()
@@ -1625,6 +1635,39 @@ def display_market_depth(bids, asks, symbol, precision):
         strs.append(" " * (5-bid[0]) + "*" * bid[0] + " " + str(bid[1][0]) + " "  * (9 - len(str(bid[1][0]))) + str(bid[1][2]) + "\t" + asks)
       else:
         strs.append(" " * (5-bid[0]) + "*" * bid[0] + " " + "%.6f" % float(bid[1][0]) + " " + str(bid[1][1]) + " "  * (10 - len(str(bid[1][1]))) + str(bid[1][2]) + "\t" + asks)
+
+  if auto_trade.upper() == 'YES':    
+    if time.time() - auto_last_trade > 60*3 or auto_last_trade == 0:
+      open_orders = client.fetchOpenOrders(symbol)
+      for order in open_orders:
+        try:
+          client.cancelOrder(order["id"])
+        except:
+          print get_full_stacktrace()      
+      symbol_price = get_symbol_price(symbol)
+      counter = 0      
+      for bid in bids_summed2:
+        if bid[0] > 0 and float(bid[1][0]) < symbol_price:
+          counter = counter + 1
+          if counter >= 3 or go_long.upper() == "YES":          
+            print "BUY " + str(float(bid[1][0]))
+            try:
+              client.create_limit_buy_order(symbol, 0.03, bid[1][0])
+            except:
+              print get_full_stacktrace()
+      
+      counter = 0
+      for ask in reversed(asks_summed2):
+        if ask[0] > 0 and float(ask[1][0]) > symbol_price:
+          counter = counter + 1
+          if counter >= 3 or go_short.upper == "YES":
+            print "SELL " + str(float(ask[1][0]))
+            try:
+              client.create_limit_sell_order(symbol, 0.03, ask[1][0])
+            except:
+              print get_full_stacktrace()
+            
+      auto_last_trade = time.time()
 
   return strs
 
@@ -1770,7 +1813,11 @@ class Orderbook(QtCore.QThread):
             ob_asks = sorted((float(x),y) for x,y in self.ob["asks"].items())
 
             bookstr = "btcusd (combined)\n\n"
-            ob_accum = display_market_depth(ob_bids, ob_asks, "BTC/USD", 7)
+            if is_usdt:
+              btcusd_symbol = "BTC/USDT"
+            else:
+              btcusd_symbol = "BTC/USD" 
+            ob_accum = display_market_depth(ob_bids, ob_asks, btcusd_symbol, 7)
             for ob in ob_accum:
               bookstr = bookstr + ob + "\n"
             

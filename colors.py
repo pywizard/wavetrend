@@ -1,0 +1,8 @@
+﻿green = "#50B787"
+greenish = "#138484"
+blue = "#0000FF"
+red = "#E0505E"
+orange = "#FFA500"
+black = "#131D27"
+darkish = "#363C4E"
+white = "#C6C7C8"
