@@ -497,36 +497,39 @@ class DataRunner(QtCore.QThread):
   
   def run(self):
     global dqs
-    limit = 10
-
-    dt = []
-    open_ = []
-    high = []
-    low = []
-    close = []
-    volume = []
     
     while True:
-      try:
-        candles = client.fetch_ohlcv(self.symbol, self.timeframe_entered, limit=limit)
-        break
-      except:
-        print get_full_stacktrace()
-        time.sleep(1)
-        continue
+      limit = 10
 
-    for candle in candles:
-      dt.append(datetime.datetime.fromtimestamp(int(candle[0]) / 1000))
-      open_.append(float(candle[1]))
-      high.append(float(candle[2]))
-      low.append(float(candle[3]))
-      close.append(float(candle[4]))
-      volume.append(float(candle[5]))
+      dt = []
+      open_ = []
+      high = []
+      low = []
+      close = []
+      volume = []
+      
+      while True:
+        try:
+          candles = client.fetch_ohlcv(self.symbol, self.timeframe_entered, limit=limit)
+          break
+        except:
+          print get_full_stacktrace()
+          time.sleep(1)
+          continue
 
-    result = [dt, open_, high, low, close, volume, limit]
-    
-    dqs[self.tab_index].put(CHART_DATA_READY)
-    dqs[self.tab_index].put(result)
+      for candle in candles:
+        dt.append(datetime.datetime.fromtimestamp(int(candle[0]) / 1000))
+        open_.append(float(candle[1]))
+        high.append(float(candle[2]))
+        low.append(float(candle[3]))
+        close.append(float(candle[4]))
+        volume.append(float(candle[5]))
+
+      result = [dt, open_, high, low, close, volume, limit]
+      
+      if not dqs[self.tab_index].full():      
+        dqs[self.tab_index].put(CHART_DATA_READY)
+        dqs[self.tab_index].put(result)
 
 class ChartRunner(QtCore.QThread):
   data_ready = QtCore.pyqtSignal()
@@ -573,11 +576,11 @@ class ChartRunner(QtCore.QThread):
           if tab_index != current_tab_index:
             time.sleep(0.1)
             continue
-            
+
           if first == True:
             date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol, False)
           else:
-            qs[tab_index].put(RETRIEVE_CHART_DATA)
+            qs[self.tab_index].put(RETRIEVE_CHART_DATA)
             self.data_ready.emit()
             chart_result = aqs[self.tab_index].get()
             if chart_result != 0:
@@ -593,17 +596,19 @@ class ChartRunner(QtCore.QThread):
             prices[:] = []
             for i in range(0, len(date)):
                 prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
-            
+
+            dates2 = [x[0] for x in prices]
+                        
             ax.xaxis.set_tick_params(labelsize=9)
             ax.yaxis.set_tick_params(labelsize=9)
           else:
             prices[-1] = (date2num(date2[-1]), open2_[-1], high2[-1], low2[-1], close2[-1], vol2[-1], date2[-1])
             prices[-2] = (date2num(date2[-2]), open2_[-2], high2[-2], low2[-2], close2[-2], vol2[-2], date2[-2])
-            
+  
           if first == False and previous_candle != [date2[-2], open2_[-2], high2[-2], low2[-2], close2[-2], vol2[-2]] and len(date2) == 10:
-            qs[tab_index].put(FIGURE_CLEAR)
+            qs[self.tab_index].put(FIGURE_CLEAR)
             self.data_ready.emit()
-            aqs[tab_index].get()
+            aqs[self.tab_index].get()
             first = True
             last_line1 = None
             last_line2 = None
@@ -632,7 +637,7 @@ class ChartRunner(QtCore.QThread):
             indicator.generate_values(open, high, low, close)
             if first == True:
               if indicator.overlay_chart:
-                indicator.plot_once(ax, date)
+                indicator.plot_once(ax, dates2)
               else:
                 new_ax = ax.twinx()
                 new_ax.yaxis.tick_left()
@@ -652,7 +657,7 @@ class ChartRunner(QtCore.QThread):
                 new_ax.grid(True)
                 
                 indicator_axes.append(new_ax)
-                indicator.plot_once(new_ax, date)
+                indicator.plot_once(new_ax, dates2)
                 indiactor_update_time = time.time()
             else:
               if time.time() - indicator_update_time > 30:
@@ -665,20 +670,20 @@ class ChartRunner(QtCore.QThread):
           if time.time() - indicator_update_time > 30:
             indicator_update_time = time.time()     
 
-            highest_price = 0
-            lowest_price = 999999999999
+          highest_price = 0
+          lowest_price = 999999999999
 
-            for i in range(start_x, len(date)):
-              if high[i] > highest_price:
-                highest_price = high[i]
-              if low[i] < lowest_price:
-                lowest_price = low[i]
-                
-            ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
-            ax.set_ylim((lowest_price - lowest_price * 0.015, highest_price + highest_price * 0.015))
-            
-            xl = ax.get_xlim()
-            ax.set_xlim(date[start_x], xl[1])
+          for i in range(start_x, len(date)):
+            if high[i] > highest_price:
+              highest_price = high[i]
+            if low[i] < lowest_price:
+              lowest_price = low[i]
+              
+          ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
+          ax.set_ylim((lowest_price - lowest_price * 0.015, highest_price + highest_price * 0.015))
+          
+          xl = ax.get_xlim()
+          ax.set_xlim(date[start_x], xl[1])
 
           ticker = get_symbol_price(symbol)
           ticker_formatted = str(ticker)
@@ -817,7 +822,7 @@ class ChartRunner(QtCore.QThread):
             
           first = False
           #gc.collect()
-
+          
           qs[tab_index].put(CANVAS_DRAW)
           self.data_ready.emit()
           aqs[tab_index].get()
@@ -894,6 +899,7 @@ class ChartRunner(QtCore.QThread):
         volume.append(float(candle[5]))
 
       return dt, open_, high, low, close, volume, limit
+
 class UpdateUsdBalanceRunner(QtCore.QThread):
   data_ready = QtCore.pyqtSignal()
   
@@ -995,7 +1001,7 @@ class Window(QtGui.QMainWindow):
         global aqs
         qs[0] = Queue.Queue()
         aqs[0] = Queue.Queue()
-        dqs[0] = Queue.Queue()
+        dqs[0] = Queue.Queue(maxsize=1)
 
         self.data_runner_thread = DataRunner(self, symbol, 0, timeframe_entered)
         self.data_runner_thread.start()
@@ -1226,7 +1232,7 @@ class Window(QtGui.QMainWindow):
       global aqs
       qs[tab_index] = Queue.Queue()
       aqs[tab_index] = Queue.Queue()
-      dqs[tab_index] = Queue.Queue()
+      dqs[tab_index] = Queue.Queue(maxsize=1)
       self.dcs[tab_index] = dc
       
       self.data_runner_thread = DataRunner(self, symbol, tab_index, timeframe_entered)
