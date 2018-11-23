@@ -23,7 +23,6 @@ import math
 import gc
 import os
 import Queue
-from playsound import playsound
 import ccxt
 from indicators import *
 from colors import *
@@ -35,9 +34,6 @@ execfile("config.txt", conf)
 exchange = conf["exchange"]
 api_key = conf["api_key"]
 api_secret = conf["api_secret"]
-auto_trade = conf["auto_trade"]
-go_long = conf["go_long"]
-go_short = conf["go_short"]
 
 if exchange == "HITBTC":
   client = ccxt.hitbtc2({
@@ -109,40 +105,6 @@ config = {}
 
 def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, width=0.2, colorup='white', colordown='black',
                  alpha=1.0):
-
-    """
-    Plot the time, open, high, low, close as a vertical line ranging
-    from low to high.  Use a rectangular bar to represent the
-    open-close span.  If close >= open, use colorup to color the bar,
-    otherwise use colordown
-
-    Parameters
-    ----------
-    ax : `Axes`
-        an Axes instance to plot to
-    quotes : sequence of quote sequences
-        data to plot.  time must be in float date format - see date2num
-        (time, open, high, low, close, ...) vs
-        (time, open, close, high, low, ...)
-        set by `ochl`
-    width : float
-        fraction of a day for the rectangle width
-    colorup : color
-        the color of the rectangle where close >= open
-    colordown : color
-         the color of the rectangle where close <  open
-    alpha : float
-        the rectangle alpha level
-    ochl: bool
-        argument to select between ochl and ohlc ordering of quotes
-
-    Returns
-    -------
-    ret : tuple
-        returns (lines, patches) where lines is a list of lines
-        added and patches is a list of the rectangle patches added
-
-    """
 
     width = candle_width
     line_width = 0.9
@@ -348,130 +310,6 @@ def ceil_dt(dt, seconds):
     #time + number of seconds to quarter hour mark.
     return dt + datetime.timedelta(seconds=delta)
 
-def relative_strength(prices, n=14):
-    """
-    compute the n period relative strength indicator
-    http://stockcharts.com/school/doku.php?id=chart_school:glossary_r#relativestrengthindex
-    http://www.investopedia.com/terms/r/rsi.asp
-    """
-
-    deltas = np.diff(prices)
-    seed = deltas[:n+1]
-    up = seed[seed >= 0].sum()/n
-    down = -seed[seed < 0].sum()/n
-    rs = up/down
-    rsi = np.zeros_like(prices)
-    rsi[:n] = 100. - 100./(1. + rs)
-
-    for i in range(n, len(prices)):
-        delta = deltas[i - 1]  # cause the diff is 1 shorter
-
-        if delta > 0:
-            upval = delta
-            downval = 0.
-        else:
-            upval = 0.
-            downval = -delta
-
-        up = (up*(n - 1) + upval)/n
-        down = (down*(n - 1) + downval)/n
-
-        rs = up/down
-        rsi[i] = 100. - 100./(1. + rs)
-
-    return rsi
-
-def ema(x, n, t):
-    x = np.asarray(x)
-    if t=='simple':
-        weights = np.ones(n)
-    else:
-        weights = np.exp(np.linspace(-1., 0., n))
-
-    weights /= weights.sum()
-
-    a =  np.convolve(x, weights, mode='full')[:len(x)]
-    a[:n] = a[n]
-    return a
-
-def shiftme(arr, num):
-    result = np.empty(len(arr)+num) * np.nan
-    for i in xrange(len(arr)):
-      result[i+num] = arr[i]
-
-    return result
-
-def peakdetect(v, delta, x = None):
-    """
-    Converted from MATLAB script at http://billauer.co.il/peakdet.html
-
-    Returns two arrays
-
-    function [maxtab, mintab]=peakdet(v, delta, x)
-    %PEAKDET Detect peaks in a vector
-    %        [MAXTAB, MINTAB] = PEAKDET(V, DELTA) finds the local
-    %        maxima and minima ("peaks") in the vector V.
-    %        MAXTAB and MINTAB consists of two columns. Column 1
-    %        contains indices in V, and column 2 the found values.
-    %
-    %        With [MAXTAB, MINTAB] = PEAKDET(V, DELTA, X) the indices
-    %        in MAXTAB and MINTAB are replaced with the corresponding
-    %        X-values.
-    %
-    %        A point is considered a maximum peak if it has the maximal
-    %        value, and was preceded (to the left) by a value lower by
-    %        DELTA.
-
-    % Eli Billauer, 3.4.05 (Explicitly not copyrighted).
-    % This function is released to the public domain; Any use is allowed.
-
-    """
-    maxtab = []
-    mintab = []
-
-    if x is None:
-        x = arange(len(v))
-
-    v = asarray(v)
-
-    if len(v) != len(x):
-        sys.exit('Input vectors v and x must have same length')
-
-    if not isscalar(delta):
-        sys.exit('Input argument delta must be a scalar')
-
-    if delta <= 0:
-        sys.exit('Input argument delta must be positive')
-
-    mn, mx = Inf, -Inf
-    mnpos, mxpos = NaN, NaN
-
-    lookformax = True
-
-    for i in arange(len(v)):
-        this = v[i]
-        if this > mx:
-            mx = this
-            mxpos = x[i]
-        if this < mn:
-            mn = this
-            mnpos = x[i]
-
-        if lookformax:
-            if this < mx-delta:
-                maxtab.append((mxpos, mx))
-                mn = this
-                mnpos = x[i]
-                lookformax = False
-        else:
-            if this > mn+delta:
-                mintab.append((mnpos, mn))
-                mx = this
-                mxpos = x[i]
-                lookformax = True
-
-    return maxtab, mintab
-
 from operator import itemgetter
 
 class MplCanvas(FigureCanvas):
@@ -631,7 +469,8 @@ class ChartRunner(QtCore.QThread):
           ci = (ap - esa) / (0.015 * d)
           wt1 = talib.EMA(ci, timeperiod=n2)
           wt2 = talib.SMA(wt1, timeperiod=4)
-          '''            
+          '''
+          
           start_x = 0
           for indicator in indicators:
             indicator.generate_values(open, high, low, close)
@@ -958,9 +797,11 @@ class UpdateUsdBalanceRunner(QtCore.QThread):
                 symbol_price = float(symbol["last"])
                 break
             usdt_balance = usdt_balance + float(balance["total"]) * symbol_price * btc_price
-      
+        
+        btc_balance = usdt_balance / btc_price
+        
         qs_local.put(SHOW_STATUSBAR_MESSAGE)
-        qs_local.put("USD Balance: " + "%.2f" % usdt_balance)
+        qs_local.put("USD Balance: " + "%.2f - BTC Balance: %.8f" % (usdt_balance, btc_balance))
         self.data_ready.emit()
       except:
         print get_full_stacktrace()
@@ -1102,118 +943,6 @@ class Window(QtGui.QMainWindow):
         if value == SHOW_STATUSBAR_MESSAGE:
           message = qs_local.get()
           self.statusbar.showMessage(message)
-         
-    def buy_clicked(self, event):
-      print "BUY"
-      
-      asset_balance = 0
-      symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[0]
-      symbol_price = get_symbol_price(symbol)
-
-      amount_per_trade = translate_buy_amount_percent_reversed(self.comboBox_5.currentIndex())
-      if symbol.endswith("USDT"):
-        asset_balance = float(client.fetch_balance()["USDT"]["free"])
-        buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
-      elif symbol.endswith("USD"):
-        asset_balance = float(client.fetch_balance()["USD"]["free"])
-        buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)        
-      else:
-        asset_balance = float(client.fetch_balance()["BTC"]["free"])
-        buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
-      
-      if buy_amount == 0:
-        return
-
-      msg = "Buy " + str(buy_amount) + " " + symbol + "?"
-      reply = QtGui.QMessageBox.question(self, 'WAVETREND ROBOT', 
-                       msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
-
-      if reply == QtGui.QMessageBox.Yes:
-          symbol_price = get_symbol_price(symbol)
-          try:
-            client.create_market_buy_order(symbol, buy_amount)
-            playsound("beep.wav")
-          except:
-            pass
-            
-          symbol_price = get_symbol_price(symbol)
-          item = QtGui.QListWidgetItem("BUY %s MARKET @ %.8f" % (symbol, symbol_price))
-          self.listWidget_4.addItem(item)
-
-          f = open("trades.txt", "a")
-          f.write("BUY %s MARKET @ %.8f\n" % (symbol, symbol_price))
-          f.close()
-    def sell_clicked(self, event):
-      print "SELL"
-      
-      symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[0]
-      amount_per_trade = translate_buy_amount_percent_reversed(self.comboBox_5.currentIndex())
-      
-      sell_amount = truncate(float(client.fetch_balance()[get_asset_from_symbol(symbol)]["free"]) * amount_per_trade, 2)
-
-      if sell_amount == 0:
-        return
-    
-      msg = "Sell " + str(sell_amount) + " " + symbol + "?"
-      reply = QtGui.QMessageBox.question(self, 'WAVETREND ROBOT', 
-                       msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
-
-      if reply == QtGui.QMessageBox.Yes:
-          try: 
-            client.create_market_sell_order(symbol, sell_amount)
-            playsound("beep.wav")
-          except:
-            pass
-          
-          symbol_price = get_symbol_price(symbol)
-          item = QtGui.QListWidgetItem("SELL %s MARKET %.8f" % (symbol, symbol_price))
-          self.listWidget_4.addItem(item)
-          f = open("trades.txt", "a")
-          f.write("SELL %s MARKET @ %.8f\n" % (symbol, symbol_price))
-          f.close()    
-    
-    def configAcceptClicked(self, event):
-      try:
-        buy_threshold = float(self.lineEdit_7.text())
-      except:
-        QtGui.QMessageBox.information(self, "WAVETREND ROBOT", "Entered buy theshold is not a number")
-        return
-        
-      try:
-        sell_threshold = float(self.lineEdit_8.text())
-      except:
-        QtGui.QMessageBox.information(self, "WAVETREND ROBOT", "Entered sell theshold is not a number")
-        return
-        
-      selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
-      if self.checkBox_4.isChecked() == True:
-        config[selected_symbol].trade_auto = True
-      else:
-        config[selected_symbol].trade_auto = False
-        
-      if self.radioButton_8.isChecked() == True:
-        config[selected_symbol].trade_all_crossings = True
-      else:
-        config[selected_symbol].trade_all_crossings = False
-        
-      if self.radioButton_7.isChecked() == True:
-        config[selected_symbol].trade_lines_only = True
-      else:
-        config[selected_symbol].trade_lines_only = False
-          
-      config[selected_symbol].buy_threshold = float(buy_threshold)
-      config[selected_symbol].sell_threshold = float(sell_threshold)
-      config[selected_symbol].buy_amount_percent_index = self.comboBox_4.currentIndex()
-    
-      QtGui.QMessageBox.information(self, "WAVETREND ROBOT", selected_symbol + " Wavetrend configured.")
-    
-    def updateBalances(self, symbol):
-      asset = get_asset_from_symbol(symbol)
-      asset_balance = client.fetch_balance()[asset]["free"]
-      main.label_14.setText(asset.upper() + " Balance: " + str(asset_balance))
-      quote = get_quote_from_symbol(symbol)
-      quote_balance = client.fetch_balance()[quote]["free"]
-      main.label_15.setText(quote.upper() + " Balance: " + str(quote_balance)) 
     
     def tabOnChange(self, event):
       selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
@@ -1487,14 +1216,6 @@ class Dialog(QtGui.QDialog):
         symbol = str(self.tableWidget.item(row, 0).text())
         symbol_with_timeframe = symbol + " " + timeframe_entered
   
-        config[symbol_with_timeframe] = abstract()
-        config[symbol_with_timeframe].trade_auto = False
-        config[symbol_with_timeframe].trade_all_crossings = False
-        config[symbol_with_timeframe].trade_lines_only = False
-        config[symbol_with_timeframe].buy_threshold = 1.0
-        config[symbol_with_timeframe].sell_threshold = 1.0
-        config[symbol_with_timeframe].buy_amount_percent_index = 0
-  
         global main
         global main_shown
 
@@ -1504,18 +1225,11 @@ class Dialog(QtGui.QDialog):
           main.tabWidget.setTabIcon(0, QtGui.QIcon("coin.ico"))
           main.show()
           main_shown = True
-#          f = open("trades.txt")
-#          lines = f.readlines()
-#          for line in lines:
-#            item = QtGui.QListWidgetItem(line)
-#            main.listWidget_4.addItem(item)
-#          f.close()
         else:
           main.addTab(symbol, timeframe_entered)
         self.close()
 
 def orderbook(exchange, symbol):
-  #print(str(exchange))
   return exchange.fetch_order_book(symbol)
 
 def bid_ask_sum(symbol, bids, precision=10): # can be asks too instead of bids
@@ -1542,9 +1256,6 @@ def bid_ask_sum(symbol, bids, precision=10): # can be asks too instead of bids
           qty_summed += qty
       
       usd_summed = qty_summed * (whole_1 * precision + remainder)
-#      if symbol.endswith("BTC"):
-#        btc_price = self.exchange.fetch_ticker("BTC/USD")["last"]
-#        usd_summed = usd_summed * btc_price
       
       if usd_summed > 1000000:
         usd_summed = "%.2f" % float(usd_summed/1000000) + " M"
@@ -1580,7 +1291,6 @@ def bid_ask_sum(symbol, bids, precision=10): # can be asks too instead of bids
 
   return bids_score
 
-auto_last_trade = 0
 def display_market_depth(bids, asks, symbol, precision):
   global auto_last_trade
   strs = []
@@ -1625,39 +1335,6 @@ def display_market_depth(bids, asks, symbol, precision):
         strs.append(" " * (5-bid[0]) + unibox * bid[0] + " " + str(bid[1][0]) + " "  * (9 - len(str(bid[1][0]))) + str(bid[1][2]) + "\t" + asks)
       else:
         strs.append(" " * (5-bid[0]) + unibox * bid[0] + " " + "%.6f" % float(bid[1][0]) + " " + str(bid[1][1]) + " "  * (10 - len(str(bid[1][1]))) + str(bid[1][2]) + "\t" + asks)
-
-  if auto_trade.upper() == 'YES':    
-    if time.time() - auto_last_trade > 60*3 or auto_last_trade == 0:
-      open_orders = client.fetchOpenOrders(symbol)
-      for order in open_orders:
-        try:
-          client.cancelOrder(order["id"])
-        except:
-          print get_full_stacktrace()      
-      symbol_price = get_symbol_price(symbol)
-      counter = 0      
-      for bid in bids_summed2:
-        if bid[0] > 0 and float(bid[1][0]) < symbol_price:
-          counter = counter + 1
-          if counter >= 3 or go_long.upper() == "YES":          
-            print "BUY " + str(float(bid[1][0]))
-            try:
-              client.create_limit_buy_order(symbol, 0.03, bid[1][0])
-            except:
-              print get_full_stacktrace()
-      
-      counter = 0
-      for ask in reversed(asks_summed2):
-        if ask[0] > 0 and float(ask[1][0]) > symbol_price:
-          counter = counter + 1
-          if counter >= 3 or go_short.upper == "YES":
-            print "SELL " + str(float(ask[1][0]))
-            try:
-              client.create_limit_sell_order(symbol, 0.03, ask[1][0])
-            except:
-              print get_full_stacktrace()
-            
-      auto_last_trade = time.time()
 
   return strs
 
@@ -1886,8 +1563,6 @@ class OrderBookWidget(QtGui.QLabel):
           self.setText(bookstr)
 
 if __name__ == "__main__":
-  init_btc_balance = float(client.fetch_balance()["BTC"]["free"])
-
   app = QtGui.QApplication(sys.argv)
   with open("style.qss","r") as fh:
     app.setStyleSheet(fh.read())
