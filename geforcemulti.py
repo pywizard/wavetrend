@@ -680,158 +680,9 @@ class ChartRunner(QtCore.QThread):
             xl = ax.get_xlim()
             ax.set_xlim(date[start_x], xl[1])
 
-          '''
-          wt_y_current = yvalues1[-1]
-          symbol_with_timeframe = symbol + " " + timeframe_entered
-          
-          if init == True:
-            wt_y_before = yvalues1[-1]
-            intersect = False
-            intersect_type = "NONE"
-            sell_intersect = False
-            buy_intersect = False
-            buy_threshold = config[symbol_with_timeframe].buy_threshold
-            sell_threshold = config[symbol_with_timeframe].sell_threshold
-            wt_difference = yvalues1[-1] - yvalues2[-1]
-            if wt_difference > 0:
-              wt_rising = True
-              wt_rising_before = True
-            else:
-              wt_rising = False
-              wt_rising_before = False
-          
-          if wt_y_current > 53:
-            wt_y_before = yvalues1[-1]
-          elif wt_y_current < -53:
-            wt_y_before = yvalues1[-1]  
-          
-          if wt_y_current < 53:
-            if wt_y_before > 53:
-              intersect = True
-              intersect_threshold = 53 - yvalues1[-1]
-              intersect_type = "SELL"
-          
-          if wt_y_current > -53:
-            if wt_y_before < -53:
-              intersect = True
-              intersect_threshold = yvalues1[-1] + 53
-              intersect_type = "BUY"
-
-          if config[symbol_with_timeframe].trade_all_crossings == False:
-            if intersect == True:
-              if intersect_type == "SELL":
-                if intersect_threshold > sell_threshold:
-                    sell_intersect = True
-                    wt_y_before = yvalues1[-1]
-              
-              if intersect_type == "BUY":
-                if intersect_threshold > buy_threshold:
-                    buy_intersect = True
-                    wt_y_before = yvalues1[-1]
-            
-          if config[symbol_with_timeframe].trade_all_crossings == True:
-            wt_difference = yvalues1[-1] - yvalues2[-1]
-            if wt_difference > 0:
-              wt_rising = True
-            else:
-              wt_rising = False
-
-            if wt_rising != wt_rising_before:
-              if wt_rising == True:
-                if abs(wt_difference) > buy_threshold:
-                  buy_intersect = True
-                  wt_rising_before = wt_rising
-              
-              if wt_rising == False:
-                if abs(wt_difference) > sell_threshold:
-                  sell_intersect = True
-                  wt_rising_before = wt_rising
-
-          if wt_rising == True:          
-            if counter % 15 == 0:
-              print symbol + " " + timeframe_entered + " Rising Wavetrend, threshold = %.8f" % abs(wt_difference)
-          else:
-            if counter % 15 == 0:
-              print symbol + " " + timeframe_entered + " Falling Wavetrend, threshold = %.8f" % abs(wt_difference)
-          
-          if counter % 15 == 0 and wt_y_current > 53:
-            print symbol + " " + timeframe_entered + " Wavetrend above 53, threshold = %.8f" % (wt_y_current - 53)
-
-          if counter % 15 == 0 and wt_y_current < 53:
-            print symbol + " " + timeframe_entered + " Wavetrend below 53, threshold = %.8f" % (53 - wt_y_current)
-
-          if counter % 15 == 0 and wt_y_current < -53:
-            print symbol + " " + timeframe_entered + " Wavetrend below -53, threshold = %.8f" % (-53 - wt_y_current)
-
-          if counter % 15 == 0 and wt_y_current > -53:
-            print symbol + " " + timeframe_entered + " Wavetrend above -53, threshold = %.8f" % (wt_y_current + 53)
-          
-          if buy_intersect == True or sell_intersect == True:            
-            print symbol + " INTERSECTION!!!"
-            if buy_intersect == True:
-                buy_intersect = False
-                intersect = False
-                #buy
-                print "BUY"
-                asset_balance = 0
-                symbol_price = get_symbol_price(symbol)
-
-                amount_per_trade = translate_buy_amount_percent(config[symbol_with_timeframe].buy_amount_percent_index)
-                if symbol.endswith("USDT"):
-                  asset_balance = float(client.fetch_balance()["USDT"]["free"])
-                  buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
-                elif symbol.endswith("USD"):
-                  asset_balance = float(client.fetch_balance()["USD"]["free"])
-                  buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)                  
-                else:
-                  asset_balance = float(client.fetch_balance()["BTC"]["free"])
-                  buy_amount = truncate((asset_balance / symbol_price) * amount_per_trade, 2)
-                
-                print buy_amount
-
-                if buy_amount != 0:
-                  try:
-                    order = client.create_market_buy_order(symbol, buy_amount)
-                    playsound("beep.wav")
-                    prev_trade_time = datetime.datetime.now()
-                  except:
-                    print get_full_stacktrace()
-                  time.sleep(5)
-                  f = open("trades.txt", "a")
-                  f.write("BUY %s MARKET @ %.8f\n" % (symbol, symbol_price))
-                  f.close()
-                  item = QtGui.QListWidgetItem("BUY %s MARKET @ %.8f" % (symbol, symbol_price))
-                  main.listWidget_4.addItem(item)
-              
-            if sell_intersect == True:
-                #sell
-                sell_intersect = False
-                intersect = False
-                print "SELL"
-                
-                asset_balance = truncate(float(client.fetch_balance()[get_asset_from_symbol(symbol)]["free"]), 2)
-                  
-                to_sell = asset_balance
-                
-                print asset_balance
-                
-                if asset_balance != 0:
-                  symbol_price = get_symbol_price(symbol)
-                  print to_sell
-                  try:
-                    order = client.create_market_sell_order(symbol, to_sell)
-                    playsound("beep.wav")
-                    prev_trade_time = datetime.datetime.now()
-                  except:
-                    print get_full_stacktrace()
-                  f = open("trades.txt", "a")
-                  f.write("SELL %s MARKET @ %.8f\n" % (symbol, symbol_price))
-                  f.close()
-                  item = QtGui.QListWidgetItem("SELL %s MARKET @ %.8f" % (symbol, symbol_price))
-                  main.listWidget_4.addItem(item)
-            '''
           ticker = get_symbol_price(symbol)
           ticker_formatted = str(ticker)
+          ticker_for_line = prices[-1][4]
           
           if "e-" in str(ticker) or "e+" in str(ticker):
             d1 = ctx.create_decimal(repr(ticker))
@@ -857,9 +708,9 @@ class ChartRunner(QtCore.QThread):
           time_to_hour = "%02d:%02d" % (minutes, seconds)
 
           if first == True:
-            price_line = ax.axhline(ticker, color='gray', linestyle="dotted", lw=.9)
+            price_line = ax.axhline(ticker_for_line, color='gray', linestyle="dotted", lw=.9)
             decimal_places = str(ticker_formatted[::-1].find('.'))
-            annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, ("%." + decimal_places + "f") % ticker, fontsize=7, color=white)
+            annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker_for_line, ("%." + decimal_places + "f") % ticker, fontsize=7, color=white)
             annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
 
             qs[tab_index].put(CANVAS_GET_SIZE)
@@ -870,15 +721,15 @@ class ChartRunner(QtCore.QThread):
             dbox = tbox.transformed(ax.transData.inverted())
             y0 = dbox.height * 2.4
             if timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:
-              time_annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker - y0, time_to_hour, fontsize=7, color=white)
+              time_annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker_for_line - y0, time_to_hour, fontsize=7, color=white)
               time_annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
           else:
-            price_line.set_ydata(ticker)
+            price_line.set_ydata(ticker_for_line)
             
             decimal_places = str(ticker_formatted[::-1].find('.'))
             annotation.set_text(("%." + decimal_places + "f") % ticker)
               
-            annotation.set_y(ticker)
+            annotation.set_y(ticker_for_line)
             annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
             qs[tab_index].put(CANVAS_GET_SIZE)
             qs[tab_index].put(annotation)
@@ -890,7 +741,7 @@ class ChartRunner(QtCore.QThread):
             if timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:            
               time_annotation.set_text(time_to_hour)
               time_annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
-              time_annotation.set_y(ticker - y0)
+              time_annotation.set_y(ticker_for_line - y0)
 
           if init == True:
             xl = ax.get_xlim()
