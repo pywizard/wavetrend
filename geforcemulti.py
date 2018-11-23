@@ -27,6 +27,7 @@ from playsound import playsound
 import ccxt
 from indicators import *
 from colors import *
+import decimal
 
 conf = {}
 execfile("config.txt", conf) 
@@ -321,6 +322,7 @@ def translate_buy_amount_percent_reversed(index):
     
 qs = {}
 aqs = {}
+dqs = {}
 qs_local = Queue.Queue()
 
 FIGURE_ADD_SUBPLOT = 0
@@ -328,6 +330,9 @@ FIGURE_TIGHT_LAYOUT = 1
 FIGURE_CLEAR = 2
 CANVAS_GET_SIZE = 3
 CANVAS_DRAW = 4
+RETRIEVE_CURRENT_INDEX = 5
+RETRIEVE_CHART_DATA = 6
+CHART_DATA_READY = 1
 SHOW_STATUSBAR_MESSAGE = 0
 
 days_table = {"1m": 0.17, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, "4h": 40, "6h": 60, "12h": 120, "1d": 240}
@@ -468,7 +473,6 @@ def peakdetect(v, delta, x = None):
     return maxtab, mintab
 
 from operator import itemgetter
-DIRPATH = os.path.join(os.path.dirname(os.path.abspath(__file__)))
 
 class MplCanvas(FigureCanvas):
     def __init__(self, parent=None, width=5, height=4, dpi=100, symbol=None):
@@ -484,81 +488,55 @@ class MplCanvas(FigureCanvas):
         
 main_shown = False
 
+class DataRunner(QtCore.QThread):
+  def __init__(self, parent, symbol, tab_index, timeframe_entered):
+    super(DataRunner, self).__init__(parent)
+    self.symbol = symbol
+    self.tab_index = tab_index
+    self.timeframe_entered = timeframe_entered
+  
+  def run(self):
+    global dqs
+    limit = 10
+
+    dt = []
+    open_ = []
+    high = []
+    low = []
+    close = []
+    volume = []
+    
+    while True:
+      try:
+        candles = client.fetch_ohlcv(self.symbol, self.timeframe_entered, limit=limit)
+        break
+      except:
+        print get_full_stacktrace()
+        time.sleep(1)
+        continue
+
+    for candle in candles:
+      dt.append(datetime.datetime.fromtimestamp(int(candle[0]) / 1000))
+      open_.append(float(candle[1]))
+      high.append(float(candle[2]))
+      low.append(float(candle[3]))
+      close.append(float(candle[4]))
+      volume.append(float(candle[5]))
+
+    result = [dt, open_, high, low, close, volume, limit]
+    
+    dqs[self.tab_index].put(CHART_DATA_READY)
+    dqs[self.tab_index].put(result)
+
 class ChartRunner(QtCore.QThread):
   data_ready = QtCore.pyqtSignal()
   
   def __init__(self, parent, symbol, tab_index, timeframe_entered):
     super(ChartRunner, self).__init__(parent)
+    self.parent = parent
     self.symbol = symbol
     self.tab_index = tab_index
     self.timeframe_entered = timeframe_entered
-
-  def getData(self, timeframe_entered, days_entered, currency_entered, few_candles):
-      if few_candles == False:
-        limit = 0
-        if timeframe_entered == "15m":
-            limit = int(days_entered * 4 * 24)
-
-        if timeframe_entered == "1m":
-            limit = int(days_entered * 60 * 24)
-
-        if timeframe_entered == "5m":
-            limit = int(days_entered * 12 * 24)
-
-        if timeframe_entered == "30m":
-            limit = int(days_entered * 2 * 24)
-
-        if timeframe_entered == "1h":
-            limit = int(days_entered * 24)
-
-        if timeframe_entered == "4h":
-            limit = int(days_entered * (24/4))
-
-        if timeframe_entered == "6h":
-            limit = int(days_entered * (24/6))
-
-        if timeframe_entered == "12h":
-            limit = int(days_entered * (24/12))
-
-        if timeframe_entered == "1d":
-            limit = int(days_entered)
-
-        if timeframe_entered == "3d":
-            limit = int(days_entered / 3)
-
-        if timeframe_entered == "1w":
-            limit = int(days_entered / 7)
-
-        if timeframe_entered == "1M":
-            limit = int(days_entered / 31)
-      else:
-        limit = 10
-
-      dt = []
-      open_ = []
-      high = []
-      low = []
-      close = []
-      volume = []
-      
-      while True:
-        try:
-          candles = client.fetch_ohlcv(currency_entered, timeframe_entered, limit=limit)
-          break
-        except:
-          print get_full_stacktrace()
-          time.sleep(1)
-          continue
-
-      for candle in candles:
-        dt.append(datetime.datetime.fromtimestamp(int(candle[0]) / 1000))
-        open_.append(float(candle[1]))
-        high.append(float(candle[2]))
-        low.append(float(candle[3]))
-        close.append(float(candle[4]))
-        volume.append(float(candle[5]))
-
-      return dt, open_, high, low, close, volume, limit
 
   def run(self):
     global qs
@@ -582,12 +560,28 @@ class ChartRunner(QtCore.QThread):
     prices = []
     indicators = []
     indicator_axes = []
+    ctx = decimal.Context()
+    ctx.prec = 20
+    indicator_update_time = 0
+    
     while True:
         try:
+          qs[tab_index].put(RETRIEVE_CURRENT_INDEX)
+          self.data_ready.emit()
+          current_tab_index = aqs[self.tab_index].get()
+          
+          if tab_index != current_tab_index:
+            time.sleep(0.1)
+            continue
+            
           if first == True:
             date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol, False)
           else:
-            date2, open2_, high2, low2, close2, vol2, limit2 = self.getData(timeframe_entered, days_entered, symbol, True)
+            qs[tab_index].put(RETRIEVE_CHART_DATA)
+            self.data_ready.emit()
+            chart_result = aqs[self.tab_index].get()
+            if chart_result != 0:
+              [date2, open2_, high2, low2, close2, vol2, limit2] = chart_result
           
           if first == True:
             qs[tab_index].put(FIGURE_ADD_SUBPLOT)
@@ -614,19 +608,15 @@ class ChartRunner(QtCore.QThread):
             last_line1 = None
             last_line2 = None
             last_rect = None
+            indicators[:] = []
+            indicator_axes[:] = []
             continue
 
-          prices2 = [x[4] for x in prices]
-          dates2 = [x[0] for x in prices]
-          dates3 = [x[6] for x in prices]
-
-          if init == True:
-            DMI = indicator_DMI()
-            BBANDS = indicator_BBANDS()
-            RSI = indicator_RSI()
-            indicators.append(BBANDS)
-            indicators.append(RSI)
-            indicators.append(DMI)
+          if first == True:
+            indicators.append(indicator_BBANDS())
+            indicators.append(indicator_MACD())
+            indicators.append(indicator_DMI())
+            indicators.append(indicator_RSI())
 
           '''
           n1, n2, period = 10, 21, 60
@@ -636,22 +626,24 @@ class ChartRunner(QtCore.QThread):
           ci = (ap - esa) / (0.015 * d)
           wt1 = talib.EMA(ci, timeperiod=n2)
           wt2 = talib.SMA(wt1, timeperiod=4)
-          '''
-          
+          '''            
           start_x = 0
           for indicator in indicators:
             indicator.generate_values(open, high, low, close)
             if first == True:
               if indicator.overlay_chart:
-                indicator.plot_once(ax, dates2)
+                indicator.plot_once(ax, date)
               else:
                 new_ax = ax.twinx()
                 new_ax.yaxis.tick_left()
                 new_ax.yaxis.set_label_position("left")
                 new_ax.xaxis.set_tick_params(labelsize=9)
                 new_ax.yaxis.set_tick_params(labelsize=9)                
-                new_ax.spines['left'].set_edgecolor(darkish)
-                new_ax.spines['right'].set_edgecolor(darkish)
+                new_ax.spines['left'].set_edgecolor(grayscale_dark)
+                new_ax.spines['right'].set_edgecolor(grayscale_light)
+                new_ax.spines['top'].set_edgecolor(grayscale_light)
+                new_ax.spines['bottom'].set_edgecolor(grayscale_light)
+                new_ax.spines['left'].set_linewidth(3)
                 new_ax.xaxis.label.set_color(white)
                 new_ax.yaxis.label.set_color(white)
                 new_ax.tick_params(axis='x', colors=white)
@@ -660,16 +652,19 @@ class ChartRunner(QtCore.QThread):
                 new_ax.grid(True)
                 
                 indicator_axes.append(new_ax)
-                indicator.plot_once(new_ax, dates2)
+                indicator.plot_once(new_ax, date)
+                indiactor_update_time = time.time()
             else:
-              indicator.update()
+              if time.time() - indicator_update_time > 30:
+                indicator.update()              
             
             xaxis_start = indicator.xaxis_get_start()
             if xaxis_start > start_x:
               start_x = xaxis_start
+                          
+          if time.time() - indicator_update_time > 30:
+            indicator_update_time = time.time()     
 
-          if first == True:
-            
             highest_price = 0
             lowest_price = 999999999999
 
@@ -680,11 +675,10 @@ class ChartRunner(QtCore.QThread):
                 lowest_price = low[i]
                 
             ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
-            ax.set_ylim((lowest_price, highest_price))                
-                
-          xl = ax.get_xlim()
-          ax.set_xlim(date[start_x], xl[1])
-
+            ax.set_ylim((lowest_price - lowest_price * 0.015, highest_price + highest_price * 0.015))
+            
+            xl = ax.get_xlim()
+            ax.set_xlim(date[start_x], xl[1])
 
           '''
           wt_y_current = yvalues1[-1]
@@ -836,7 +830,12 @@ class ChartRunner(QtCore.QThread):
                   item = QtGui.QListWidgetItem("SELL %s MARKET @ %.8f" % (symbol, symbol_price))
                   main.listWidget_4.addItem(item)
             '''
-          ticker = prices[-1][4]
+          ticker = get_symbol_price(symbol)
+          ticker_formatted = str(ticker)
+          
+          if "e-" in str(ticker) or "e+" in str(ticker):
+            d1 = ctx.create_decimal(repr(ticker))
+            ticker_formatted = format(d1, 'f')
 
           in_time = datetime.datetime.now()
           if timeframe_entered == "1m":
@@ -859,10 +858,8 @@ class ChartRunner(QtCore.QThread):
 
           if first == True:
             price_line = ax.axhline(ticker, color='gray', linestyle="dotted", lw=.9)
-            if symbol.endswith("USDT") or symbol.endswith("USD"):
-              annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, "%.2f" % ticker, fontsize=7, color=white)
-            else:
-              annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, "%.8f" % ticker, fontsize=7, color=white)
+            decimal_places = str(ticker_formatted[::-1].find('.'))
+            annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker, ("%." + decimal_places + "f") % ticker, fontsize=7, color=white)
             annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
 
             qs[tab_index].put(CANVAS_GET_SIZE)
@@ -878,10 +875,8 @@ class ChartRunner(QtCore.QThread):
           else:
             price_line.set_ydata(ticker)
             
-            if symbol.endswith("USDT") or symbol.endswith("USD"):
-              annotation.set_text("%.2f" % ticker)
-            else:
-              annotation.set_text("%.8f" % ticker)
+            decimal_places = str(ticker_formatted[::-1].find('.'))
+            annotation.set_text(("%." + decimal_places + "f") % ticker)
               
             annotation.set_y(ticker)
             annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
@@ -900,6 +895,11 @@ class ChartRunner(QtCore.QThread):
           if init == True:
             xl = ax.get_xlim()
             candle_width = ((dbox.x0 - xl[0]) / limit) * 0.8
+          if first == True:
+            for i in xrange(0, len(indicators)):
+              if indicators[i].name == "MACD":
+                indicators[i].candle_width = candle_width
+                indicators[i].update()
           
           last_line1, last_line2, last_rect = _candlestick(ax, prices, first, last_line1, last_line2, last_rect, candle_width)
           
@@ -908,10 +908,12 @@ class ChartRunner(QtCore.QThread):
             ax.set_axis_bgcolor(black)
             ax.yaxis.tick_right()
             ax.yaxis.set_label_position("right")
-            ax.spines['top'].set_edgecolor(darkish)
-            ax.spines['left'].set_edgecolor(darkish)
-            ax.spines['right'].set_edgecolor(darkish)
-            ax.spines['bottom'].set_edgecolor(darkish)
+            ax.spines['top'].set_edgecolor(grayscale_dark)
+            ax.spines['left'].set_edgecolor(grayscale_dark)
+            ax.spines['right'].set_edgecolor(grayscale_light)
+            ax.spines['bottom'].set_edgecolor(grayscale_light)
+            ax.spines['left'].set_linewidth(3)
+            ax.spines['top'].set_linewidth(3)
             ax.set_axis_bgcolor(black)
             ax.xaxis.label.set_color(white)
             ax.yaxis.label.set_color(white)
@@ -920,18 +922,18 @@ class ChartRunner(QtCore.QThread):
             ax.grid(alpha=.25)
             ax.grid(True)
 
-            if init == True:
-              qs[tab_index].put(FIGURE_TIGHT_LAYOUT)
-              self.data_ready.emit()
-              aqs[tab_index].get()
+          if init == True:
+            qs[tab_index].put(FIGURE_TIGHT_LAYOUT)
+            self.data_ready.emit()
+            aqs[tab_index].get()            
+            ax_bbox = ax.get_position()
 
           if first == True:
             axis_num = 0
             axis_height = None
-            all_axes_height = 0
             for axis in indicator_axes:
               axis_num = axis_num + 1
-              bbox = ax.get_position()
+              bbox = ax_bbox
               if axis_num == 1:
                 axis.set_position([bbox.x0, bbox.y0, bbox.width, bbox.height / 7])
                 bbox = axis.get_position()
@@ -939,15 +941,9 @@ class ChartRunner(QtCore.QThread):
               else:
                 axis.set_position([bbox.x0, bbox.y0 + axis_height, bbox.width, bbox.height / 7])
                 bbox = axis.get_position()
-                axis_height = bbox.height
-                
-              all_axes_height = all_axes_height + axis_height
-              
-            yl = ax.get_ylim()
-            pad_upper = .05
-            
-            ax_bbox = ax.get_position()
-            ax.set_position([ax_bbox.x0, ax_bbox.y0 + all_axes_height, ax_bbox.width, ax_bbox.height - all_axes_height])
+                axis_height = axis_height + bbox.height
+                              
+            ax.set_position([ax_bbox.x0, ax_bbox.y0 + axis_height, ax_bbox.width, ax_bbox.height - axis_height])
             
             first_axis = True
             for axis in indicator_axes:
@@ -962,15 +958,14 @@ class ChartRunner(QtCore.QThread):
             for t in ax.xaxis.get_major_ticks():
               t.tick1On = t.tick2On = False
               t.label1On = t.label2On = False
-                            
-            #ax.set_ylim(yl[0] - (yl[0] / 5)*(len(indicator_axes)-1), highest_price + ((highest_price-lowest_price)*pad_upper))
-
-          first = False            
             
-          prices2[:] = []
-          dates2[:] = []
-          dates3[:] = []
-          gc.collect()
+            ax.plot(1,1, label=symbol + ", " + timeframe_entered + ", " + exchange, marker = '',ls ='')
+            legend = ax.legend(frameon=False,loc="upper left", fontsize="medium")
+            for text in legend.get_texts():
+              text.set_color(grayscale_lighter)
+            
+          first = False
+          #gc.collect()
 
           qs[tab_index].put(CANVAS_DRAW)
           self.data_ready.emit()
@@ -981,7 +976,73 @@ class ChartRunner(QtCore.QThread):
         counter = counter + 1
         
         init = False
+        
+  def getData(self, timeframe_entered, days_entered, currency_entered, few_candles):
+      if few_candles == False:
+        limit = 0
+        if timeframe_entered == "15m":
+            limit = int(days_entered * 4 * 24)
 
+        if timeframe_entered == "1m":
+            limit = int(days_entered * 60 * 24)
+
+        if timeframe_entered == "5m":
+            limit = int(days_entered * 12 * 24)
+
+        if timeframe_entered == "30m":
+            limit = int(days_entered * 2 * 24)
+
+        if timeframe_entered == "1h":
+            limit = int(days_entered * 24)
+
+        if timeframe_entered == "4h":
+            limit = int(days_entered * (24/4))
+
+        if timeframe_entered == "6h":
+            limit = int(days_entered * (24/6))
+
+        if timeframe_entered == "12h":
+            limit = int(days_entered * (24/12))
+
+        if timeframe_entered == "1d":
+            limit = int(days_entered)
+
+        if timeframe_entered == "3d":
+            limit = int(days_entered / 3)
+
+        if timeframe_entered == "1w":
+            limit = int(days_entered / 7)
+
+        if timeframe_entered == "1M":
+            limit = int(days_entered / 31)
+      else:
+        limit = 10
+
+      dt = []
+      open_ = []
+      high = []
+      low = []
+      close = []
+      volume = []
+      
+      while True:
+        try:
+          candles = client.fetch_ohlcv(currency_entered, timeframe_entered, limit=limit)
+          break
+        except:
+          print get_full_stacktrace()
+          time.sleep(1)
+          continue
+
+      for candle in candles:
+        dt.append(datetime.datetime.fromtimestamp(int(candle[0]) / 1000))
+        open_.append(float(candle[1]))
+        high.append(float(candle[2]))
+        low.append(float(candle[3]))
+        close.append(float(candle[4]))
+        volume.append(float(candle[5]))
+
+      return dt, open_, high, low, close, volume, limit
 class UpdateUsdBalanceRunner(QtCore.QThread):
   data_ready = QtCore.pyqtSignal()
   
@@ -1055,7 +1116,7 @@ class Window(QtGui.QMainWindow):
     def __init__(self, symbol, timeframe_entered):
         QtGui.QMainWindow.__init__(self)
         resolution = QtGui.QDesktopWidget().screenGeometry()
-        uic.loadUi(os.path.join(DIRPATH, 'mainwindowqt.ui'), self)
+        uic.loadUi('mainwindowqt.ui', self)
         self.setWindowTitle("WAVETREND ROBOT - " + exchange)
         self.setGeometry(0, 0, int(resolution.width()/1.1), int(resolution.height()/1.2))
         self.move((resolution.width() / 2) - (self.frameSize().width() / 2),
@@ -1065,12 +1126,16 @@ class Window(QtGui.QMainWindow):
         self.tab_widgets = []
         self.tab_widgets.append(self.tabWidget.widget(0))
         self.tabWidget.currentChanged.connect(self.tabOnChange)
-    
+        self.setStyleSheet("border: 0;");
+        self.tabWidget.setStyleSheet("QTabWidget::pane { border: 0;}");
+ 
         widget = QtGui.QVBoxLayout(self.tabWidget.widget(0))
         dc = MplCanvas(self.tabWidget.widget(0), dpi=100, symbol=symbol)
         widget.addWidget(dc)
+        widget.setContentsMargins(0,0,0,0)
 
         self.horizontalLayout_3.insertWidget(1, OrderBookWidget(self), alignment=QtCore.Qt.AlignTop)
+        self.horizontalLayout_3.setContentsMargins(0,0,0,0)
         
         self.dcs = {}
         self.dcs[0] = dc
@@ -1079,6 +1144,10 @@ class Window(QtGui.QMainWindow):
         global aqs
         qs[0] = Queue.Queue()
         aqs[0] = Queue.Queue()
+        dqs[0] = Queue.Queue()
+
+        self.data_runner_thread = DataRunner(self, symbol, 0, timeframe_entered)
+        self.data_runner_thread.start()
         
         self.chart_runner_thread = ChartRunner(self, symbol, 0, timeframe_entered)
         self.chart_runner_thread.data_ready.connect(self.queue_handle)
@@ -1087,7 +1156,54 @@ class Window(QtGui.QMainWindow):
         self.updateusdbalance_runner_thread = UpdateUsdBalanceRunner(self)
         self.updateusdbalance_runner_thread.data_ready.connect(self.queue_handle)
         self.updateusdbalance_runner_thread.start()
+    
+    def keyPressEvent(self, event):
+     key = event.key()
+     self.symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[0]
+     if str(key) == "66": # B pressed
+      try:
+        percent = .25
+        price = get_symbol_price(self.symbol)
+        if self.symbol.endswith("USDT"):
+          asset_balance = float(client.fetch_balance()["USDT"]["free"])
+          amount = truncate((asset_balance / price) * percent, 2)
+        elif self.symbol.endswith("USD"):
+          asset_balance = float(client.fetch_balance()["USD"]["free"])
+          amount = truncate((asset_balance / price) * percent, 2)                  
+        else:
+          asset_balance = float(client.fetch_balance()["BTC"]["free"])
+          amount = truncate((asset_balance / price) * percent, 2)
         
+        book = orderbook(client, self.symbol)
+        asks_added = 0
+        for ask in book["asks"]:
+          asks_added = asks_added + ask[1]
+          if asks_added > amount:
+            price = ask[0]
+            print str(amount) + " " + str(price)
+            client.create_limit_buy_order(self.symbol, amount, price)
+            return
+      except:
+        print get_full_stacktrace()
+        return
+      
+     if str(key) == "83": # S pressed
+      try:
+        asset_balance = truncate(float(client.fetch_balance()[get_asset_from_symbol(self.symbol)]["free"]), 2)
+        amount = truncate(asset_balance * .5, 2)
+        book = orderbook(client, self.symbol)
+        bids_added = 0
+        for bid in book["bids"]:
+          bids_added = bids_added + bid[1]
+          if bids_added > amount:
+            price = bid[0]
+            print str(amount) + " " + str(price)
+            client.create_limit_sell_order(self.symbol, amount, price)
+            return       
+      except:
+        print get_full_stacktrace()
+        return
+    
     def queue_handle(self):
       global qs
       global aqs
@@ -1111,13 +1227,24 @@ class Window(QtGui.QMainWindow):
             QtGui.QApplication.processEvents()
             if self.tabWidget.currentIndex() == i:
               self.dcs[i].draw()
+              self.dcs[i].flush_events()
             aqs[i].put(0)
-        
+          elif value == RETRIEVE_CURRENT_INDEX:
+            aqs[i].put(self.tabWidget.currentIndex())
+          elif value == RETRIEVE_CHART_DATA:
+            if dqs[i].qsize() > 0:
+              value = dqs[i].get()
+              if value == CHART_DATA_READY:
+                chart_result = dqs[i].get()
+                aqs[i].put(chart_result)
+            else:
+              aqs[i].put(0)
+                      
       if qs_local.qsize() > 0:
         value = qs_local.get()
         if value == SHOW_STATUSBAR_MESSAGE:
           message = qs_local.get()
-          self.statusbar.showMessage(message)    
+          self.statusbar.showMessage(message)
          
     def buy_clicked(self, event):
       print "BUY"
@@ -1248,7 +1375,11 @@ class Window(QtGui.QMainWindow):
       global aqs
       qs[tab_index] = Queue.Queue()
       aqs[tab_index] = Queue.Queue()
+      dqs[tab_index] = Queue.Queue()
       self.dcs[tab_index] = dc
+      
+      self.data_runner_thread = DataRunner(self, symbol, tab_index, timeframe_entered)
+      self.data_runner_thread.start()      
       
       self.chart_runner_thread = ChartRunner(self, symbol, tab_index, timeframe_entered)
       self.chart_runner_thread.data_ready.connect(self.queue_handle)
@@ -1266,7 +1397,7 @@ class Window(QtGui.QMainWindow):
 class TradeDialog(QtGui.QDialog):
   def __init__(self, parent):
     QtGui.QDialog.__init__(self)
-    uic.loadUi(os.path.join(DIRPATH, 'trade.ui'), self)
+    uic.loadUi('trade.ui', self)
     self.setFixedSize(713, 385)
     self.symbol = str(parent.tabWidget.tabText(parent.tabWidget.currentIndex())).split(" ")[0]
     symbol = self.symbol
@@ -1436,7 +1567,7 @@ class Dialog(QtGui.QDialog):
     global config
     def __init__(self):
         QtGui.QDialog.__init__(self)
-        uic.loadUi(os.path.join(DIRPATH, 'windowqt.ui'), self)
+        uic.loadUi('windowqt.ui', self)
         self.setFixedSize(555, 575)
         self.tableWidget.horizontalHeader().setResizeMode(QtGui.QHeaderView.Stretch)
         
@@ -1622,19 +1753,21 @@ def display_market_depth(bids, asks, symbol, precision):
   bids_summed2 = copy.deepcopy(bids_summed)
   asks_summed2 = copy.deepcopy(asks_summed)
   
+  unibox = unichr(int('2022', 16))
+  
   for bid in bids_summed:
       try:
         ask = asks_summed.pop()
         if not symbol.endswith("BTC"):
-          asks = str(ask[1][0]) + " "  * (9 - len(str(ask[1][0]))) + str(ask[1][2]) + " " + "*" * ask[0]
+          asks = str(ask[1][0]) + " "  * (9 - len(str(ask[1][0]))) + str(ask[1][2]) + " " + unibox * ask[0]
         else:
-          asks = "%.6f" % float(ask[1][0]) + " " + str(ask[1][1]) + " "  * (10 - len(str(ask[1][1]))) + str(ask[1][2]) + " " + "*" * ask[0]
+          asks = "%.6f" % float(ask[1][0]) + " " + str(ask[1][1]) + " "  * (10 - len(str(ask[1][1]))) + str(ask[1][2]) + " " + unibox * ask[0]
       except:
         asks = ""
       if not symbol.endswith("BTC"):            
-        strs.append(" " * (5-bid[0]) + "*" * bid[0] + " " + str(bid[1][0]) + " "  * (9 - len(str(bid[1][0]))) + str(bid[1][2]) + "\t" + asks)
+        strs.append(" " * (5-bid[0]) + unibox * bid[0] + " " + str(bid[1][0]) + " "  * (9 - len(str(bid[1][0]))) + str(bid[1][2]) + "\t" + asks)
       else:
-        strs.append(" " * (5-bid[0]) + "*" * bid[0] + " " + "%.6f" % float(bid[1][0]) + " " + str(bid[1][1]) + " "  * (10 - len(str(bid[1][1]))) + str(bid[1][2]) + "\t" + asks)
+        strs.append(" " * (5-bid[0]) + unibox * bid[0] + " " + "%.6f" % float(bid[1][0]) + " " + str(bid[1][1]) + " "  * (10 - len(str(bid[1][1]))) + str(bid[1][2]) + "\t" + asks)
 
   if auto_trade.upper() == 'YES':    
     if time.time() - auto_last_trade > 60*3 or auto_last_trade == 0:
@@ -1766,11 +1899,12 @@ class Orderbook(QtCore.QThread):
         except:
           print get_full_stacktrace()
           time.sleep(3)
+          continue
         break
     
     def collect_ex(self):
       while True:
-        if time.time() - self.lastupdate > 5 or self.lastupdate == 0:
+        if time.time() - self.lastupdate > 10 or self.lastupdate == 0:
           try:
             self.ob={}
             self.ob["bids"] = {}
@@ -1885,7 +2019,7 @@ class OrderBookWidget(QtGui.QLabel):
         newfont = QtGui.QFont("Courier New", 9, QtGui.QFont.Bold) 
         self.setFont(newfont)
         self.setText("btcusd (combined)\nloading...")
-        self.setStyleSheet("QLabel { background-color : #363C4E; color : #C6C7C8; }")
+        self.setStyleSheet("QLabel { background-color : #131D27; color : #C6C7C8; }")
         self.orderbook = Orderbook(self)
         self.orderbook.data_ready.connect(self.orderbook_widget_update)
 

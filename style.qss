@@ -8,7 +8,7 @@
 
 QWidget {
     color: #eff0f1;
-    background-color: #31363b;
+    background-color: #131D27;
     selection-background-color: #3daee9;
     selection-color: #eff0f1;
     background-clip: border;
@@ -744,7 +744,7 @@ QTabBar::close-button:pressed {
 QTabBar::tab:top {
     color: #eff0f1;
     border: 1px solid #76797C;
-    border-bottom: 1px transparent black;
+/*    border-bottom: 1px transparent black; */
     background-color: #31363b;
     padding: 5px;
     min-width: 50px;
@@ -756,7 +756,7 @@ QTabBar::tab:top:selected {
     color: #eff0f1;
     background-color: #54575B;
     border: 1px solid #76797C;
-    border-bottom: 2px solid #3daee9;
+/*    border-bottom: 2px solid #3daee9; */
     border-top-left-radius: 2px;
     border-top-right-radius: 2px;
 }
