@@ -27,6 +27,8 @@ import ccxt
 from indicators import *
 from colors import *
 import decimal
+import random
+import functools
 
 conf = {}
 execfile("config.txt", conf) 
@@ -233,6 +235,10 @@ matplotlib.transforms.TransformNode._invalidate_internal = _invalidate_internal
 class abstract():
   pass
 
+window_ids = {}
+def get_window_id():
+  return "win-" + ''.join(random.choice('0123456789abcdef') for i in range(10))
+
 def get_symbol_price(symbol):
   sym = client.fetch_ticker(symbol)
   return float(sym["last"])
@@ -294,8 +300,12 @@ CANVAS_GET_SIZE = 3
 CANVAS_DRAW = 4
 RETRIEVE_CURRENT_INDEX = 5
 RETRIEVE_CHART_DATA = 6
+CHART_DESTROY = 7
 CHART_DATA_READY = 1
 SHOW_STATUSBAR_MESSAGE = 0
+
+chartrunner_remove_tab = None
+datarunner_remove_tab = None
 
 days_table = {"1m": 0.17, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, "4h": 40, "6h": 60, "12h": 120, "1d": 240}
 
@@ -335,8 +345,13 @@ class DataRunner(QtCore.QThread):
   
   def run(self):
     global dqs
+    global datarunner_remove_tab
     
     while True:
+      if datarunner_remove_tab != None:
+        if self.tab_index == datarunner_remove_tab:
+          break
+          
       limit = 10
 
       dt = []
@@ -368,6 +383,9 @@ class DataRunner(QtCore.QThread):
       if not dqs[self.tab_index].full():      
         dqs[self.tab_index].put(CHART_DATA_READY)
         dqs[self.tab_index].put(result)
+        
+    del dqs[self.tab_index]
+    datarunner_remove_tab = None
 
 class ChartRunner(QtCore.QThread):
   data_ready = QtCore.pyqtSignal()
@@ -382,6 +400,7 @@ class ChartRunner(QtCore.QThread):
   def run(self):
     global qs
     global aqs
+    global chartrunner_remove_tab
 
     days_entered = days_table[self.timeframe_entered]
     timeframe_entered = self.timeframe_entered
@@ -407,6 +426,10 @@ class ChartRunner(QtCore.QThread):
     
     while True:
         try:
+          if chartrunner_remove_tab != None:
+            if tab_index == chartrunner_remove_tab:
+              break
+              
           qs[tab_index].put(RETRIEVE_CURRENT_INDEX)
           self.data_ready.emit()
           current_tab_index = aqs[self.tab_index].get()
@@ -671,6 +694,10 @@ class ChartRunner(QtCore.QThread):
         counter = counter + 1
         
         init = False
+    
+    chartrunner_remove_tab = None
+    qs[tab_index].put(CHART_DESTROY)
+    self.data_ready.emit()
         
   def getData(self, timeframe_entered, days_entered, currency_entered, few_candles):
       if few_candles == False:
@@ -811,6 +838,7 @@ class UpdateUsdBalanceRunner(QtCore.QThread):
 class Window(QtGui.QMainWindow):
     global tab_widgets
     global config
+    global window_ids
     def __init__(self, symbol, timeframe_entered):
         QtGui.QMainWindow.__init__(self)
         resolution = QtGui.QDesktopWidget().screenGeometry()
@@ -826,6 +854,17 @@ class Window(QtGui.QMainWindow):
         self.tabWidget.currentChanged.connect(self.tabOnChange)
         self.setStyleSheet("border: 0;");
         self.tabWidget.setStyleSheet("QTabWidget::pane { border: 0;}");
+        
+        self.tabBar = self.tabWidget.tabBar()
+        tabBarMenu = QtGui.QMenu()
+        closeAction = QtGui.QAction("close", self)
+        tabBarMenu.addAction(closeAction)
+        closeAction.triggered.connect(functools.partial(self.removeTab, 0))
+        menuButton = QtGui.QToolButton(self)
+        menuButton.setStyleSheet('border: 0px; padding: 0px;')
+        menuButton.setPopupMode(QtGui.QToolButton.InstantPopup)
+        menuButton.setMenu(tabBarMenu)
+        self.tabBar.setTabButton(0, QtGui.QTabBar.RightSide, menuButton)        
  
         widget = QtGui.QVBoxLayout(self.tabWidget.widget(0))
         dc = MplCanvas(self.tabWidget.widget(0), dpi=100, symbol=symbol)
@@ -835,19 +874,22 @@ class Window(QtGui.QMainWindow):
         self.horizontalLayout_3.insertWidget(1, OrderBookWidget(self), alignment=QtCore.Qt.AlignTop)
         self.horizontalLayout_3.setContentsMargins(0,0,0,0)
         
+        window_id = get_window_id()
+        window_ids[0] = window_id
+        
         self.dcs = {}
-        self.dcs[0] = dc
+        self.dcs[window_id] = dc
         
         global qs
         global aqs
-        qs[0] = Queue.Queue()
-        aqs[0] = Queue.Queue()
-        dqs[0] = Queue.Queue(maxsize=1)
+        qs[window_id] = Queue.Queue()
+        aqs[window_id] = Queue.Queue()
+        dqs[window_id] = Queue.Queue(maxsize=1)
 
-        self.data_runner_thread = DataRunner(self, symbol, 0, timeframe_entered)
+        self.data_runner_thread = DataRunner(self, symbol, window_id, timeframe_entered)
         self.data_runner_thread.start()
         
-        self.chart_runner_thread = ChartRunner(self, symbol, 0, timeframe_entered)
+        self.chart_runner_thread = ChartRunner(self, symbol, window_id, timeframe_entered)
         self.chart_runner_thread.data_ready.connect(self.queue_handle)
         self.chart_runner_thread.start()
         
@@ -906,38 +948,67 @@ class Window(QtGui.QMainWindow):
       global qs
       global aqs
       global qs_local
+      global window_ids
 
-      for i in xrange(0, len(qs)):
-        if hasattr(self.dcs[i], "renderer") and qs[i].qsize() > 0:
-          value = qs[i].get()
+      for i in xrange(0, len(window_ids)):
+        winid = window_ids[i]
+        if hasattr(self.dcs[winid], "renderer") and qs[winid].qsize() > 0:
+          value = qs[winid].get()
           if value == FIGURE_ADD_SUBPLOT:
-            aqs[i].put(self.dcs[i].fig.add_subplot(1,1,1,facecolor=black))
+            aqs[winid].put(self.dcs[winid].fig.add_subplot(1,1,1,facecolor=black))
           elif value == FIGURE_TIGHT_LAYOUT:
-            self.dcs[i].fig.tight_layout()
-            aqs[i].put(0)
+            self.dcs[winid].fig.tight_layout()
+            aqs[winid].put(0)
           elif value == FIGURE_CLEAR:
-            self.dcs[i].fig.clf()
-            aqs[i].put(0)
+            self.dcs[winid].fig.clf()
+            aqs[winid].put(0)
           elif value == CANVAS_GET_SIZE:
-            annotation = qs[i].get()
-            aqs[i].put(annotation.get_window_extent(self.dcs[i].renderer))
+            annotation = qs[winid].get()
+            aqs[winid].put(annotation.get_window_extent(self.dcs[winid].renderer))
           elif value == CANVAS_DRAW:         
             QtGui.QApplication.processEvents()
             if self.tabWidget.currentIndex() == i:
-              self.dcs[i].draw()
-              self.dcs[i].flush_events()
-            aqs[i].put(0)
+              self.dcs[winid].draw()
+              self.dcs[winid].flush_events()
+            aqs[winid].put(0)
           elif value == RETRIEVE_CURRENT_INDEX:
-            aqs[i].put(self.tabWidget.currentIndex())
+            aqs[winid].put(window_ids[self.tabWidget.currentIndex()])
           elif value == RETRIEVE_CHART_DATA:
-            if dqs[i].qsize() > 0:
-              value = dqs[i].get()
-              if value == CHART_DATA_READY:
-                chart_result = dqs[i].get()
-                aqs[i].put(chart_result)
-            else:
-              aqs[i].put(0)
-                      
+            if winid in dqs:
+              if dqs[winid].qsize() > 0:
+                value = dqs[winid].get()
+                if value == CHART_DATA_READY:
+                  chart_result = dqs[winid].get()
+                  aqs[winid].put(chart_result)
+              else:
+                aqs[winid].put(0)
+          elif value == CHART_DESTROY:
+            del qs[winid]
+            del aqs[winid]
+            self.dcs[winid].fig.clf()
+            del self.dcs[winid]
+            self.tabWidget.removeTab(i)
+            
+            import pprint
+            pprint.pprint(window_ids)
+            
+            window_ids_copy = {}
+            for j in window_ids.keys():
+              if j == i:
+                del window_ids[j]
+                break
+
+            counter = 0
+            for j in window_ids.keys():
+              window_ids_copy[counter] = window_ids[j]
+              counter = counter + 1
+
+            window_ids = copy.deepcopy(window_ids_copy)
+
+            print "************************"
+            pprint.pprint(window_ids)
+            break
+
       if qs_local.qsize() > 0:
         value = qs_local.get()
         if value == SHOW_STATUSBAR_MESSAGE:
@@ -948,26 +1019,49 @@ class Window(QtGui.QMainWindow):
       selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
       symbol = selected_symbol
       
+    def removeTab(self, tab_index):
+      global chartrunner_remove_tab
+      global datarunner_remove_tab
+      
+      chartrunner_remove_tab = window_ids[tab_index]
+      datarunner_remove_tab = window_ids[tab_index]
+    
     def addTab(self, symbol, timeframe_entered):
       self.tab_widgets.append(QtGui.QWidget())
       tab_index = self.tabWidget.addTab(self.tab_widgets[-1], symbol + " " + timeframe_entered)
       self.tabWidget.setCurrentWidget(self.tab_widgets[-1])
       main.tabWidget.setTabIcon(tab_index, QtGui.QIcon("coin.ico"))
       widget = QtGui.QVBoxLayout(self.tabWidget.widget(tab_index))
+      
+      tabBarMenu = QtGui.QMenu()
+      closeAction = QtGui.QAction("close", self)
+      tabBarMenu.addAction(closeAction)
+      closeAction.triggered.connect(functools.partial(self.removeTab, tab_index))      
+      menuButton = QtGui.QToolButton(self)
+      menuButton.setStyleSheet('border: 0px; padding: 0px;')
+      menuButton.setPopupMode(QtGui.QToolButton.InstantPopup)
+      menuButton.setMenu(tabBarMenu)      
+      self.tabBar.setTabButton(tab_index, QtGui.QTabBar.RightSide, menuButton)
+      
       dc = MplCanvas(self.tabWidget.widget(tab_index), dpi=100, symbol=symbol)
       widget.addWidget(dc)
       
       global qs
       global aqs
-      qs[tab_index] = Queue.Queue()
-      aqs[tab_index] = Queue.Queue()
-      dqs[tab_index] = Queue.Queue(maxsize=1)
-      self.dcs[tab_index] = dc
+      global dqs
       
-      self.data_runner_thread = DataRunner(self, symbol, tab_index, timeframe_entered)
+      window_id = get_window_id()
+      window_ids[tab_index] = window_id
+
+      qs[window_id] = Queue.Queue()
+      aqs[window_id] = Queue.Queue()
+      dqs[window_id] = Queue.Queue(maxsize=1)
+      self.dcs[window_id] = dc
+      
+      self.data_runner_thread = DataRunner(self, symbol, window_id, timeframe_entered)
       self.data_runner_thread.start()      
       
-      self.chart_runner_thread = ChartRunner(self, symbol, tab_index, timeframe_entered)
+      self.chart_runner_thread = ChartRunner(self, symbol, window_id, timeframe_entered)
       self.chart_runner_thread.data_ready.connect(self.queue_handle)
       self.chart_runner_thread.start()
     
