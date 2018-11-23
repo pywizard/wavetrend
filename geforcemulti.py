@@ -344,7 +344,7 @@ class DataRunner(QtCore.QThread):
     self.timeframe_entered = timeframe_entered
   
   def run(self):
-    global dqs
+    global chartrunner_remove_tab
     global datarunner_remove_tab
     
     while True:
@@ -384,8 +384,8 @@ class DataRunner(QtCore.QThread):
         dqs[self.tab_index].put(CHART_DATA_READY)
         dqs[self.tab_index].put(result)
         
-    del dqs[self.tab_index]
     datarunner_remove_tab = None
+    chartrunner_remove_tab = self.tab_index
 
 class ChartRunner(QtCore.QThread):
   data_ready = QtCore.pyqtSignal()
@@ -401,6 +401,7 @@ class ChartRunner(QtCore.QThread):
     global qs
     global aqs
     global chartrunner_remove_tab
+    global datarunner_remove_tab
 
     days_entered = days_table[self.timeframe_entered]
     timeframe_entered = self.timeframe_entered
@@ -694,11 +695,11 @@ class ChartRunner(QtCore.QThread):
         counter = counter + 1
         
         init = False
-    
-    chartrunner_remove_tab = None
+        
+    chartrunner_remove_tab = None    
     qs[tab_index].put(CHART_DESTROY)
     self.data_ready.emit()
-        
+    
   def getData(self, timeframe_entered, days_entered, currency_entered, few_candles):
       if few_candles == False:
         limit = 0
@@ -855,11 +856,14 @@ class Window(QtGui.QMainWindow):
         self.setStyleSheet("border: 0;");
         self.tabWidget.setStyleSheet("QTabWidget::pane { border: 0;}");
         
+        window_id = get_window_id()
+        window_ids[0] = window_id        
+        
         self.tabBar = self.tabWidget.tabBar()
         tabBarMenu = QtGui.QMenu()
         closeAction = QtGui.QAction("close", self)
         tabBarMenu.addAction(closeAction)
-        closeAction.triggered.connect(functools.partial(self.removeTab, 0))
+        closeAction.triggered.connect(functools.partial(self.removeTab, window_ids[0]))
         menuButton = QtGui.QToolButton(self)
         menuButton.setStyleSheet('border: 0px; padding: 0px;')
         menuButton.setPopupMode(QtGui.QToolButton.InstantPopup)
@@ -873,15 +877,13 @@ class Window(QtGui.QMainWindow):
 
         self.horizontalLayout_3.insertWidget(1, OrderBookWidget(self), alignment=QtCore.Qt.AlignTop)
         self.horizontalLayout_3.setContentsMargins(0,0,0,0)
-        
-        window_id = get_window_id()
-        window_ids[0] = window_id
-        
+                
         self.dcs = {}
         self.dcs[window_id] = dc
         
         global qs
         global aqs
+        global dqs
         qs[window_id] = Queue.Queue()
         aqs[window_id] = Queue.Queue()
         dqs[window_id] = Queue.Queue(maxsize=1)
@@ -985,13 +987,11 @@ class Window(QtGui.QMainWindow):
           elif value == CHART_DESTROY:
             del qs[winid]
             del aqs[winid]
+            del dqs[winid]
             self.dcs[winid].fig.clf()
             del self.dcs[winid]
             self.tabWidget.removeTab(i)
-            
-            import pprint
-            pprint.pprint(window_ids)
-            
+                        
             window_ids_copy = {}
             for j in window_ids.keys():
               if j == i:
@@ -1004,9 +1004,6 @@ class Window(QtGui.QMainWindow):
               counter = counter + 1
 
             window_ids = copy.deepcopy(window_ids_copy)
-
-            print "************************"
-            pprint.pprint(window_ids)
             break
 
       if qs_local.qsize() > 0:
@@ -1019,12 +1016,15 @@ class Window(QtGui.QMainWindow):
       selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
       symbol = selected_symbol
       
-    def removeTab(self, tab_index):
+    def removeTab(self, window_id):
       global chartrunner_remove_tab
       global datarunner_remove_tab
       
-      chartrunner_remove_tab = window_ids[tab_index]
-      datarunner_remove_tab = window_ids[tab_index]
+      datarunner_remove_tab = window_id      
+      for win_index in window_ids:
+        if window_ids[win_index] == window_id:
+          self.tabWidget.setCurrentIndex(win_index)
+          break
     
     def addTab(self, symbol, timeframe_entered):
       self.tab_widgets.append(QtGui.QWidget())
@@ -1033,10 +1033,13 @@ class Window(QtGui.QMainWindow):
       main.tabWidget.setTabIcon(tab_index, QtGui.QIcon("coin.ico"))
       widget = QtGui.QVBoxLayout(self.tabWidget.widget(tab_index))
       
+      window_id = get_window_id()
+      window_ids[tab_index] = window_id      
+      
       tabBarMenu = QtGui.QMenu()
       closeAction = QtGui.QAction("close", self)
       tabBarMenu.addAction(closeAction)
-      closeAction.triggered.connect(functools.partial(self.removeTab, tab_index))      
+      closeAction.triggered.connect(functools.partial(self.removeTab, window_ids[tab_index]))      
       menuButton = QtGui.QToolButton(self)
       menuButton.setStyleSheet('border: 0px; padding: 0px;')
       menuButton.setPopupMode(QtGui.QToolButton.InstantPopup)
@@ -1050,9 +1053,6 @@ class Window(QtGui.QMainWindow):
       global aqs
       global dqs
       
-      window_id = get_window_id()
-      window_ids[tab_index] = window_id
-
       qs[window_id] = Queue.Queue()
       aqs[window_id] = Queue.Queue()
       dqs[window_id] = Queue.Queue(maxsize=1)
@@ -1663,4 +1663,4 @@ if __name__ == "__main__":
   dialog = Dialog()
   dialog.show()
   os._exit(app.exec_())
-  
+
