@@ -1,7 +1,7 @@
 import warnings
 warnings.filterwarnings("ignore")
 import matplotlib
-matplotlib.use("Agg")
+matplotlib.use("QT4Agg")
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import numpy as np
@@ -206,32 +206,6 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
 
     return last_line1, last_line2, last_rect
 
-def _invalidate_internal(self, value, invalidating_node):
-    """
-    Called by :meth:`invalidate` and subsequently ascends the transform
-    stack calling each TransformNode's _invalidate_internal method.
-    """
-    # determine if this call will be an extension to the invalidation
-    # status. If not, then a shortcut means that we needn't invoke an
-    # invalidation up the transform stack as it will already have been
-    # invalidated.
-
-    # N.B This makes the invalidation sticky, once a transform has been
-    # invalidated as NON_AFFINE, then it will always be invalidated as
-    # NON_AFFINE even when triggered with a AFFINE_ONLY invalidation.
-    # In most cases this is not a problem (i.e. for interactive panning and
-    # zooming) and the only side effect will be on performance.
-    status_changed = self._invalid < value
-
-    if self.pass_through or status_changed:
-        self._invalid = value
-
-        for parent in self._parents.values():
-            parent._invalidate_internal(value=value,
-                                        invalidating_node=self)
-
-matplotlib.transforms.TransformNode._invalidate_internal = _invalidate_internal
-
 class abstract():
   pass
 
@@ -298,14 +272,14 @@ FIGURE_TIGHT_LAYOUT = 1
 FIGURE_CLEAR = 2
 CANVAS_GET_SIZE = 3
 CANVAS_DRAW = 4
-RETRIEVE_CURRENT_INDEX = 5
-RETRIEVE_CHART_DATA = 6
-CHART_DESTROY = 7
+RETRIEVE_CHART_DATA = 5
+CHART_DESTROY = 6
 CHART_DATA_READY = 1
 SHOW_STATUSBAR_MESSAGE = 0
 
 chartrunner_remove_tab = None
 datarunner_remove_tab = None
+tab_current_index = None
 
 days_table = {"1m": 0.17, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, "4h": 40, "6h": 60, "12h": 120, "1d": 240}
 
@@ -323,8 +297,8 @@ def ceil_dt(dt, seconds):
 from operator import itemgetter
 
 class MplCanvas(FigureCanvas):
-    def __init__(self, parent=None, width=5, height=4, dpi=100, symbol=None):
-        self.fig = Figure(facecolor=black, edgecolor=white)
+    def __init__(self, parent=None, dpi=100, symbol=None):
+        self.fig = Figure(facecolor=black, edgecolor=white, dpi=dpi, frameon=False)
 
         FigureCanvas.__init__(self, self.fig)
         self.setParent(parent)
@@ -351,7 +325,11 @@ class DataRunner(QtCore.QThread):
       if datarunner_remove_tab != None:
         if self.tab_index == datarunner_remove_tab:
           break
-          
+
+      if self.tab_index != tab_current_index:
+        time.sleep(0.1)
+        continue
+      
       limit = 10
 
       dt = []
@@ -380,7 +358,7 @@ class DataRunner(QtCore.QThread):
 
       result = [dt, open_, high, low, close, volume, limit]
       
-      if not dqs[self.tab_index].full():      
+      if not dqs[self.tab_index].full():
         dqs[self.tab_index].put(CHART_DATA_READY)
         dqs[self.tab_index].put(result)
         
@@ -402,6 +380,7 @@ class ChartRunner(QtCore.QThread):
     global aqs
     global chartrunner_remove_tab
     global datarunner_remove_tab
+    global tab_current_index
 
     days_entered = days_table[self.timeframe_entered]
     timeframe_entered = self.timeframe_entered
@@ -412,7 +391,6 @@ class ChartRunner(QtCore.QThread):
 
     init = True
     prev_trade_time = 0
-    counter = 0
     wt_was_rising = False
     first = True
     last_line1 = None
@@ -430,13 +408,11 @@ class ChartRunner(QtCore.QThread):
           if chartrunner_remove_tab != None:
             if tab_index == chartrunner_remove_tab:
               break
-              
-          qs[tab_index].put(RETRIEVE_CURRENT_INDEX)
-          self.data_ready.emit()
-          current_tab_index = aqs[self.tab_index].get()
-          
-          if tab_index != current_tab_index:
-            time.sleep(0.1)
+         
+          if tab_current_index == None:
+            tab_current_index = tab_index
+          elif tab_index != tab_current_index:
+            time.sleep(0.01)
             continue
 
           if first == True:
@@ -447,6 +423,11 @@ class ChartRunner(QtCore.QThread):
             chart_result = aqs[self.tab_index].get()
             if chart_result != 0:
               [date2, open2_, high2, low2, close2, vol2, limit2] = chart_result
+            else:
+              try:
+                date2
+              except NameError:
+                continue          
           
           if first == True:
             qs[tab_index].put(FIGURE_ADD_SUBPLOT)
@@ -484,6 +465,7 @@ class ChartRunner(QtCore.QThread):
             indicators.append(indicator_MACD())
             indicators.append(indicator_DMI())
             indicators.append(indicator_RSI())
+            indicators.append(indicator_VOLUME())
 
           '''
           n1, n2, period = 10, 21, 60
@@ -497,8 +479,8 @@ class ChartRunner(QtCore.QThread):
           
           start_x = 0
           for indicator in indicators:
-            indicator.generate_values(open, high, low, close)
             if first == True:
+              indicator.generate_values(open_, high, low, close, vol)
               if indicator.overlay_chart:
                 indicator.plot_once(ax, dates2)
               else:
@@ -509,46 +491,57 @@ class ChartRunner(QtCore.QThread):
                 new_ax.yaxis.set_tick_params(labelsize=9)                
                 new_ax.spines['left'].set_edgecolor(grayscale_dark)
                 new_ax.spines['right'].set_edgecolor(grayscale_light)
-                new_ax.spines['top'].set_edgecolor(grayscale_light)
+                if indicator.name == "VOLUME":
+                  new_ax.spines['top'].set_visible(False)
+                  new_ax.grid(False)
+                else:
+                  new_ax.grid(alpha=.25)
+                  new_ax.grid(True)
+                  new_ax.spines['top'].set_edgecolor(grayscale_light)
                 new_ax.spines['bottom'].set_edgecolor(grayscale_light)
                 new_ax.spines['left'].set_linewidth(3)
                 new_ax.xaxis.label.set_color(white)
                 new_ax.yaxis.label.set_color(white)
                 new_ax.tick_params(axis='x', colors=white)
                 new_ax.tick_params(axis='y', colors=white)            
-                new_ax.grid(alpha=.25)
-                new_ax.grid(True)
                 
                 indicator_axes.append(new_ax)
                 indicator.plot_once(new_ax, dates2)
                 indiactor_update_time = time.time()
             else:
-              if time.time() - indicator_update_time > 30:
+              open_[-1] = open2_[-1]
+              high[-1] = high2[-1]
+              low[-1] = low2[-1]
+              close[-1] = close2[-1]
+              vol[-1] = vol2[-1]
+              indicator.generate_values(open_, high, low, close, vol)
+              if time.time() - indicator_update_time > 60:
                 indicator.update()              
             
             xaxis_start = indicator.xaxis_get_start()
-            if xaxis_start > start_x:
+            if xaxis_start != 0 and xaxis_start > start_x:
               start_x = xaxis_start
                           
-          if time.time() - indicator_update_time > 30:
+          if time.time() - indicator_update_time > 60:
             indicator_update_time = time.time()     
 
-          highest_price = 0
-          lowest_price = 999999999999
+          if start_x != 0:
+            highest_price = 0
+            lowest_price = 999999999999
 
-          for i in range(start_x, len(date)):
-            if high[i] > highest_price:
-              highest_price = high[i]
-            if low[i] < lowest_price:
-              lowest_price = low[i]
-              
-          ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
-          ax.set_ylim((lowest_price - lowest_price * 0.015, highest_price + highest_price * 0.015))
-          
-          xl = ax.get_xlim()
-          ax.set_xlim(date[start_x], xl[1])
+            for i in range(start_x, len(date)):
+              if high[i] > highest_price:
+                highest_price = high[i]
+              if low[i] < lowest_price:
+                lowest_price = low[i]
+                
+            ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
+            ax.set_ylim((lowest_price - lowest_price * 0.015, highest_price + highest_price * 0.015))
+            
+            xl = ax.get_xlim()
+            ax.set_xlim(date[start_x], xl[1])
 
-          ticker = get_symbol_price(symbol)
+          ticker = prices[-1][4]
           ticker_formatted = str(ticker)
           ticker_for_line = prices[-1][4]
           
@@ -599,13 +592,6 @@ class ChartRunner(QtCore.QThread):
               
             annotation.set_y(ticker_for_line)
             annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
-            qs[tab_index].put(CANVAS_GET_SIZE)
-            qs[tab_index].put(annotation)
-            self.data_ready.emit()
-            tbox = aqs[tab_index].get()
-            
-            dbox = tbox.transformed(ax.transData.inverted())
-            y0 = dbox.height * 2.4
             if timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:            
               time_annotation.set_text(time_to_hour)
               time_annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
@@ -616,7 +602,7 @@ class ChartRunner(QtCore.QThread):
             candle_width = ((dbox.x0 - xl[0]) / limit) * 0.8
           if first == True:
             for i in xrange(0, len(indicators)):
-              if indicators[i].name == "MACD":
+              if indicators[i].name == "MACD" or indicators[i].name == "VOLUME":
                 indicators[i].candle_width = candle_width
                 indicators[i].update()
           
@@ -660,7 +646,8 @@ class ChartRunner(QtCore.QThread):
               else:
                 axis.set_position([bbox.x0, bbox.y0 + axis_height, bbox.width, bbox.height / 7])
                 bbox = axis.get_position()
-                axis_height = axis_height + bbox.height
+                if axis != indicator_axes[len(indicator_axes)-1]:
+                  axis_height = axis_height + bbox.height
                               
             ax.set_position([ax_bbox.x0, ax_bbox.y0 + axis_height, ax_bbox.width, ax_bbox.height - axis_height])
             
@@ -692,8 +679,6 @@ class ChartRunner(QtCore.QThread):
         except:
           print get_full_stacktrace()
           
-        counter = counter + 1
-        
         init = False
         
     chartrunner_remove_tab = None    
@@ -890,7 +875,7 @@ class Window(QtGui.QMainWindow):
 
         self.data_runner_thread = DataRunner(self, symbol, window_id, timeframe_entered)
         self.data_runner_thread.start()
-        
+
         self.chart_runner_thread = ChartRunner(self, symbol, window_id, timeframe_entered)
         self.chart_runner_thread.data_ready.connect(self.queue_handle)
         self.chart_runner_thread.start()
@@ -951,6 +936,7 @@ class Window(QtGui.QMainWindow):
       global aqs
       global qs_local
       global window_ids
+      global tab_current_index
 
       for i in xrange(0, len(window_ids)):
         winid = window_ids[i]
@@ -967,18 +953,14 @@ class Window(QtGui.QMainWindow):
           elif value == CANVAS_GET_SIZE:
             annotation = qs[winid].get()
             aqs[winid].put(annotation.get_window_extent(self.dcs[winid].renderer))
-          elif value == CANVAS_DRAW:         
-            QtGui.QApplication.processEvents()
-            if self.tabWidget.currentIndex() == i:
-              self.dcs[winid].draw()
-              self.dcs[winid].flush_events()
+          elif value == CANVAS_DRAW:
+            if QtGui.QApplication.activeWindow() == self.window() and self.tabWidget.currentIndex() == i:
+              self.dcs[winid].draw_idle()
             aqs[winid].put(0)
-          elif value == RETRIEVE_CURRENT_INDEX:
-            aqs[winid].put(window_ids[self.tabWidget.currentIndex()])
           elif value == RETRIEVE_CHART_DATA:
             if winid in dqs:
               if dqs[winid].qsize() > 0:
-                value = dqs[winid].get()
+                value = dqs[winid].get(block=False)
                 if value == CHART_DATA_READY:
                   chart_result = dqs[winid].get()
                   aqs[winid].put(chart_result)
@@ -991,7 +973,8 @@ class Window(QtGui.QMainWindow):
             self.dcs[winid].fig.clf()
             del self.dcs[winid]
             self.tabWidget.removeTab(i)
-                        
+            tab_current_index = None
+            
             window_ids_copy = {}
             for j in window_ids.keys():
               if j == i:
@@ -1004,7 +987,6 @@ class Window(QtGui.QMainWindow):
               counter = counter + 1
 
             window_ids = copy.deepcopy(window_ids_copy)
-            break
 
       if qs_local.qsize() > 0:
         value = qs_local.get()
@@ -1013,8 +995,11 @@ class Window(QtGui.QMainWindow):
           self.statusbar.showMessage(message)
     
     def tabOnChange(self, event):
+      global tab_current_index
       selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
       symbol = selected_symbol
+      if self.tabWidget.currentIndex() in window_ids:
+        tab_current_index = window_ids[self.tabWidget.currentIndex()]
       
     def removeTab(self, window_id):
       global chartrunner_remove_tab
@@ -1027,6 +1012,8 @@ class Window(QtGui.QMainWindow):
           break
     
     def addTab(self, symbol, timeframe_entered):
+      global tab_current_index
+      
       self.tab_widgets.append(QtGui.QWidget())
       tab_index = self.tabWidget.addTab(self.tab_widgets[-1], symbol + " " + timeframe_entered)
       self.tabWidget.setCurrentWidget(self.tab_widgets[-1])
@@ -1061,6 +1048,7 @@ class Window(QtGui.QMainWindow):
       self.data_runner_thread = DataRunner(self, symbol, window_id, timeframe_entered)
       self.data_runner_thread.start()      
       
+      tab_current_index = window_id      
       self.chart_runner_thread = ChartRunner(self, symbol, window_id, timeframe_entered)
       self.chart_runner_thread.data_ready.connect(self.queue_handle)
       self.chart_runner_thread.start()
@@ -1532,7 +1520,7 @@ class Orderbook(QtCore.QThread):
     
     def collect_ex(self):
       while True:
-        if time.time() - self.lastupdate > 10 or self.lastupdate == 0:
+        if time.time() - self.lastupdate > 60 or self.lastupdate == 0:
           try:
             self.ob={}
             self.ob["bids"] = {}

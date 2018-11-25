@@ -27,7 +27,7 @@
   </property>
   <property name="windowIcon">
    <iconset>
-    <normaloff>joker.gif</normaloff>joker.gif</iconset>
+    <normaloff>logotop.png</normaloff>joker.gif</iconset>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout_2">
