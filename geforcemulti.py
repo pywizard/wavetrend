@@ -206,12 +206,11 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
 
     return last_line1, last_line2, last_rect
 
-class abstract():
-  pass
-
 window_ids = {}
 def get_window_id():
   return "win-" + ''.join(random.choice('0123456789abcdef') for i in range(10))
+
+window_configs = {}
 
 def get_symbol_price(symbol):
   sym = client.fetch_ticker(symbol)
@@ -277,6 +276,11 @@ CHART_DESTROY = 6
 CHART_DATA_READY = 1
 SHOW_STATUSBAR_MESSAGE = 0
 
+CANDLE_TYPE_CANDLESTICK = 0
+CANDLE_TYPE_HEIKIN_ASHI = 1
+TRADE_TYPE_TRENDING = 0
+TRADE_TYPE_OSC = 1
+
 chartrunner_remove_tab = None
 datarunner_remove_tab = None
 tab_current_index = None
@@ -319,7 +323,7 @@ class DataRunner(QtCore.QThread):
   
   def run(self):
     global chartrunner_remove_tab
-    global datarunner_remove_tab
+    global datarunner_remove_tab    
     
     while True:
       if datarunner_remove_tab != None:
@@ -381,7 +385,8 @@ class ChartRunner(QtCore.QThread):
     global chartrunner_remove_tab
     global datarunner_remove_tab
     global tab_current_index
-
+    global window_configs
+    
     days_entered = days_table[self.timeframe_entered]
     timeframe_entered = self.timeframe_entered
     symbol = self.symbol
@@ -391,7 +396,6 @@ class ChartRunner(QtCore.QThread):
 
     init = True
     prev_trade_time = 0
-    wt_was_rising = False
     first = True
     last_line1 = None
     last_line2 = None
@@ -402,6 +406,8 @@ class ChartRunner(QtCore.QThread):
     ctx = decimal.Context()
     ctx.prec = 20
     indicator_update_time = 0
+    current_candle_type = window_configs[self.tab_index].candle_type
+    current_trade_type = window_configs[self.tab_index].trade_type
     
     while True:
         try:
@@ -414,6 +420,9 @@ class ChartRunner(QtCore.QThread):
           elif tab_index != tab_current_index:
             time.sleep(0.01)
             continue
+
+          candle_type = window_configs[self.tab_index].candle_type
+          trade_type = window_configs[self.tab_index].trade_type
 
           if first == True:
             date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol, False)
@@ -448,7 +457,8 @@ class ChartRunner(QtCore.QThread):
             prices[-1] = (date2num(date2[-1]), open2_[-1], high2[-1], low2[-1], close2[-1], vol2[-1], date2[-1])
             prices[-2] = (date2num(date2[-2]), open2_[-2], high2[-2], low2[-2], close2[-2], vol2[-2], date2[-2])
   
-          if first == False and previous_candle != [date2[-2], open2_[-2], high2[-2], low2[-2], close2[-2], vol2[-2]] and len(date2) == 10:
+          if (first == False and previous_candle != [date2[-2], open2_[-2], high2[-2], low2[-2], close2[-2], vol2[-2]] and len(date2) == 10) \
+          or current_candle_type != candle_type or current_trade_type != trade_type:
             qs[self.tab_index].put(FIGURE_CLEAR)
             self.data_ready.emit()
             aqs[self.tab_index].get()
@@ -458,11 +468,16 @@ class ChartRunner(QtCore.QThread):
             last_rect = None
             indicators[:] = []
             indicator_axes[:] = []
+            current_candle_type = candle_type
+            current_trade_type = trade_type
             continue
 
           if first == True:
             indicators.append(indicator_BBANDS())
-            indicators.append(indicator_MACD())
+            if current_trade_type == TRADE_TYPE_TRENDING:
+              indicators.append(indicator_MACD())
+            elif current_trade_type == TRADE_TYPE_OSC:
+              indicators.append(indicator_STOCH())
             indicators.append(indicator_DMI())
             indicators.append(indicator_RSI())
             indicators.append(indicator_VOLUME())
@@ -515,26 +530,71 @@ class ChartRunner(QtCore.QThread):
               close[-1] = close2[-1]
               vol[-1] = vol2[-1]
               indicator.generate_values(open_, high, low, close, vol)
-              if time.time() - indicator_update_time > 60:
+              if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or current_trade_type != trade_type:
                 indicator.update()              
             
             xaxis_start = indicator.xaxis_get_start()
             if xaxis_start != 0 and xaxis_start > start_x:
               start_x = xaxis_start
                           
-          if time.time() - indicator_update_time > 60:
+          if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or current_trade_type != trade_type:
             indicator_update_time = time.time()     
+
+          if current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
+            ### Heikin Ashi
+            if first == True:  
+              date_list    = xrange(0, len(open_))
+              open_list    = copy.deepcopy(open_)
+              close_list   = copy.deepcopy(close)
+              high_list    = copy.deepcopy(high)
+              low_list     = copy.deepcopy(low)
+              volume_list  = copy.deepcopy(vol)
+              elements        = len(open_)
+
+              for i in xrange(1, elements):
+                  close_list[i] = (open_list[i] + close_list[i] + high_list[i] + low_list[i])/4
+                  open_list[i]  = (open_list[i-1] + close_list[i-1])/2
+                  high_list[i]  = max(high_list[i], open_list[i], close_list[i])
+                  low_list[i]   = min(low_list[i], open_list[i], close_list[i])
+              
+              prices2 = []
+              prices2[:] = []
+              for i in xrange(0, len(date)):
+                  prices2.append((date2num(date[i]), open_list[i], high_list[i], low_list[i], close_list[i], volume_list[i], date[i]))
+            else:
+              open_list[-1]    = open_[-1]
+              close_list[-1]   = close[-1]
+              high_list[-1]    = high[-1]
+              low_list[-1]     = low[-1]
+              volume_list[-1]  = vol[-1]
+              
+              close_list[-1] = (open_list[-1] + close_list[-1] + high_list[-1] + low_list[-1])/4
+              open_list[-1]  = (open_list[-2] + close_list[-2])/2
+              high_list[-1]  = max(high_list[-1], open_list[-1], close_list[-1])
+              low_list[-1]   = min(low_list[-1], open_list[-1], close_list[-1])
+              prices2[-1] = (date2num(date[-1]), open_list[-1], high_list[-1], low_list[-1], close_list[-1], volume_list[-1], date[-1])
+            ###
 
           if start_x != 0:
             highest_price = 0
             lowest_price = 999999999999
 
-            for i in range(start_x, len(date)):
-              if high[i] > highest_price:
-                highest_price = high[i]
-              if low[i] < lowest_price:
-                lowest_price = low[i]
-                
+            #candlestick
+            if current_candle_type == CANDLE_TYPE_CANDLESTICK:
+              for i in range(start_x, len(date)):
+                if high[i] > highest_price:
+                  highest_price = high[i] #candlestick
+                if low[i] < lowest_price:
+                  lowest_price = low[i] #candlestick
+            elif current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
+              #heikin ashi
+              for i in range(start_x, len(date)):
+                if high_list[i] > highest_price:
+                  highest_price = high_list[i]
+                if low_list[i] < lowest_price:
+                  lowest_price = low_list[i]            
+              ###
+            
             ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
             ax.set_ylim((lowest_price - lowest_price * 0.015, highest_price + highest_price * 0.015))
             
@@ -606,7 +666,10 @@ class ChartRunner(QtCore.QThread):
                 indicators[i].candle_width = candle_width
                 indicators[i].update()
           
-          last_line1, last_line2, last_rect = _candlestick(ax, prices, first, last_line1, last_line2, last_rect, candle_width)
+          if current_candle_type == CANDLE_TYPE_CANDLESTICK:
+            last_line1, last_line2, last_rect = _candlestick(ax, prices, first, last_line1, last_line2, last_rect, candle_width)
+          elif current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:        
+            last_line1, last_line2, last_rect = _candlestick(ax, prices2, first, last_line1, last_line2, last_rect, candle_width)
           
           if first == True:
             ax.autoscale_view()
@@ -649,7 +712,7 @@ class ChartRunner(QtCore.QThread):
                 if axis != indicator_axes[len(indicator_axes)-1]:
                   axis_height = axis_height + bbox.height
                               
-            ax.set_position([ax_bbox.x0, ax_bbox.y0 + axis_height, ax_bbox.width, ax_bbox.height - axis_height])
+            ax.set_position([ax_bbox.x0, ax_bbox.y0 + axis_height + (ax_bbox.y0 + axis_height) * 0.05, ax_bbox.width, ax_bbox.height - axis_height])
             
             first_axis = True
             for axis in indicator_axes:
@@ -843,6 +906,9 @@ class Window(QtGui.QMainWindow):
         
         window_id = get_window_id()
         window_ids[0] = window_id        
+        window_configs[window_id] = abstract()
+        window_configs[window_id].candle_type = CANDLE_TYPE_CANDLESTICK
+        window_configs[window_id].trade_type = TRADE_TYPE_TRENDING
         
         self.tabBar = self.tabWidget.tabBar()
         tabBarMenu = QtGui.QMenu()
@@ -885,7 +951,10 @@ class Window(QtGui.QMainWindow):
         self.updateusdbalance_runner_thread.start()
     
     def keyPressEvent(self, event):
+     global window_configs
+      
      key = event.key()
+       
      self.symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[0]
      if str(key) == "66": # B pressed
       try:
@@ -930,7 +999,55 @@ class Window(QtGui.QMainWindow):
       except:
         print get_full_stacktrace()
         return
-    
+
+     if str(key) == "67": # C pressed
+      tab_index = self.tabWidget.currentIndex()
+      window_configs[window_ids[tab_index]].candle_type = CANDLE_TYPE_CANDLESTICK
+      return
+
+     if str(key) == "72": # H pressed
+      tab_index = self.tabWidget.currentIndex()
+      window_configs[window_ids[tab_index]].candle_type = CANDLE_TYPE_HEIKIN_ASHI
+      return
+
+     if str(key) == "84": # T pressed
+      tab_index = self.tabWidget.currentIndex()
+      window_configs[window_ids[tab_index]].trade_type = TRADE_TYPE_TRENDING
+      return
+
+     if str(key) == "79": # O pressed
+      tab_index = self.tabWidget.currentIndex()
+      window_configs[window_ids[tab_index]].trade_type = TRADE_TYPE_OSC
+      return
+
+     if str(key) == "16777264": # F1 pressed
+      self.tabWidget.setCurrentIndex(0)
+      return
+     if str(key) == "16777265": # F2 pressed
+      self.tabWidget.setCurrentIndex(1)
+      return
+     if str(key) == "16777266": # F3 pressed
+      self.tabWidget.setCurrentIndex(2)
+      return
+     if str(key) == "16777267": # F4 pressed
+      self.tabWidget.setCurrentIndex(3)
+      return
+     if str(key) == "16777268": # F5 pressed
+      self.tabWidget.setCurrentIndex(4)
+      return
+     if str(key) == "16777269": # F6 pressed
+      self.tabWidget.setCurrentIndex(5)
+      return
+     if str(key) == "16777270": # F7 pressed
+      self.tabWidget.setCurrentIndex(6)
+      return
+     if str(key) == "16777271": # F8 pressed
+      self.tabWidget.setCurrentIndex(7)
+      return
+     if str(key) == "16777272": # F9 pressed
+      self.tabWidget.setCurrentIndex(8)
+      return
+
     def queue_handle(self):
       global qs
       global aqs
@@ -1021,7 +1138,10 @@ class Window(QtGui.QMainWindow):
       widget = QtGui.QVBoxLayout(self.tabWidget.widget(tab_index))
       
       window_id = get_window_id()
-      window_ids[tab_index] = window_id      
+      window_ids[tab_index] = window_id
+      window_configs[window_id] = abstract()
+      window_configs[window_id].candle_type = CANDLE_TYPE_CANDLESTICK
+      window_configs[window_id].trade_type = TRADE_TYPE_TRENDING
       
       tabBarMenu = QtGui.QMenu()
       closeAction = QtGui.QAction("close", self)
@@ -1520,7 +1640,7 @@ class Orderbook(QtCore.QThread):
     
     def collect_ex(self):
       while True:
-        if time.time() - self.lastupdate > 60 or self.lastupdate == 0:
+        if time.time() - self.lastupdate > 60*5 or self.lastupdate == 0:
           try:
             self.ob={}
             self.ob["bids"] = {}

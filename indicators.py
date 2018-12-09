@@ -25,9 +25,9 @@ class indicator_DMI:
       text.set_color("white")
   
   def update(self):
-    self.plus_di[0]._yorig[-1] = self.plus_di_values[-1]
-    self.minus_di[0]._yorig[-1] = self.minus_di_values[-1]
-    self.adx[0]._yorig[-1] = self.adx_values[-1]
+    self.plus_di[0].set_ydata(self.plus_di_values)
+    self.minus_di[0].set_ydata(self.minus_di_values)
+    self.adx[0].set_ydata(self.adx_values)
     for text in self.legend.get_texts():
       if "+DI" in text.get_text():
         text.set_text("+DI=" + str(int(self.plus_di_values[-1])))
@@ -63,9 +63,9 @@ class indicator_BBANDS():
     axis.fill_between(dates, self.bb_lower, self.bb_upper, where=self.bb_upper >= self.bb_lower, facecolor=greenish, interpolate=True, alpha=.05)
   
   def update(self):
-    self.bb_upper_[0]._yorig[-1] = self.bb_upper[-1]
-    self.bb_middle_[0]._yorig[-1] = self.bb_middle[-1]
-    self.bb_lower_[0]._yorig[-1] = self.bb_lower[-1]
+    self.bb_upper_[0].set_ydata(self.bb_upper)
+    self.bb_middle_[0].set_ydata(self.bb_middle)
+    self.bb_lower_[0].set_ydata(self.bb_lower)
   
   def xaxis_get_start(self):
     return 0
@@ -88,7 +88,7 @@ class indicator_RSI():
       text.set_text("RSI=" + str(int(self.rsi[-1])))
   
   def update(self):
-    self.rsi_[0]._yorig[-1] = self.rsi[-1]
+    self.rsi_[0].set_ydata(self.rsi)
     for text in self.legend.get_texts():
       text.set_text("RSI=" + str(int(self.rsi[-1])))
   
@@ -115,8 +115,8 @@ class indicator_MACD():
       text.set_color("white")
   
   def update(self):
-    self.macd[0]._yorig[-1] = self.macd_values[-1]
-    self.signal[0]._yorig[-1] = self.signal_values[-1]
+    self.macd[0].set_ydata(self.macd_values)
+    self.signal[0].set_ydata(self.signal_values)
     
     if self.first == True:
       self.bar = self.axis.bar(self.dates, self.hist_values, self.candle_width, color=green, antialiased=True, label="Histogram")
@@ -135,6 +135,38 @@ class indicator_MACD():
    
   def xaxis_get_start(self):
     return 0
+
+class indicator_STOCH():
+  def __init__(self):
+    self.name = "MACD"
+    self.overlay_chart = False
+  
+  def generate_values(self, open_, high, low, close, volume):
+    self.slowk_values, self.slowd_values = talib.STOCH(np.array(high), np.array(low), np.array(close), slowd_period=3, slowk_period=3, fastk_period=14)
+
+  def plot_once(self, axis, dates):
+    self.axis = axis
+    self.dates = copy.deepcopy(dates)
+    axis.axhline(80, color=white, lw=.5, linestyle="--")
+    axis.axhline(20, color=white, lw=.5, linestyle="--")    
+    self.slowk = axis.plot(dates, self.slowk_values, color=blue, lw=.7, antialiased=True, label="SLOW K")
+    self.slowd = axis.plot(dates, self.slowd_values, color=red, lw=.7, antialiased=True, label="SLOW D")
+    self.legend = axis.legend(loc="upper left", facecolor=darkish, edgecolor=darkish, fontsize="small")
+    for text in self.legend.get_texts():
+      text.set_color("white")
+  
+  def update(self):
+    self.slowk[0].set_ydata(self.slowk_values)
+    self.slowd[0].set_ydata(self.slowd_values)
+    for text in self.legend.get_texts():
+      if "SLOW K" in text.get_text():
+        text.set_text("SLOW K=" + str(int(self.slowk_values[-1])))
+      if "SLOW D" in text.get_text():
+        text.set_text("SLOW D=" + str(int(self.slowd_values[-1])))
+    
+  def xaxis_get_start(self):
+    return 0
+
 
 class indicator_VOLUME():
   def __init__(self):
