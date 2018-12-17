@@ -1,45 +1,35 @@
-﻿README (!) LAST UPDATED: 10 JUN 2018
+﻿WAVETREND
+==
+Wavetrend is a trading terminal for Bitcoin and Altcoins,
 
-WAVETREND ROBOT 1.0 BETA
+SUPPORTED OPERATING SYSTEMS
+==
+WINDOWS
+
+SUPPORTED EXCHANGES
+==
+BINANCE, BITSTAMP, GEMINI, HITBTC, OKEX, BITMEX, GDAX, KRAKEN, BITTREX
+theoretically all ccxt supported exchanges
+
+HOTKEYS
 ==
 
-Auto BUYS/SELLS when the Wavetrend Oscillator has an Intersection according to the direction.
+B key -- BUY 25%
+S key -- SELL 50%
+H key -- CONFIGURE HEIKIN ASHI CANDLES
+C key -- CONFIGURE CANDLESTICK CANDLES
+T key -- VIEW TREND INDICATORS
+O key -- VIEW OSCILLATING INDICATORS
+F1-F9 keys -- SWITCH TABS NUMBERED FROM 1-9
 
-Currently Supported Exchanges: binance
-
-General information about the Wavetrend Oscillator can be found here:
-
-https://www.youtube.com/watch?v=7vhIsk51_Ro
-
-https://www.youtube.com/watch?v=MqJ1czF220M
-
-
-
-![eos](https://i.imgur.com/GS51zV3.png)
-
-![ont](https://i.imgur.com/hqJQ0x0.png)
-
-Installation
+CONFIGURATION
 ==
 
-Windows Installation (RECOMMENDED!)
-************************************************
+edit config.txt
 
-Install python 2.7 then install the dependencies
-
-pip install matplotlib==2.0.1
-
-pip install pandas==0.22.0
-
-pip install pygubu
-
-pip install tzlocal
-
-pip install python-binance
-
-pip install playsound
-
-Choose the correct python 2.7 version of the TA-Lib package and architecture (win32/win_amd64),
+INSTALLATION
+==
+pip install -r requirements.txt
 
 install TA-Lib from:
 
@@ -59,55 +49,12 @@ Once downloaded, install the package:
 
 pip install PyQt4‑4.11.4‑cp27‑cp27m‑win_amd64.whl
 
-Linux Installation (Tested with Ubuntu)
-******************************************************************************
-
-sudo apt-get install tk-dev libpng-dev libffi-dev dvipng texlive-latex-base
-
-sudo apt-get install python-tk
-
-sudo pip2 install matplotlib==2.0.1
-
-sudo pip2 install pandas==0.22.0
-
-sudo pip2 install pygubu
-
-sudo pip2 install tzlocal
-
-sudo pip2 install python-binance
-
-sudo pip2 install playsound
-
-then.. with no spaces in pathname..
-
-wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
-
-tar xvzf ta-lib-0.4.0-src.tar.gz
-
-cd ta-lib
-
-./configure --prefix=/usr
-
-make
-
-sudo make install
-
-sudo pip2 install TA-Lib
-
-sudo apt-get install python-qt4
-
-Running
-=========
-
-Edit the config.py file and add your api keys.
-
-Windows only:
-
-Run the program within an elevated cmd.exe shell (it syncs the system time with the time of the exchange).
-
-Run command:
+RUNNING
+==
 
 python geforcemulti.py
-(or for the older version [not recommended] type python geforcemulti_tk_old.py)
 
-This is is still beta software and is currently being developed and tested!!! Use at your own risk.
+SCREENSHOT
+==
+https://imgur.com/a/f42u93r
+
