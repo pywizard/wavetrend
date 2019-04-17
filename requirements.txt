@@ -1,6 +1,7 @@
-matplotlib==2.1.2
+matplotlib
 PyQt4==4.11.4
 numpy==1.15.4
 pandas==0.23.4
-ccxt==1.17.518
+ccxt
 functools32==3.2.3.post2
+ta-lib==0.4.17

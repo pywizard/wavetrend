@@ -40,7 +40,7 @@ class indicator_DMI:
     if self.first == True:
       start_x = 0
       self.first = False
-      for i in xrange(0, len(self.adx_values)):
+      for i in range(0, len(self.adx_values)):
           if not np.isnan(self.adx_values[i]):
             start_x = i
             break
@@ -120,7 +120,7 @@ class indicator_MACD():
     
     if self.first == True:
       self.bar = self.axis.bar(self.dates, self.hist_values, self.candle_width, color=green, antialiased=True, label="Histogram")
-      for i in xrange(0, len(self.bar)):
+      for i in range(0, len(self.bar)):
         if self.hist_values[i] > 0:
           self.bar[i].set_facecolor(green)
         elif self.hist_values[i] < 0:
@@ -186,8 +186,8 @@ class indicator_VOLUME():
   
   def update(self):
     if self.first == True:
-      self.bar = self.axis.bar(self.dates, self.volume, self.candle_width, color=green, antialiased=True, alpha=.4)
-      for i in xrange(0, len(self.bar)):
+      self.bar = self.axis.bar(self.dates, self.volume, self.candle_width, color=green, antialiased=True, alpha=.7)
+      for i in range(0, len(self.bar)):
         if self.close[i] > self.open[i]:
           self.bar[i].set_facecolor(green)
         elif self.close[i] < self.open[i]:
