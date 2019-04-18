@@ -1,5 +1,4 @@
-#exchange can be one of BINANCE, BITSTAMP, GEMINI, HITBTC, OKEX, BITMEX, GDAX, KRAKEN, BITTREX
-exchange = "BINANCE" # missing
-#binance
+#exchange can be one of BINANCE, BITSTAMP, GEMINI, HITBTC, OKEX, BITMEX, GDAX, KRAKEN, BITTREX -- websockets: missing
+exchange = "BINANCE"
 api_key = ""
 api_secret = ""

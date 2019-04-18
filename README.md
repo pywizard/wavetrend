@@ -2,22 +2,18 @@
 ==
 Wavetrend is a trading terminal for Bitcoin and Altcoins
 
-SUPPORTED OPERATING SYSTEMS
-=====
-WINDOWS
-
 SUPPORTED EXCHANGES
 =====
 BINANCE, BITSTAMP, GEMINI, HITBTC, OKEX, BITMEX, GDAX, KRAKEN, BITTREX
 
-theoretically all ccxt supported exchanges
+websockets: BINANCE, all others: currently missing
 
 HOTKEYS
 =====
 
-B key -- BUY 25%
+B key -- BUY 25% UNTESTED MISSING
 
-S key -- SELL 50%
+S key -- SELL 50% UNTESTED MISSING
 
 H key -- CONFIGURE HEIKIN ASHI CANDLES
 
@@ -36,7 +32,8 @@ edit config.txt
 
 INSTALLATION
 =====
-pip install -r requirements.txt
+requirements: python3
+requirements inside requirements.txt
 
 install TA-Lib from:
 
@@ -60,7 +57,6 @@ RUNNING
 =====
 python geforcemulti.py
 
-SCREENSHOT
+SUPPORTED OPERATING SYSTEMS
 =====
-https://imgur.com/a/f42u93r
-
+Linux, Windows
