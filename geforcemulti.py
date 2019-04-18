@@ -25,6 +25,7 @@ from colors import *
 import decimal
 import random
 import functools
+import exchanges
 
 conf = {}
 exec(open("config.txt").read(), conf)
@@ -32,6 +33,7 @@ exec(open("config.txt").read(), conf)
 exchange = conf["exchange"]
 api_key = conf["api_key"]
 api_secret = conf["api_secret"]
+selected_symbol = ""
 
 if exchange == "HITBTC":
   client = ccxt.hitbtc2({
@@ -43,8 +45,9 @@ elif exchange == "BINANCE":
    client = ccxt.binance({
    'apiKey': api_key,
    'secret': api_secret,
-   'enableRateLimit': True
-  }) 
+   'enableRateLimit': True,
+   'options': {'adjustForTimeDifference': True}
+  })
 elif exchange == "BITSTAMP":
    client = ccxt.bitstamp({
    'apiKey': api_key,
@@ -95,6 +98,8 @@ ticker = client.fetch_tickers()
 is_usdt = False
 if "BTC/USDT" in ticker:
   is_usdt = True
+
+markets = client.fetch_markets()
 
 class abstract():
   pass
@@ -279,8 +284,9 @@ TRADE_TYPE_TRENDING = 0
 TRADE_TYPE_OSC = 1
 
 chartrunner_remove_tab = None
-datarunner_remove_tab = None
 tab_current_index = None
+
+DataRunnerTabs = {}
 
 days_table = {"1m": 0.17, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, "4h": 40, "6h": 60, "12h": 120, "1d": 240}
 
@@ -298,7 +304,7 @@ def ceil_dt(dt, seconds):
 from operator import itemgetter
 
 class MplCanvas(FigureCanvas):
-    def __init__(self, parent=None, dpi=82, symbol=None):
+    def __init__(self, parent=None, dpi=100, symbol=None):
         self.fig = Figure(facecolor=black, edgecolor=white, dpi=dpi,
                           frameon=False, tight_layout=False, constrained_layout=False)
 
@@ -312,60 +318,29 @@ class MplCanvas(FigureCanvas):
 
 main_shown = False
 
-class DataRunner(QtCore.QThread):
-  def __init__(self, parent, symbol, tab_index, timeframe_entered):
-    super(DataRunner, self).__init__(parent)
+class DataRunner:
+  def __init__(self, symbol, tab_index, timeframe_entered):
     self.symbol = symbol
     self.tab_index = tab_index
     self.timeframe_entered = timeframe_entered
-  
-  def run(self):
-    global chartrunner_remove_tab
-    global datarunner_remove_tab    
-    
-    while True:
-      if datarunner_remove_tab != None:
-        if self.tab_index == datarunner_remove_tab:
-          break
+    self.exchange_obj = exchanges.Binance(api_key, api_secret)
+    self.exchange_obj.start_candlestick_websocket(symbol, timeframe_entered, self.process_message)
 
-      if self.tab_index != tab_current_index:
-        time.sleep(0.1)
-        continue
-      
-      limit = 10
+  def process_message(self, msg):
+    if msg["e"] == "kline":
+        open_ = float(msg["k"]["o"])
+        high = float(msg["k"]["h"])
+        low = float(msg["k"]["l"])
+        close = float(msg["k"]["c"])
+        volume = float(msg["k"]["v"])
+        dt = datetime.datetime.fromtimestamp(msg["k"]["t"] / 1000)
+        time_close = msg["k"]["T"] / 1000
 
-      dt = []
-      open_ = []
-      high = []
-      low = []
-      close = []
-      volume = []
-      
-      while True:
-        try:
-          candles = client.fetch_ohlcv(self.symbol, self.timeframe_entered, limit=limit)
-          break
-        except:
-          print(get_full_stacktrace())
-          time.sleep(1)
-          continue
+        result = [dt, time_close, open_, high, low, close, volume, 1]
 
-      for candle in candles:
-        dt.append(datetime.datetime.fromtimestamp(int(candle[0]) / 1000))
-        open_.append(float(candle[1]))
-        high.append(float(candle[2]))
-        low.append(float(candle[3]))
-        close.append(float(candle[4]))
-        volume.append(float(candle[5]))
-
-      result = [dt, open_, high, low, close, volume, limit]
-      
-      if not dqs[self.tab_index].full():
-        dqs[self.tab_index].put(CHART_DATA_READY)
-        dqs[self.tab_index].put(result)
-        
-    datarunner_remove_tab = None
-    chartrunner_remove_tab = self.tab_index
+        if dqs[self.tab_index].empty() == True:
+            dqs[self.tab_index].put(CHART_DATA_READY)
+            dqs[self.tab_index].put(result)
 
 class ChartRunner(QtCore.QThread):
   data_ready = QtCore.pyqtSignal()
@@ -381,7 +356,6 @@ class ChartRunner(QtCore.QThread):
     global qs
     global aqs
     global chartrunner_remove_tab
-    global datarunner_remove_tab
     global tab_current_index
     global window_configs
     
@@ -406,19 +380,10 @@ class ChartRunner(QtCore.QThread):
     indicator_update_time = 0
     current_candle_type = window_configs[self.tab_index].candle_type
     current_trade_type = window_configs[self.tab_index].trade_type
-    
+    time_close = 0
+
     while True:
         try:
-          if chartrunner_remove_tab != None:
-            if tab_index == chartrunner_remove_tab:
-              break
-         
-          if tab_current_index == None:
-            tab_current_index = tab_index
-          elif tab_index != tab_current_index:
-            time.sleep(0.01)
-            continue
-
           candle_type = window_configs[self.tab_index].candle_type
           trade_type = window_configs[self.tab_index].trade_type
 
@@ -429,20 +394,29 @@ class ChartRunner(QtCore.QThread):
             self.data_ready.emit()
             chart_result = aqs[self.tab_index].get()
             if chart_result != 0:
-              [date2, open2_, high2, low2, close2, vol2, limit2] = chart_result
+              [date2, time_close2, open2_, high2, low2, close2, vol2, limit2] = chart_result
+              [date3, time_close3, open3_, high3, low3, close3, vol3, limit3] = chart_result
+              if time_close == 0:
+                  time_close = time_close2
             else:
               try:
                 date2
-              except NameError:
-                continue          
-          
+              except (NameError, UnboundLocalError) as e:
+                try:
+                 date3
+                 [date2, time_close2, open2_, high2, low2, close2, vol2, limit2] = [date3, time_close3, open3_,
+                                                                                    high3, low3, close3,
+                                                                                    vol3, limit3]
+                except (NameError, UnboundLocalError) as e:
+                    [date2, time_close2, open2_, high2, low2, close2, vol2, limit2] = \
+                        [date[-1], time_close, open_[-1], high[-1], low[-1], close[-1], vol[-1], limit]
+
           if first == True:
             qs[tab_index].put(FIGURE_ADD_SUBPLOT)
             qs[self.tab_index].put(111)
             qs[self.tab_index].put(None)
             self.data_ready.emit()
             ax = aqs[self.tab_index].get()
-            previous_candle = [date[-2], open_[-2], high[-2], low[-2], close[-2], vol[-2]]
             len_candles = len(date)
             
             prices[:] = []
@@ -454,11 +428,10 @@ class ChartRunner(QtCore.QThread):
             ax.xaxis.set_tick_params(labelsize=9)
             ax.yaxis.set_tick_params(labelsize=9)
           else:
-            prices[-1] = (date2num(date2[-1]), open2_[-1], high2[-1], low2[-1], close2[-1], vol2[-1], date2[-1])
-            prices[-2] = (date2num(date2[-2]), open2_[-2], high2[-2], low2[-2], close2[-2], vol2[-2], date2[-2])
-  
-          if (first == False and previous_candle != [date2[-2], open2_[-2], high2[-2], low2[-2], close2[-2], vol2[-2]] and len(date2) == 10) \
-          or current_candle_type != candle_type or current_trade_type != trade_type:
+            prices[-1] = (date2num(date2), open2_, high2, low2, close2, vol2, date2)
+
+          if (first == False and time_close != 0 and time.time() >= time_close)  \
+            or current_candle_type != candle_type or current_trade_type != trade_type:
             qs[self.tab_index].put(FIGURE_CLEAR)
             self.data_ready.emit()
             aqs[self.tab_index].get()
@@ -470,6 +443,7 @@ class ChartRunner(QtCore.QThread):
             indicator_axes[:] = []
             current_candle_type = candle_type
             current_trade_type = trade_type
+            time_close = 0
             continue
 
           if first == True:
@@ -535,11 +509,11 @@ class ChartRunner(QtCore.QThread):
                 indicator_update_time = time.time()
                 indicator.plot_once(new_ax, dates2)
             else:
-              open_[-1] = open2_[-1]
-              high[-1] = high2[-1]
-              low[-1] = low2[-1]
-              close[-1] = close2[-1]
-              vol[-1] = vol2[-1]
+              open_[-1] = open2_
+              high[-1] = high2
+              low[-1] = low2
+              close[-1] = close2
+              vol[-1] = vol2
               indicator.generate_values(open_, high, low, close, vol)
               if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or current_trade_type != trade_type:
                 indicator.update()              
@@ -747,14 +721,28 @@ class ChartRunner(QtCore.QThread):
 
           first = False
 
-          qs[tab_index].put(CANVAS_DRAW)
-          self.data_ready.emit()
-          aqs[tab_index].get()
+          do_break = False
+          while True:
+              qs[tab_index].put(CANVAS_DRAW)
+              self.data_ready.emit()
+              return_value = aqs[tab_index].get()
+              if return_value == 0:
+                  break
+
+              if chartrunner_remove_tab != None:
+                  if tab_index == chartrunner_remove_tab:
+                      do_break = True
+                      break
+              time.sleep(2)
+
+          if do_break == True:
+            break
+
         except:
           print(get_full_stacktrace())
           
         init = False
-        
+
     chartrunner_remove_tab = None    
     qs[tab_index].put(CHART_DESTROY)
     self.data_ready.emit()
@@ -834,9 +822,9 @@ class UpdateUsdBalanceRunner(QtCore.QThread):
     
   def run(self):
     global qslocal
-    
+
+    time.sleep(5)
     while True:
-      time.sleep(5)
       try:
         ticker = client.fetch_tickers()
 
@@ -899,7 +887,9 @@ class Window(QtGui.QMainWindow):
     global tab_widgets
     global config
     global window_ids
+    global DataRunnerTabs
     def __init__(self, symbol, timeframe_entered):
+        global selected_symbol
         QtGui.QMainWindow.__init__(self)
         resolution = QtGui.QDesktopWidget().screenGeometry()
         uic.loadUi('mainwindowqt.ui', self)
@@ -937,6 +927,7 @@ class Window(QtGui.QMainWindow):
         widget.addWidget(dc)
         widget.setContentsMargins(0,0,0,0)
 
+        selected_symbol = symbol
         self.horizontalLayout_3.insertWidget(1, OrderBookWidget(self), alignment=QtCore.Qt.AlignTop)
         self.horizontalLayout_3.setContentsMargins(0,0,0,0)
                 
@@ -950,8 +941,7 @@ class Window(QtGui.QMainWindow):
         aqs[window_id] = Queue.Queue()
         dqs[window_id] = Queue.Queue(maxsize=1)
 
-        self.data_runner_thread = DataRunner(self, symbol, window_id, timeframe_entered)
-        self.data_runner_thread.start()
+        DataRunnerTabs[window_id] = DataRunner(symbol, window_id, timeframe_entered)
 
         self.chart_runner_thread = ChartRunner(self, symbol, window_id, timeframe_entered)
         self.chart_runner_thread.data_ready.connect(self.queue_handle)
@@ -960,7 +950,7 @@ class Window(QtGui.QMainWindow):
         self.updateusdbalance_runner_thread = UpdateUsdBalanceRunner(self)
         self.updateusdbalance_runner_thread.data_ready.connect(self.queue_handle)
         self.updateusdbalance_runner_thread.start()
-    
+
     def keyPressEvent(self, event):
      global window_configs
       
@@ -1091,8 +1081,10 @@ class Window(QtGui.QMainWindow):
             aqs[winid].put(annotation.get_window_extent(self.dcs[winid].renderer))
           elif value == CANVAS_DRAW:
             if QtGui.QApplication.activeWindow() == self.window() and self.tabWidget.currentIndex() == i:
-              self.dcs[winid].draw_idle()
-            aqs[winid].put(0)
+              self.dcs[winid].draw()
+              aqs[winid].put(0)
+            else:
+              aqs[winid].put(1)
           elif value == RETRIEVE_CHART_DATA:
             if winid in dqs:
               if dqs[winid].qsize() > 0:
@@ -1132,16 +1124,16 @@ class Window(QtGui.QMainWindow):
     
     def tabOnChange(self, event):
       global tab_current_index
+      global selected_symbol
       selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
-      symbol = selected_symbol
       if self.tabWidget.currentIndex() in window_ids:
         tab_current_index = window_ids[self.tabWidget.currentIndex()]
       
     def removeTab(self, window_id):
-      global chartrunner_remove_tab
-      global datarunner_remove_tab
-      
-      datarunner_remove_tab = window_id      
+      DataRunnerTabs[window_id].exchange_obj.stop_candlestick_websocket()
+      del DataRunnerTabs[window_id].exchange_obj
+      del DataRunnerTabs[window_id]
+
       for win_index in window_ids:
         if window_ids[win_index] == window_id:
           self.tabWidget.setCurrentIndex(win_index)
@@ -1181,13 +1173,12 @@ class Window(QtGui.QMainWindow):
       
       qs[window_id] = Queue.Queue()
       aqs[window_id] = Queue.Queue()
-      dqs[window_id] = Queue.Queue(maxsize=1)
+      dqs[window_id] = Queue.Queue()
       self.dcs[window_id] = dc
-      
-      self.data_runner_thread = DataRunner(self, symbol, window_id, timeframe_entered)
-      self.data_runner_thread.start()      
-      
-      tab_current_index = window_id      
+
+      DataRunnerTabs[window_id] = DataRunner(symbol, window_id, timeframe_entered)
+
+      tab_current_index = window_id
       self.chart_runner_thread = ChartRunner(self, symbol, window_id, timeframe_entered)
       self.chart_runner_thread.data_ready.connect(self.queue_handle)
       self.chart_runner_thread.start()
@@ -1475,23 +1466,14 @@ def bid_ask_sum(symbol, bids, precision=10): # can be asks too instead of bids
         frac, whole = math.modf(price / precision)
         if whole_1 == whole:
           qty_summed += qty
-      
-      usd_summed = qty_summed * (whole_1 * precision + remainder)
-      
-      if usd_summed > 1000000:
-        usd_summed = "%.2f" % float(usd_summed/1000000) + " M"
-      elif usd_summed > 1000:
-        usd_summed = "%.2f" % float(usd_summed/1000000) + " M"
-      else:
-        continue
-      
+
       if qty_summed > highest_sum:
           highest_sum = qty_summed
 
       if not symbol.endswith("BTC"):
-        bids_summed.append(["%.2f" % (whole_1 * precision + remainder), float("%.2f" % qty_summed), usd_summed]) 
+        bids_summed.append(["%.2f" % (whole_1 * precision + remainder), float("%.2f" % qty_summed)])
       else:
-        bids_summed.append(["%.8f" % (whole_1 * precision + remainder), float("%.8f" % qty_summed), usd_summed]) 
+        bids_summed.append(["%.8f" % (whole_1 * precision + remainder), float("%.8f" % qty_summed)])
 
   bids_score = []
   for bid in bids_summed:
@@ -1544,15 +1526,15 @@ def display_market_depth(bids, asks, symbol, precision):
       try:
         ask = asks_summed.pop()
         if not symbol.endswith("BTC"):
-          asks = str(ask[1][0]) + " "  * (9 - len(str(ask[1][0]))) + str(ask[1][2]) + " " + unibox * ask[0]
+          asks = str(ask[1][0]) + " "  * (9 - len(str(ask[1][0]))) + str(ask[1][1]) + " " + unibox * ask[0]
         else:
-          asks = "%.6f" % float(ask[1][0]) + " " + str(ask[1][1]) + " "  * (10 - len(str(ask[1][1]))) + str(ask[1][2]) + " " + unibox * ask[0]
+          asks = "%.8f" % float(ask[1][0]) + " "  * (10 - len(str(ask[1][1]))) + str(ask[1][1]) + " " + unibox * ask[0]
       except:
         asks = ""
-      if not symbol.endswith("BTC"):            
-        strs.append(" " * (5-bid[0]) + unibox * bid[0] + " " + str(bid[1][0]) + " "  * (9 - len(str(bid[1][0]))) + str(bid[1][2]) + "\t" + asks)
+      if not symbol.endswith("BTC"):
+        strs.append(" " * (5-bid[0]) + unibox * bid[0] + " " + str(bid[1][0]) + " "  * (9 - len(str(bid[1][0]))) + str(bid[1][1]) + "\t" + asks)
       else:
-        strs.append(" " * (5-bid[0]) + unibox * bid[0] + " " + "%.6f" % float(bid[1][0]) + " " + str(bid[1][1]) + " "  * (10 - len(str(bid[1][1]))) + str(bid[1][2]) + "\t" + asks)
+        strs.append(" " * (5-bid[0]) + unibox * bid[0] + " " + "%.8f" % float(bid[1][0]) + " " + " "  * (10 - len(str(bid[1][1]))) + str(bid[1][1]) + "\t" + asks)
 
   return strs
 
@@ -1562,44 +1544,8 @@ class Orderbook(QtCore.QThread):
     def __init__(self, parent):
         super(Orderbook, self).__init__(parent)
 
-        self.exchange_gdax = ccxt.gdax({
-        'enableRateLimit': True,
-        })
-        self.exchange_bitfinex = ccxt.bitfinex({
-        'enableRateLimit': True,
-        })      
-        self.exchange_kraken = ccxt.kraken({
-        'enableRateLimit': True,
-        })
-        self.exchange_bittrex = ccxt.bittrex({
-        'enableRateLimit': True,
-        })
-        self.exchange_binance = ccxt.binance({
-        'enableRateLimit': True,
-        })  
-        self.exchange_bitmex = ccxt.bitmex({
-        'enableRateLimit': True,
-        })
-        self.exchange_bitstamp = ccxt.bitstamp({
-        'enableRateLimit': True,
-        }) 
-        self.exchange_gemini = ccxt.gemini({
-        'enableRateLimit': True,
-        })
-        self.exchange_poloniex = ccxt.poloniex({
-        'enableRateLimit': True,
-        })
-        self.exchange_hitbtc = ccxt.hitbtc2({
-        'enableRateLimit': True,
-        })
-        self.exchange_okex = ccxt.okex({
-        'enableRateLimit': True,
-        })
-        
         self.lastupdate = 0
-        self.prev_buy = 0
-        self.prev_sell = 0
-        
+
         self.ex_queue = Queue.Queue()
         t = threading.Thread(target=self.collect_ex)
         t.start()
@@ -1617,17 +1563,6 @@ class Orderbook(QtCore.QThread):
         else:
           self.ob["asks"][pos[0]] += pos[1]
 
-    def update_trades(self, trades):
-      counter = 0
-      for trade in trades:
-        if trade["side"] == "buy":
-          self.ob["trades"]["buy"] += trade["price"] * trade["amount"]
-        elif trade["side"] == "sell":
-          self.ob["trades"]["sell"] += trade["price"] * trade["amount"]
-        counter = counter + 1
-        if counter > 100:
-          break
-    
     def collect_ex_threadable(self, exchange, symbol, is_bitmex=False):
       while True:
         try:
@@ -1637,8 +1572,6 @@ class Orderbook(QtCore.QThread):
               self.add_position(pos, True)
             for pos in ob_exchange["asks"]:
               self.add_position(pos, False)
-            ob_trades = exchange.fetch_trades(symbol, limit=100)
-            self.update_trades(ob_trades)
           else:
             ob_exchange = orderbook(self.exchange_bitmex, "BTC/USD")
             btc_price = self.exchange_bitmex.fetch_ticker("BTC/USD")["last"]
@@ -1666,28 +1599,10 @@ class Orderbook(QtCore.QThread):
             self.ob["trades"]["sell"] = 0
             
             threads = []
-            
-            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_gdax, "BTC/USD",))
+
+            t = threading.Thread(target=self.collect_ex_threadable, args=(client, selected_symbol,))
             threads.append(t)
-            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_bitfinex, "BTC/USD",))
-            threads.append(t)
-            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_kraken, "BTC/USD",))
-            threads.append(t)
-            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_bittrex, "BTC/USD",))
-            threads.append(t)
-            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_binance, "BTC/USDT",))
-            threads.append(t)
-            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_bitstamp, "BTC/USD",))
-            threads.append(t)
-            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_gemini, "BTC/USD",))
-            threads.append(t)
-            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_hitbtc, "BTC/USDT",))
-            threads.append(t)
-            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_okex, "BTC/USDT",))
-            threads.append(t)
-            t = threading.Thread(target=self.collect_ex_threadable, args=(self.exchange_bitmex, "BTC/USD", True,))
-            threads.append(t)            
-            
+
             for t in threads:            
               t.daemon = True
               t.start()
@@ -1698,59 +1613,22 @@ class Orderbook(QtCore.QThread):
             ob_bids = sorted((float(x),y) for x,y in self.ob["bids"].items())
             ob_asks = sorted((float(x),y) for x,y in self.ob["asks"].items())
 
-            bookstr = "btcusd (combined)\n\n"
-            if is_usdt:
-              btcusd_symbol = "BTC/USDT"
-            else:
-              btcusd_symbol = "BTC/USD" 
-            ob_accum = display_market_depth(ob_bids, ob_asks, btcusd_symbol, 7)
+            self.precision = 1
+            for market in markets:
+                if market["symbol"] == selected_symbol:
+                    for filter in market["info"]["filters"]:
+                        if filter["filterType"] == "PRICE_FILTER":
+                            if selected_symbol.endswith("BTC"):
+                                self.precision = float(filter["tickSize"]) * 10
+                            else:
+                                self.precision = float(filter["tickSize"]) * 100
+                            break
+                    break
+
+            bookstr = selected_symbol + "\n\n"
+            ob_accum = display_market_depth(ob_bids, ob_asks, selected_symbol, self.precision)
             for ob in ob_accum:
               bookstr = bookstr + ob + "\n"
-            
-            buy_usd = self.ob["trades"]["buy"]
-            sell_usd = self.ob["trades"]["sell"]
-            
-            buy_percent = ""
-            sell_percent = ""
-            if self.prev_buy != 0:
-              if buy_usd > self.prev_buy:
-                increase = buy_usd - self.prev_buy
-                increase = (increase / self.prev_buy) * 100
-                buy_percent = "+%.2f" % increase + "%"
-              else:
-                decrease = self.prev_buy - buy_usd
-                decrease = (decrease / self.prev_buy) * 100
-                buy_percent = "-%.2f" % decrease + "%"
-                
-              sell_percent = 0
-              if sell_usd > self.prev_sell:
-                increase = sell_usd - self.prev_sell
-                increase = (increase / self.prev_sell) * 100
-                sell_percent = "+%.2f" % increase + "%"
-              else:
-                decrease = self.prev_sell - sell_usd
-                decrease = (decrease / self.prev_sell) * 100
-                sell_percent = "-%.2f" % decrease + "%"
-            
-            if buy_usd > 1000000:
-              buy_usd = "%.2f" % float(buy_usd/1000000) + " M"
-            elif buy_usd > 1000:
-              buy_usd = "%.2f" % float(buy_usd/1000000) + " M"
-            else:
-              buy_usd = int(buy_usd)
-              
-            if sell_usd > 1000000:
-              sell_usd = "%.2f" % float(sell_usd/1000000) + " M"
-            elif sell_usd > 1000:
-              sell_usd = "%.2f" % float(sell_usd/1000000) + " M"
-            else:
-              sell_usd = int(sell_usd)                         
-            
-            bookstr = bookstr + "BUY: " + buy_usd + " " + buy_percent
-            bookstr = bookstr + "\nSELL: " + sell_usd + " " + sell_percent
-
-            self.prev_buy = self.ob["trades"]["buy"]
-            self.prev_sell = self.ob["trades"]["sell"]
 
             self.ex_queue.put(bookstr)
             self.data_ready.emit()
@@ -1765,12 +1643,12 @@ class OrderBookWidget(QtGui.QLabel):
         super(OrderBookWidget,self).__init__(parent)
         self.init_orderbook_widget()
         self.parent = parent
- 
+
     def init_orderbook_widget(self):
         self.setMinimumWidth(337)
         newfont = QtGui.QFont("Courier New", 9, QtGui.QFont.Bold) 
         self.setFont(newfont)
-        self.setText("btcusd (combined)\nloading...")
+        self.setText("orderbook loading...")
         self.setStyleSheet("QLabel { background-color : #131D27; color : #C6C7C8; }")
         self.orderbook = Orderbook(self)
         self.orderbook.data_ready.connect(self.orderbook_widget_update)
