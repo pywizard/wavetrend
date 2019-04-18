@@ -68,7 +68,6 @@ class FigureCanvas(FigureCanvasAgg, FigureCanvasQT):
         if self._update_dpi():
             # The dpi update triggered its own paintEvent.
             return
-        self._draw_idle()  # Only does something if a draw is pending.
 
         # If the canvas does not have a renderer, then give up and wait for
         # FigureCanvasAgg.draw(self) to be called.
@@ -90,15 +89,10 @@ class FigureCanvas(FigureCanvasAgg, FigureCanvasQT):
              [left + width * self._dpi_ratio, self.renderer.height - top]])
 
         reg = self.copy_from_bbox(bbox)
-
-        #t = time.process_time()
         buf = self._unmultiplied_rgba8888_to_premultiplied_argb32(memoryview(reg))
-        #print(time.process_time() - t)
 
-
-        # clear the widget canvas
         painter.eraseRect(rect)
-            
+
         qimage = QtGui.QImage(buf, buf.shape[1], buf.shape[0],
                               QtGui.QImage.Format_ARGB32_Premultiplied)
         if hasattr(qimage, 'setDevicePixelRatio'):
@@ -106,14 +100,6 @@ class FigureCanvas(FigureCanvasAgg, FigureCanvasQT):
             qimage.setDevicePixelRatio(self._dpi_ratio)
         origin = QtCore.QPoint(left, top)
         painter.drawImage(origin / self._dpi_ratio, qimage)
-
-        # Adjust the buf reference count to work around a memory
-        # leak bug in QImage under PySide on Python 3.
-
-        if QT_API in ('PySide', 'PySide2'):
-            ctypes.c_long.from_address(id(buf)).value = 1
-
-        self._draw_rect_callback(painter)
 
         painter.end()
 
@@ -359,17 +345,8 @@ aqs = {}
 dqs = {}
 qs_local = Queue.Queue()
 
-FIGURE_ADD_SUBPLOT = 0
-FIGURE_ADD_AXES = 1
-FIGURE_TIGHT_LAYOUT = 2
-FIGURE_CLEAR = 3
-CANVAS_GET_SIZE = 4
-CANVAS_DRAW = 5
-RETRIEVE_CHART_DATA = 6
-CHART_DESTROY = 7
 CHART_DATA_READY = 1
 SHOW_STATUSBAR_MESSAGE = 0
-
 CANDLE_TYPE_CANDLESTICK = 0
 CANDLE_TYPE_HEIKIN_ASHI = 1
 TRADE_TYPE_TRENDING = 0
@@ -435,8 +412,15 @@ class DataRunner:
             dqs[self.tab_index].put(result)
 
 class ChartRunner(QtCore.QThread):
-  data_ready = QtCore.pyqtSignal()
-  
+  RETRIEVE_CHART_DATA = QtCore.pyqtSignal(str)
+  FIGURE_ADD_SUBPLOT = QtCore.pyqtSignal(str, int, object)
+  FIGURE_CLEAR = QtCore.pyqtSignal(str)
+  FIGURE_ADD_AXES = QtCore.pyqtSignal(str, list, object)
+  CANVAS_GET_SIZE = QtCore.pyqtSignal(str, object)
+  FIGURE_TIGHT_LAYOUT = QtCore.pyqtSignal(str)
+  CANVAS_DRAW = QtCore.pyqtSignal(str)
+  CHART_DESTROY = QtCore.pyqtSignal(str)
+
   def __init__(self, parent, symbol, tab_index, timeframe_entered):
     super(ChartRunner, self).__init__(parent)
     self.parent = parent
@@ -482,8 +466,7 @@ class ChartRunner(QtCore.QThread):
           if first == True:
             date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol, False)
           else:
-            qs[self.tab_index].put(RETRIEVE_CHART_DATA)
-            self.data_ready.emit()
+            self.RETRIEVE_CHART_DATA.emit(self.tab_index)
             chart_result = aqs[self.tab_index].get()
             if chart_result != 0:
               [date2, time_close2, open2_, high2, low2, close2, vol2, limit2] = chart_result
@@ -504,10 +487,7 @@ class ChartRunner(QtCore.QThread):
                         [date[-1], time_close, open_[-1], high[-1], low[-1], close[-1], vol[-1], limit]
 
           if first == True:
-            qs[tab_index].put(FIGURE_ADD_SUBPLOT)
-            qs[self.tab_index].put(111)
-            qs[self.tab_index].put(None)
-            self.data_ready.emit()
+            self.FIGURE_ADD_SUBPLOT.emit(self.tab_index, 111, None)
             ax = aqs[self.tab_index].get()
             len_candles = len(date)
             
@@ -524,8 +504,7 @@ class ChartRunner(QtCore.QThread):
 
           if (first == False and time_close != 0 and time.time() >= time_close)  \
             or current_candle_type != candle_type or current_trade_type != trade_type:
-            qs[self.tab_index].put(FIGURE_CLEAR)
-            self.data_ready.emit()
+            self.FIGURE_CLEAR.emit(self.tab_index)
             aqs[self.tab_index].get()
             first = True
             last_line1 = None
@@ -567,20 +546,14 @@ class ChartRunner(QtCore.QThread):
                 elif indicator_axes_count == 4:
                     rows = 511
                 if indicator.name == "VOLUME":
-                    qs[tab_index].put(FIGURE_ADD_AXES)
-                    qs[self.tab_index].put([0,0,0.4,0.4])
-                    qs[self.tab_index].put(ax)
-                    self.data_ready.emit()
+                    self.FIGURE_ADD_AXES.emit(self.tab_index, [0,0,0.4,0.4], ax)
                     new_ax = aqs[self.tab_index].get()
                     new_ax.patch.set_visible(False)
                     new_ax.spines['top'].set_visible(False)
                     new_ax.grid(False)
                     ax.spines['bottom'].set_visible(False)
                 else:
-                    qs[tab_index].put(FIGURE_ADD_SUBPLOT)
-                    qs[self.tab_index].put(rows)
-                    qs[self.tab_index].put(ax)
-                    self.data_ready.emit()
+                    self.FIGURE_ADD_SUBPLOT.emit(self.tab_index, rows, ax)
                     new_ax = aqs[self.tab_index].get()
                     new_ax.grid(alpha=.25)
                     new_ax.grid(True)
@@ -711,9 +684,7 @@ class ChartRunner(QtCore.QThread):
             annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker_for_line, ("%." + decimal_places + "f") % ticker, fontsize=7, color=white)
             annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
 
-            qs[tab_index].put(CANVAS_GET_SIZE)
-            qs[tab_index].put(annotation)
-            self.data_ready.emit()
+            self.CANVAS_GET_SIZE.emit(self.tab_index, annotation)
             tbox = aqs[tab_index].get()
           
             dbox = tbox.transformed(ax.transData.inverted())
@@ -769,8 +740,7 @@ class ChartRunner(QtCore.QThread):
 
           if init == True:
             ax.set_position([0.05,0.05,0.87,0.91])
-            qs[tab_index].put(FIGURE_TIGHT_LAYOUT)
-            self.data_ready.emit()
+            self.FIGURE_TIGHT_LAYOUT.emit(self.tab_index)
             aqs[tab_index].get()
             ax_bbox = ax.get_position()
 
@@ -820,8 +790,7 @@ class ChartRunner(QtCore.QThread):
                       do_break = True
                       break
 
-              qs[tab_index].put(CANVAS_DRAW)
-              self.data_ready.emit()
+              self.CANVAS_DRAW.emit(self.tab_index)
               return_value = aqs[tab_index].get()
               if return_value == 0:
                   break
@@ -835,8 +804,7 @@ class ChartRunner(QtCore.QThread):
         init = False
 
     chartrunner_remove_tab = None    
-    qs[tab_index].put(CHART_DESTROY)
-    self.data_ready.emit()
+    self.CHART_DESTROY.emit(self.tab_index)
     
   def getData(self, timeframe_entered, days_entered, currency_entered, few_candles):
       if few_candles == False:
@@ -1035,7 +1003,14 @@ class Window(QtGui.QMainWindow):
         DataRunnerTabs[window_id] = DataRunner(symbol, window_id, timeframe_entered)
 
         self.chart_runner_thread = ChartRunner(self, symbol, window_id, timeframe_entered)
-        self.chart_runner_thread.data_ready.connect(self.queue_handle)
+        self.chart_runner_thread.RETRIEVE_CHART_DATA.connect(self.on_RETRIEVE_CHART_DATA)
+        self.chart_runner_thread.FIGURE_ADD_SUBPLOT.connect(self.on_FIGURE_ADD_SUBPLOT)
+        self.chart_runner_thread.FIGURE_CLEAR.connect(self.on_FIGURE_CLEAR)
+        self.chart_runner_thread.FIGURE_ADD_AXES.connect(self.on_FIGURE_ADD_AXES)
+        self.chart_runner_thread.CANVAS_GET_SIZE.connect(self.on_CANVAS_GET_SIZE)
+        self.chart_runner_thread.FIGURE_TIGHT_LAYOUT.connect(self.on_FIGURE_TIGHT_LAYOUT)
+        self.chart_runner_thread.CANVAS_DRAW.connect(self.on_CANVAS_DRAW)
+        self.chart_runner_thread.CHART_DESTROY.connect(self.on_CHART_DESTROY)
         self.chart_runner_thread.start()
         
         self.updateusdbalance_runner_thread = UpdateUsdBalanceRunner(self)
@@ -1140,72 +1115,93 @@ class Window(QtGui.QMainWindow):
       self.tabWidget.setCurrentIndex(8)
       return
 
-    def queue_handle(self):
-      global qs
-      global aqs
-      global qs_local
-      global window_ids
-      global tab_current_index
-
-      for i in range(0, len(window_ids)):
-        winid = window_ids[i]
-        if hasattr(self.dcs[winid], "renderer") and qs[winid].qsize() > 0:
-          value = qs[winid].get()
-          if value == FIGURE_ADD_SUBPLOT:
-            rows = qs[winid].get()
-            sharex = qs[winid].get()
-            axis = self.dcs[winid].fig.add_subplot(rows,facecolor=black,sharex=sharex)
-            aqs[winid].put(axis)
-          elif value == FIGURE_ADD_AXES:
-            position = qs[winid].get()
-            sharex = qs[winid].get()
-            axis = self.dcs[winid].fig.add_axes(position, facecolor=black, sharex=sharex)
-            aqs[winid].put(axis)
-          elif value == FIGURE_TIGHT_LAYOUT:
-            self.dcs[winid].fig.tight_layout()
-            aqs[winid].put(0)
-          elif value == FIGURE_CLEAR:
-            self.dcs[winid].fig.clf()
-            aqs[winid].put(0)
-          elif value == CANVAS_GET_SIZE:
-            annotation = qs[winid].get()
-            aqs[winid].put(annotation.get_window_extent(self.dcs[winid].renderer))
-          elif value == CANVAS_DRAW:
-            if QtGui.QApplication.activeWindow() == self.window() and self.tabWidget.currentIndex() == i:
-              self.dcs[winid].draw_idle()
-              aqs[winid].put(0)
-            else:
-              aqs[winid].put(1)
-          elif value == RETRIEVE_CHART_DATA:
-            if winid in dqs:
-              if dqs[winid].qsize() > 0:
+    @QtCore.pyqtSlot(str)
+    def on_RETRIEVE_CHART_DATA(self, winid):
+        global aqs
+        if winid in dqs:
+            if dqs[winid].qsize() > 0:
                 value = dqs[winid].get(block=False)
                 if value == CHART_DATA_READY:
-                  chart_result = dqs[winid].get()
-                  aqs[winid].put(chart_result)
-              else:
+                    chart_result = dqs[winid].get()
+                    aqs[winid].put(chart_result)
+            else:
                 aqs[winid].put(0)
-          elif value == CHART_DESTROY:
-            del qs[winid]
-            del aqs[winid]
-            del dqs[winid]
-            self.dcs[winid].fig.clf()
-            del self.dcs[winid]
-            self.tabWidget.removeTab(i)
-            tab_current_index = None
-            
-            window_ids_copy = {}
-            for j in window_ids.keys():
-              if j == i:
+
+    @QtCore.pyqtSlot(str, int, matplotlib.axes.Axes)
+    def on_FIGURE_ADD_SUBPLOT(self, winid, rows, sharex):
+        global aqs
+        axis = self.dcs[winid].fig.add_subplot(rows, facecolor=black, sharex=sharex)
+        aqs[winid].put(axis)
+
+    @QtCore.pyqtSlot(str, int, matplotlib.axes.Axes)
+    def on_FIGURE_CLEAR(self, winid):
+        global aqs
+        self.dcs[winid].fig.clf()
+        aqs[winid].put(0)
+
+    @QtCore.pyqtSlot(str, dict, matplotlib.axes.Axes)
+    def on_FIGURE_ADD_AXES(self, winid, position, sharex):
+        global aqs
+        axis = self.dcs[winid].fig.add_axes(position, facecolor=black, sharex=sharex)
+        aqs[winid].put(axis)
+
+    @QtCore.pyqtSlot(str, matplotlib.text.Text)
+    def on_CANVAS_GET_SIZE(self, winid, annotation):
+        global aqs
+        aqs[winid].put(annotation.get_window_extent(self.dcs[winid].renderer))
+
+    @QtCore.pyqtSlot(str)
+    def on_FIGURE_TIGHT_LAYOUT(self, winid):
+        global aqs
+        self.dcs[winid].fig.tight_layout()
+        aqs[winid].put(0)
+
+    @QtCore.pyqtSlot(str)
+    def on_CANVAS_DRAW(self, winid):
+        global aqs
+
+        for tab_index in window_ids:
+            if winid == window_ids[tab_index]:
+                break
+
+        if QtGui.QApplication.activeWindow() == self.window() and self.tabWidget.currentIndex() == tab_index:
+            self.dcs[winid].draw_idle()
+            aqs[winid].put(0)
+        else:
+            aqs[winid].put(1)
+
+    @QtCore.pyqtSlot(str)
+    def on_CHART_DESTROY(self, winid):
+        global aqs
+        global window_ids
+
+        for tab_index in window_ids:
+            if winid == window_ids[tab_index]:
+                break
+
+        del qs[winid]
+        del aqs[winid]
+        del dqs[winid]
+        self.dcs[winid].fig.clf()
+        del self.dcs[winid]
+        self.tabWidget.removeTab(tab_index)
+        tab_current_index = None
+
+        window_ids_copy = {}
+        for j in window_ids.keys():
+            if j == tab_index:
                 del window_ids[j]
                 break
 
-            counter = 0
-            for j in window_ids.keys():
-              window_ids_copy[counter] = window_ids[j]
-              counter = counter + 1
+        counter = 0
+        for j in window_ids.keys():
+            window_ids_copy[counter] = window_ids[j]
+            counter = counter + 1
 
-            window_ids = copy.deepcopy(window_ids_copy)
+        window_ids = copy.deepcopy(window_ids_copy)
+
+    def queue_handle(self):
+      global qs_local
 
       if qs_local.qsize() > 0:
         value = qs_local.get()
@@ -1276,10 +1272,18 @@ class Window(QtGui.QMainWindow):
       DataRunnerTabs[window_id] = DataRunner(symbol, window_id, timeframe_entered)
 
       tab_current_index = window_id
+
       self.chart_runner_thread = ChartRunner(self, symbol, window_id, timeframe_entered)
-      self.chart_runner_thread.data_ready.connect(self.queue_handle)
+      self.chart_runner_thread.RETRIEVE_CHART_DATA.connect(self.on_RETRIEVE_CHART_DATA)
+      self.chart_runner_thread.FIGURE_ADD_SUBPLOT.connect(self.on_FIGURE_ADD_SUBPLOT)
+      self.chart_runner_thread.FIGURE_CLEAR.connect(self.on_FIGURE_CLEAR)
+      self.chart_runner_thread.FIGURE_ADD_AXES.connect(self.on_FIGURE_ADD_AXES)
+      self.chart_runner_thread.CANVAS_GET_SIZE.connect(self.on_CANVAS_GET_SIZE)
+      self.chart_runner_thread.FIGURE_TIGHT_LAYOUT.connect(self.on_FIGURE_TIGHT_LAYOUT)
+      self.chart_runner_thread.CANVAS_DRAW.connect(self.on_CANVAS_DRAW)
+      self.chart_runner_thread.CHART_DESTROY.connect(self.on_CHART_DESTROY)
       self.chart_runner_thread.start()
-    
+
     def add_coin_clicked(self, event):
       global dialog
       dialog = Dialog()
