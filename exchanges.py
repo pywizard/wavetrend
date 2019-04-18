@@ -18,5 +18,5 @@ class Binance:
         self.symbol = symbol.split("/")[0] + symbol.split("/")[1]
         self.depth_key = self.manager.start_depth_socket(self.symbol, callback, depth=BinanceSocketManager.WEBSOCKET_DEPTH_20)
 
-    def stop_depth_websocket(self, symbol):
+    def stop_depth_websocket(self):
         self.manager.stop_socket(self.depth_key)

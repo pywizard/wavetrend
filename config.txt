@@ -1,5 +1,5 @@
-#exchange one of BINANCE, BITSTAMP, GEMINI, HITBTC, OKEX, BITMEX, GDAX, KRAKEN, BITTREX
-exchange = "BINANCE"
+#exchange can be one of BINANCE, BITSTAMP, GEMINI, HITBTC, OKEX, BITMEX, GDAX, KRAKEN, BITTREX
+exchange = "BINANCE" # missing
 #binance
 api_key = ""
 api_secret = ""

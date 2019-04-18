@@ -186,7 +186,7 @@ class indicator_VOLUME():
   
   def update(self):
     if self.first == True:
-      self.bar = self.axis.bar(self.dates, self.volume, self.candle_width, color=green, antialiased=True, alpha=.7)
+      self.bar = self.axis.bar(self.dates, self.volume, self.candle_width, color=green, antialiased=True, alpha=.25)
       for i in range(0, len(self.bar)):
         if self.close[i] > self.open[i]:
           self.bar[i].set_facecolor(green)

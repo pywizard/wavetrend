@@ -351,8 +351,8 @@ CANDLE_TYPE_HEIKIN_ASHI = 1
 TRADE_TYPE_TRENDING = 0
 TRADE_TYPE_OSC = 1
 
-chartrunner_remove_tab = None
 tab_current_index = None
+destroyed_window_ids = {}
 
 DataRunnerTabs = {}
 
@@ -430,10 +430,10 @@ class ChartRunner(QtCore.QThread):
   def run(self):
     global qs
     global aqs
-    global chartrunner_remove_tab
     global tab_current_index
+    global destroyed_window_ids
     global window_configs
-    
+
     days_entered = days_table[self.timeframe_entered]
     timeframe_entered = self.timeframe_entered
     symbol = self.symbol
@@ -738,7 +738,7 @@ class ChartRunner(QtCore.QThread):
             ax.grid(True)
 
           if init == True:
-            ax.set_position([0.05,0.05,0.87,0.91])
+            ax.set_position([0.02,0.04,0.9,0.93])
             self.FIGURE_TIGHT_LAYOUT.emit(self.tab_index)
             aqs[tab_index].get()
             ax_bbox = ax.get_position()
@@ -759,7 +759,7 @@ class ChartRunner(QtCore.QThread):
                 if axis != indicator_axes[len(indicator_axes)-1]:
                   axis_height = axis_height + bbox.height
 
-            ax.set_position([ax_bbox.x0, ax_bbox.y0 + axis_height + (ax_bbox.y0 + axis_height) * 0.05, ax_bbox.width, ax_bbox.height - axis_height])
+            ax.set_position([ax_bbox.x0, ax_bbox.y0 + axis_height, ax_bbox.width, ax_bbox.height - axis_height])
 
             first_axis = True
             for axis in indicator_axes:
@@ -784,10 +784,9 @@ class ChartRunner(QtCore.QThread):
 
           do_break = False
           while True:
-              if chartrunner_remove_tab != None:
-                  if tab_index == chartrunner_remove_tab:
-                      do_break = True
-                      break
+              if tab_index in destroyed_window_ids:
+                  do_break = True
+                  break
 
               self.CANVAS_DRAW.emit(self.tab_index)
               return_value = aqs[tab_index].get()
@@ -802,7 +801,6 @@ class ChartRunner(QtCore.QThread):
           
         init = False
 
-    chartrunner_remove_tab = None    
     self.CHART_DESTROY.emit(self.tab_index)
     
   def getData(self, timeframe_entered, days_entered, currency_entered, few_candles):
@@ -981,10 +979,12 @@ class Window(QtGui.QMainWindow):
         self.tabBar.setTabButton(0, QtGui.QTabBar.RightSide, menuButton)
 
         widget = QtGui.QHBoxLayout(self.tabWidget.widget(0))
-        self.OrderbookWidget = OrderBookWidget(self, symbol, 0)
+        self.OrderbookWidget = []
+        OrderBookWidget_ = OrderBookWidget(self, symbol, 0)
+        self.OrderbookWidget.append(OrderBookWidget_)
         dc = MplCanvas(self.tabWidget.widget(0), symbol=symbol)
         widget.addWidget(dc)
-        widget.addWidget(self.OrderbookWidget, alignment=QtCore.Qt.AlignTop)
+        widget.addWidget(OrderBookWidget_, alignment=QtCore.Qt.AlignTop)
         widget.setContentsMargins(0,0,0,0)
 
         self.dcs = {}
@@ -1182,7 +1182,17 @@ class Window(QtGui.QMainWindow):
         self.dcs[winid].fig.clf()
         del self.dcs[winid]
         self.tabWidget.removeTab(tab_index)
-        tab_current_index = None
+
+        global DataRunnerTabs
+        DataRunnerTabs[winid].exchange_obj.stop_candlestick_websocket()
+        del DataRunnerTabs[winid].exchange_obj
+        del DataRunnerTabs[winid]
+
+        self.OrderbookWidget[tab_index].exchange_obj.stop_depth_websocket()
+        del self.OrderbookWidget[tab_index].exchange_obj
+        del self.OrderbookWidget[tab_index]
+
+        self.tabWidget.setCurrentIndex(tab_index)
 
         window_ids_copy = {}
         for j in window_ids.keys():
@@ -1212,19 +1222,8 @@ class Window(QtGui.QMainWindow):
         tab_current_index = window_ids[self.tabWidget.currentIndex()]
       
     def removeTab(self, window_id):
-      global DataRunnerTabs
-      global chartrunner_remove_tab
-
-      chartrunner_remove_tab = window_id
-
-      DataRunnerTabs[window_id].exchange_obj.stop_candlestick_websocket()
-      del DataRunnerTabs[window_id].exchange_obj
-      del DataRunnerTabs[window_id]
-
-      for win_index in window_ids:
-        if window_ids[win_index] == window_id:
-          self.tabWidget.setCurrentIndex(win_index)
-          break
+      global destroyed_window_ids
+      destroyed_window_ids[window_id] = "DESTROYED"
 
     def addTab(self, symbol, timeframe_entered):
       global tab_current_index
@@ -1252,10 +1251,11 @@ class Window(QtGui.QMainWindow):
       menuButton.setMenu(tabBarMenu)      
       self.tabBar.setTabButton(tab_index, QtGui.QTabBar.RightSide, menuButton)
 
-      self.OrderbookWidget = OrderBookWidget(self, symbol, tab_index)
+      OrderBookWidget_ = OrderBookWidget(self, symbol, tab_index)
+      self.OrderbookWidget.append(OrderBookWidget_)
       dc = MplCanvas(self.tabWidget.widget(0), symbol=symbol)
       widget.addWidget(dc)
-      widget.addWidget(self.OrderbookWidget, alignment=QtCore.Qt.AlignTop)
+      widget.addWidget(OrderBookWidget_, alignment=QtCore.Qt.AlignTop)
       widget.setContentsMargins(0, 0, 0, 0)
 
       global qs
@@ -1292,19 +1292,27 @@ class Window(QtGui.QMainWindow):
       self.trade_dialog.show()
       
 class TradeDialog(QtGui.QDialog):
-  def __init__(self, ord):
+  def __init__(self, parent):
+    self.parent = parent
     QtGui.QDialog.__init__(self)
     uic.loadUi('trade.ui', self)
     self.setFixedSize(713, 385)
-    self.symbol = str(parent.tabWidget.tabText(parent.tabWidget.currentIndex())).split(" ")[0]
+    self.symbol = str(self.parent.tabWidget.tabText(self.parent.tabWidget.currentIndex())).split(" ")[0]
     symbol = self.symbol
     self.trade_coin_price = get_symbol_price(symbol)
     trade_coin_price_str = "%.06f" % self.trade_coin_price
     self.setWindowTitle("Trade " + symbol)
     asset = get_asset_from_symbol(symbol)
     quote = get_quote_from_symbol(symbol)
-    self.quote_free_balance = client.fetch_balance()[quote]["free"]
-    self.asset_free_balance = client.fetch_balance()[asset]["free"]
+    balance = client.fetch_balance()
+    if quote not in balance:
+        balance[quote] = {}
+        balance[quote]["free"] = 0
+    if asset not in balance:
+        balance[asset] = {}
+        balance[asset]["free"] = 0
+    self.quote_free_balance = balance[quote]["free"]
+    self.asset_free_balance = balance[asset]["free"]
     self.labelFreebalance.setText("%.06f" % self.quote_free_balance + " " + quote)
     self.labelFreebalance2.setText("%.06f" % self.asset_free_balance + " " + asset)
     
@@ -1470,7 +1478,7 @@ class Dialog(QtGui.QDialog):
         
         self.comboBox.addItem("1h")
         for key, value in client.timeframes.items():
-          if key == "1h" or key == "1w" or key == "1M":
+          if key == "1h" or key == "1w" or key == "1M" or key not in days_table.keys():
             continue
           self.comboBox.addItem(key)
         
@@ -1543,100 +1551,6 @@ class Dialog(QtGui.QDialog):
 def orderbook(exchange, symbol):
   return exchange.fetch_order_book(symbol)
 
-def bid_ask_sum(symbol, bids, precision=10): # can be asks too instead of bids
-  bids_summed = []
-  whole_1 = 0
-  
-  highest_sum = 0
-    
-  for bid in bids:
-      price = bid[0]
-      qty = bid[1]
-      frac, whole_2 = math.modf(price / precision)
-      if whole_1 == whole_2:
-          continue
-      frac, whole_1 = math.modf(price / precision)
-      remainder = price % precision
-      qty_summed = 0
-      
-      for bid in bids:
-        price = bid[0]
-        qty = bid[1]
-        frac, whole = math.modf(price / precision)
-        if whole_1 == whole:
-          qty_summed += qty
-
-      if qty_summed > highest_sum:
-          highest_sum = qty_summed
-
-      if not symbol.endswith("BTC"):
-        bids_summed.append(["%.2f" % (whole_1 * precision + remainder), float("%.2f" % qty_summed)])
-      else:
-        bids_summed.append(["%.8f" % (whole_1 * precision + remainder), float("%.8f" % qty_summed)])
-
-  bids_score = []
-  for bid in bids_summed:
-      score = 0
-      qty = bid[1]
-      if qty > highest_sum / 5:
-        score = score + 1
-      if qty > highest_sum / 4:
-        score = score + 1
-      if qty > highest_sum / 3:
-        score = score + 1
-      if qty > highest_sum / 2:
-        score = score + 1
-      if qty >= highest_sum:
-        score = score + 1
-        
-      bids_score.append([score,bid])
-
-  return bids_score
-
-def display_market_depth(bids, asks, symbol, precision):
-  global auto_last_trade
-  strs = []
-  
-  bids_str = bids
-  asks_str = asks
-  bids_str.reverse()
-  asks_str.reverse()
-
-  top_bid = float(bids_str[0][0])
-
-  bids2 = []
-  for bid in bids_str:
-      bids2.append([float(bid[0]), float(bid[1])])
-      if top_bid - float(bid[0]) > 300:
-        break
-      
-  asks2 = []
-  for ask in asks_str:
-      if float(ask[0]) > top_bid + 300:
-        continue
-      asks2.append([float(ask[0]), float(ask[1])])
-  
-  bids_summed = bid_ask_sum(symbol, bids2, precision)
-  asks_summed = bid_ask_sum(symbol, asks2, precision)
-
-  unibox = chr(int('2022', 16))
-  
-  for bid in bids_summed:
-      try:
-        ask = asks_summed.pop()
-        if not symbol.endswith("BTC"):
-          asks = str(ask[1][0]) + " "  * (9 - len(str(ask[1][0]))) + str(ask[1][1]) + " " + unibox * ask[0]
-        else:
-          asks = "%.8f" % float(ask[1][0]) + " "  * (10 - len(str(ask[1][1]))) + str(ask[1][1]) + " " + unibox * ask[0]
-      except:
-        asks = ""
-      if not symbol.endswith("BTC"):
-        strs.append(" " * (5-bid[0]) + unibox * bid[0] + " " + str(bid[1][0]) + " "  * (9 - len(str(bid[1][0]))) + str(bid[1][1]) + "\t" + asks)
-      else:
-        strs.append(" " * (5-bid[0]) + unibox * bid[0] + " " + "%.8f" % float(bid[1][0]) + " " + " "  * (10 - len(str(bid[1][1]))) + str(bid[1][1]) + "\t" + asks)
-
-  return strs
-
 class OrderBookWidget(QtGui.QLabel):
     def __init__(self, parent, symbol, tab_index):
         super(OrderBookWidget,self).__init__(parent)
@@ -1658,16 +1572,24 @@ class OrderBookWidget(QtGui.QLabel):
                 try:
                     ask = asks_.pop()
                     if not self.symbol.endswith("BTC"):
-                        ask[0] = "%.2f" % float(ask[0])
+                        if self.symbol == "BTC/USDT":
+                            ask[0] = "%.2f" % float(ask[0])
+                        else:
+                            ask[0] = "%.4f" % float(ask[0])
                         asks = str(ask[0]) + " " * (9 - len(str(ask[0]))) + str(ask[1])
                     else:
+                        ask[1] = "%.2f" % float(ask[1])
                         asks = "%.8f" % float(ask[0]) + " " * (10 - len(str(ask[1]))) + str(ask[1])
                 except:
                     asks = ""
                 if not self.symbol.endswith("BTC"):
-                    bid[0] = "%.2f" % float(bid[0])
+                    if self.symbol == "BTC/USDT":
+                        bid[0] = "%.2f" % float(bid[0])
+                    else:
+                        bid[0] = "%.4f" % float(bid[0])
                     strs.append(str(bid[0]) + " " * (9 - len(str(bid[0]))) + str(bid[1]) + "\t" + asks)
                 else:
+                    bid[1] = "%.2f" % float(bid[1])
                     strs.append("%.8f" % float(bid[0]) + " " + " " * (
                                 10 - len(str(bid[1]))) + str(bid[1]) + "\t" + asks)
 
