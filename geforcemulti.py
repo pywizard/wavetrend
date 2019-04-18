@@ -738,7 +738,7 @@ class ChartRunner(QtCore.QThread):
             ax.grid(True)
 
           if init == True:
-            ax.set_position([0.02,0.04,0.9,0.93])
+            ax.set_position([0.04,0.04,0.9,0.93])
             self.FIGURE_TIGHT_LAYOUT.emit(self.tab_index)
             aqs[tab_index].get()
             ax_bbox = ax.get_position()
@@ -1130,7 +1130,7 @@ class Window(QtGui.QMainWindow):
         axis = self.dcs[winid].fig.add_subplot(rows, facecolor=black, sharex=sharex)
         aqs[winid].put(axis)
 
-    @QtCore.pyqtSlot(str, int, matplotlib.axes.Axes)
+    @QtCore.pyqtSlot(str)
     def on_FIGURE_CLEAR(self, winid):
         global aqs
         self.dcs[winid].fig.clf()
