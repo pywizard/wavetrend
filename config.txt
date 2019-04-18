@@ -1,8 +1,5 @@
 #exchange one of BINANCE, BITSTAMP, GEMINI, HITBTC, OKEX, BITMEX, GDAX, KRAKEN, BITTREX
 exchange = "BINANCE"
-#hitbtc
+#binance
 api_key = ""
 api_secret = ""
-#binance
-#api_key = ""
-#api_secret = ""

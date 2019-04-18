@@ -3,7 +3,15 @@ warnings.filterwarnings("ignore")
 import matplotlib
 import matplotlib.style
 matplotlib.use("QT4Agg")
-from matplotlib.backends.backend_qt4agg import FigureCanvas
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+import ctypes
+from matplotlib.transforms import Bbox
+from matplotlib import cbook
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.backends.backend_qt5 import (
+    QtCore, QtGui, QtWidgets, _BackendQT5, FigureCanvasQT, FigureManagerQT,
+    NavigationToolbar2QT, backend_version)
+from matplotlib.backends.qt_compat import QT_API
 from matplotlib.figure import Figure
 import matplotlib.ticker as matplotlib_ticker
 from matplotlib.dates import date2num
@@ -26,6 +34,90 @@ import decimal
 import random
 import functools
 import exchanges
+
+class FigureCanvas(FigureCanvasAgg, FigureCanvasQT):
+
+    def __init__(self, figure):
+        # Must pass 'figure' as kwarg to Qt base class.
+        super().__init__(figure=figure)
+
+    def _unmultiplied_rgba8888_to_premultiplied_argb32(self, rgba8888):
+        """
+        Convert an unmultiplied RGBA8888 buffer to a premultiplied ARGB32 buffer.
+        """
+        if sys.byteorder == "little":
+            argb32 = np.take(rgba8888, [2, 1, 0, 3], axis=2)
+            rgb24 = argb32[..., :-1]
+            alpha8 = argb32[..., -1:]
+        else:
+            argb32 = np.take(rgba8888, [3, 0, 1, 2], axis=2)
+            alpha8 = argb32[..., :1]
+            rgb24 = argb32[..., 1:]
+        # Only bother premultiplying when the alpha channel is not fully opaque,
+        # as the cost is not negligible.  The unsafe cast is needed to do the
+        # multiplication in-place in an integer buffer.
+        #if alpha8.min() != 0xff: # XXX performance lagging
+        #    np.multiply(rgb24, alpha8 / 0xff, out=rgb24, casting="unsafe")
+        return argb32
+
+    def paintEvent(self, event):
+        """Copy the image from the Agg canvas to the qt.drawable.
+        In Qt, all drawing should be done inside of here when a widget is
+        shown onscreen.
+        """
+        if self._update_dpi():
+            # The dpi update triggered its own paintEvent.
+            return
+        self._draw_idle()  # Only does something if a draw is pending.
+
+        # If the canvas does not have a renderer, then give up and wait for
+        # FigureCanvasAgg.draw(self) to be called.
+        if not hasattr(self, 'renderer'):
+            return
+
+        painter = QtGui.QPainter(self)
+
+        rect = event.rect()
+        left = rect.left()
+        top = rect.top()
+        width = rect.width()
+        height = rect.height()
+        # See documentation of QRect: bottom() and right() are off by 1, so use
+        # left() + width() and top() + height().
+
+        bbox = Bbox(
+            [[left, self.renderer.height - (top + height * self._dpi_ratio)],
+             [left + width * self._dpi_ratio, self.renderer.height - top]])
+
+        reg = self.copy_from_bbox(bbox)
+
+        #t = time.process_time()
+        buf = self._unmultiplied_rgba8888_to_premultiplied_argb32(memoryview(reg))
+        #print(time.process_time() - t)
+
+
+        # clear the widget canvas
+        painter.eraseRect(rect)
+            
+        qimage = QtGui.QImage(buf, buf.shape[1], buf.shape[0],
+                              QtGui.QImage.Format_ARGB32_Premultiplied)
+        if hasattr(qimage, 'setDevicePixelRatio'):
+            # Not available on Qt4 or some older Qt5.
+            qimage.setDevicePixelRatio(self._dpi_ratio)
+        origin = QtCore.QPoint(left, top)
+        painter.drawImage(origin / self._dpi_ratio, qimage)
+
+        # Adjust the buf reference count to work around a memory
+        # leak bug in QImage under PySide on Python 3.
+
+        if QT_API in ('PySide', 'PySide2'):
+            ctypes.c_long.from_address(id(buf)).value = 1
+
+        self._draw_rect_callback(painter)
+
+        painter.end()
+
+matplotlib.backends.backend_qt4agg.FigureCanvasQTAgg = FigureCanvas
 
 conf = {}
 exec(open("config.txt").read(), conf)
@@ -676,7 +768,7 @@ class ChartRunner(QtCore.QThread):
             ax.grid(True)
 
           if init == True:
-            ax.set_position([0.03,0.03,0.93,0.93])
+            ax.set_position([0.05,0.05,0.87,0.91])
             qs[tab_index].put(FIGURE_TIGHT_LAYOUT)
             self.data_ready.emit()
             aqs[tab_index].get()
@@ -723,17 +815,16 @@ class ChartRunner(QtCore.QThread):
 
           do_break = False
           while True:
+              if chartrunner_remove_tab != None:
+                  if tab_index == chartrunner_remove_tab:
+                      do_break = True
+                      break
+
               qs[tab_index].put(CANVAS_DRAW)
               self.data_ready.emit()
               return_value = aqs[tab_index].get()
               if return_value == 0:
                   break
-
-              if chartrunner_remove_tab != None:
-                  if tab_index == chartrunner_remove_tab:
-                      do_break = True
-                      break
-              time.sleep(2)
 
           if do_break == True:
             break
@@ -887,9 +978,9 @@ class Window(QtGui.QMainWindow):
     global tab_widgets
     global config
     global window_ids
-    global DataRunnerTabs
     def __init__(self, symbol, timeframe_entered):
         global selected_symbol
+        global DataRunnerTabs
         QtGui.QMainWindow.__init__(self)
         resolution = QtGui.QDesktopWidget().screenGeometry()
         uic.loadUi('mainwindowqt.ui', self)
@@ -939,7 +1030,7 @@ class Window(QtGui.QMainWindow):
         global dqs
         qs[window_id] = Queue.Queue()
         aqs[window_id] = Queue.Queue()
-        dqs[window_id] = Queue.Queue(maxsize=1)
+        dqs[window_id] = Queue.Queue()
 
         DataRunnerTabs[window_id] = DataRunner(symbol, window_id, timeframe_entered)
 
@@ -1081,7 +1172,7 @@ class Window(QtGui.QMainWindow):
             aqs[winid].put(annotation.get_window_extent(self.dcs[winid].renderer))
           elif value == CANVAS_DRAW:
             if QtGui.QApplication.activeWindow() == self.window() and self.tabWidget.currentIndex() == i:
-              self.dcs[winid].draw()
+              self.dcs[winid].draw_idle()
               aqs[winid].put(0)
             else:
               aqs[winid].put(1)
@@ -1130,6 +1221,11 @@ class Window(QtGui.QMainWindow):
         tab_current_index = window_ids[self.tabWidget.currentIndex()]
       
     def removeTab(self, window_id):
+      global DataRunnerTabs
+      global chartrunner_remove_tab
+
+      chartrunner_remove_tab = window_id
+
       DataRunnerTabs[window_id].exchange_obj.stop_candlestick_websocket()
       del DataRunnerTabs[window_id].exchange_obj
       del DataRunnerTabs[window_id]
@@ -1138,10 +1234,11 @@ class Window(QtGui.QMainWindow):
         if window_ids[win_index] == window_id:
           self.tabWidget.setCurrentIndex(win_index)
           break
-    
+
     def addTab(self, symbol, timeframe_entered):
       global tab_current_index
-      
+      global DataRunnerTabs
+
       self.tab_widgets.append(QtGui.QWidget())
       tab_index = self.tabWidget.addTab(self.tab_widgets[-1], symbol + " " + timeframe_entered)
       self.tabWidget.setCurrentWidget(self.tab_widgets[-1])
