@@ -111,7 +111,6 @@ exec(open("config.txt").read(), conf)
 exchange = conf["exchange"]
 api_key = conf["api_key"]
 api_secret = conf["api_secret"]
-selected_symbol = ""
 
 if exchange == "HITBTC":
   client = ccxt.hitbtc2({
@@ -979,21 +978,19 @@ class Window(QtGui.QMainWindow):
         menuButton.setStyleSheet('border: 0px; padding: 0px;')
         menuButton.setPopupMode(QtGui.QToolButton.InstantPopup)
         menuButton.setMenu(tabBarMenu)
-        self.tabBar.setTabButton(0, QtGui.QTabBar.RightSide, menuButton)        
- 
-        widget = QtGui.QVBoxLayout(self.tabWidget.widget(0))
+        self.tabBar.setTabButton(0, QtGui.QTabBar.RightSide, menuButton)
+
+        widget = QtGui.QHBoxLayout(self.tabWidget.widget(0))
+        self.OrderbookWidget = OrderBookWidget(self, symbol, 0)
         dc = MplCanvas(self.tabWidget.widget(0), symbol=symbol)
         widget.addWidget(dc)
+        widget.addWidget(self.OrderbookWidget, alignment=QtCore.Qt.AlignTop)
         widget.setContentsMargins(0,0,0,0)
 
-        selected_symbol = symbol
-        self.horizontalLayout_3.insertWidget(1, OrderBookWidget(self), alignment=QtCore.Qt.AlignTop)
-        self.horizontalLayout_3.setContentsMargins(0,0,0,0)
-                
         self.dcs = {}
         self.dcs[window_id] = dc
         
-        global qs
+        global qsb
         global aqs
         global dqs
         qs[window_id] = Queue.Queue()
@@ -1211,8 +1208,6 @@ class Window(QtGui.QMainWindow):
     
     def tabOnChange(self, event):
       global tab_current_index
-      global selected_symbol
-      selected_symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
       if self.tabWidget.currentIndex() in window_ids:
         tab_current_index = window_ids[self.tabWidget.currentIndex()]
       
@@ -1239,8 +1234,8 @@ class Window(QtGui.QMainWindow):
       tab_index = self.tabWidget.addTab(self.tab_widgets[-1], symbol + " " + timeframe_entered)
       self.tabWidget.setCurrentWidget(self.tab_widgets[-1])
       main.tabWidget.setTabIcon(tab_index, QtGui.QIcon("coin.ico"))
-      widget = QtGui.QVBoxLayout(self.tabWidget.widget(tab_index))
-      
+      widget = QtGui.QHBoxLayout(self.tabWidget.widget(tab_index))
+
       window_id = get_window_id()
       window_ids[tab_index] = window_id
       window_configs[window_id] = abstract()
@@ -1256,10 +1251,13 @@ class Window(QtGui.QMainWindow):
       menuButton.setPopupMode(QtGui.QToolButton.InstantPopup)
       menuButton.setMenu(tabBarMenu)      
       self.tabBar.setTabButton(tab_index, QtGui.QTabBar.RightSide, menuButton)
-      
-      dc = MplCanvas(self.tabWidget.widget(tab_index), symbol=symbol)
+
+      self.OrderbookWidget = OrderBookWidget(self, symbol, tab_index)
+      dc = MplCanvas(self.tabWidget.widget(0), symbol=symbol)
       widget.addWidget(dc)
-      
+      widget.addWidget(self.OrderbookWidget, alignment=QtCore.Qt.AlignTop)
+      widget.setContentsMargins(0, 0, 0, 0)
+
       global qs
       global aqs
       global dqs
@@ -1294,7 +1292,7 @@ class Window(QtGui.QMainWindow):
       self.trade_dialog.show()
       
 class TradeDialog(QtGui.QDialog):
-  def __init__(self, parent):
+  def __init__(self, ord):
     QtGui.QDialog.__init__(self)
     uic.loadUi('trade.ui', self)
     self.setFixedSize(713, 385)
@@ -1639,125 +1637,54 @@ def display_market_depth(bids, asks, symbol, precision):
 
   return strs
 
-class Orderbook(QtCore.QThread):
-    data_ready = QtCore.pyqtSignal()
-  
-    def __init__(self, parent):
-        super(Orderbook, self).__init__(parent)
-
-        self.lastupdate = 0
-
-        self.ex_queue = Queue.Queue()
-        t = threading.Thread(target=self.collect_ex)
-        t.start()
-
-    def add_position(self, pos, isbid):
-      if isbid:
-        if pos[0] not in self.ob["bids"]:
-          self.ob["bids"][pos[0]] = pos[1]
-        else:
-          self.ob["bids"][pos[0]] += pos[1]
-
-      if not isbid:
-        if pos[0] not in self.ob["asks"]:
-          self.ob["asks"][pos[0]] = pos[1]
-        else:
-          self.ob["asks"][pos[0]] += pos[1]
-
-    def collect_ex_threadable(self, exchange, symbol, is_bitmex=False):
-      while True:
-        try:
-          if not is_bitmex:
-            ob_exchange = orderbook(exchange, symbol)
-            for pos in ob_exchange["bids"]:
-              self.add_position(pos, True)
-            for pos in ob_exchange["asks"]:
-              self.add_position(pos, False)
-          else:
-            ob_exchange = orderbook(self.exchange_bitmex, "BTC/USD")
-            btc_price = self.exchange_bitmex.fetch_ticker("BTC/USD")["last"]
-            for bid in ob_exchange["bids"]:
-              pos = [bid[0], float(bid[1]) / float(btc_price)]
-              self.add_position(pos, True)
-            for ask in ob_exchange["asks"]:
-              pos = [ask[0], float(ask[1]) / float(btc_price)]
-              self.add_position(pos, False)
-        except:
-          print(get_full_stacktrace())
-          time.sleep(3)
-          continue
-        break
-    
-    def collect_ex(self):
-      while True:
-        if time.time() - self.lastupdate > 60*5 or self.lastupdate == 0:
-          try:
-            self.ob={}
-            self.ob["bids"] = {}
-            self.ob["asks"] = {}
-            self.ob["trades"] = {}
-            self.ob["trades"]["buy"] = 0
-            self.ob["trades"]["sell"] = 0
-            
-            threads = []
-
-            t = threading.Thread(target=self.collect_ex_threadable, args=(client, selected_symbol,))
-            threads.append(t)
-
-            for t in threads:            
-              t.daemon = True
-              t.start()
-            
-            for t in threads:
-              t.join()
-
-            ob_bids = sorted((float(x),y) for x,y in self.ob["bids"].items())
-            ob_asks = sorted((float(x),y) for x,y in self.ob["asks"].items())
-
-            self.precision = 1
-            for market in markets:
-                if market["symbol"] == selected_symbol:
-                    for filter in market["info"]["filters"]:
-                        if filter["filterType"] == "PRICE_FILTER":
-                            if selected_symbol.endswith("BTC"):
-                                self.precision = float(filter["tickSize"]) * 10
-                            else:
-                                self.precision = float(filter["tickSize"]) * 100
-                            break
-                    break
-
-            bookstr = selected_symbol + "\n\n"
-            ob_accum = display_market_depth(ob_bids, ob_asks, selected_symbol, self.precision)
-            for ob in ob_accum:
-              bookstr = bookstr + ob + "\n"
-
-            self.ex_queue.put(bookstr)
-            self.data_ready.emit()
-            
-            self.lastupdate = time.time()
-          except:
-            stacktrace = get_full_stacktrace()
-            print(stacktrace)
-          
 class OrderBookWidget(QtGui.QLabel):
-    def __init__(self,parent=None):
+    def __init__(self, parent, symbol, tab_index):
         super(OrderBookWidget,self).__init__(parent)
-        self.init_orderbook_widget()
         self.parent = parent
+        self.tab_index = tab_index
+        self.symbol = symbol
+        self.init_orderbook_widget()
+
+    def process_message(self, msg):
+        if self.parent.tabWidget.currentIndex() != self.tab_index:
+            return
+
+        if "bids" in msg:
+            bids_ = msg["bids"]
+            asks_ = msg["asks"]
+
+            strs = []
+            for bid in bids_:
+                try:
+                    ask = asks_.pop()
+                    if not self.symbol.endswith("BTC"):
+                        ask[0] = "%.2f" % float(ask[0])
+                        asks = str(ask[0]) + " " * (9 - len(str(ask[0]))) + str(ask[1])
+                    else:
+                        asks = "%.8f" % float(ask[0]) + " " * (10 - len(str(ask[1]))) + str(ask[1])
+                except:
+                    asks = ""
+                if not self.symbol.endswith("BTC"):
+                    bid[0] = "%.2f" % float(bid[0])
+                    strs.append(str(bid[0]) + " " * (9 - len(str(bid[0]))) + str(bid[1]) + "\t" + asks)
+                else:
+                    strs.append("%.8f" % float(bid[0]) + " " + " " * (
+                                10 - len(str(bid[1]))) + str(bid[1]) + "\t" + asks)
+
+            bookstr = ""
+            for s in strs:
+                bookstr = bookstr + s + "\n"
+
+            self.setText(bookstr)
 
     def init_orderbook_widget(self):
         self.setMinimumWidth(337)
         newfont = QtGui.QFont("Courier New", 9, QtGui.QFont.Bold) 
         self.setFont(newfont)
-        self.setText("orderbook loading...")
+        self.setText("Orderbook Loading...")
         self.setStyleSheet("QLabel { background-color : #131D27; color : #C6C7C8; }")
-        self.orderbook = Orderbook(self)
-        self.orderbook.data_ready.connect(self.orderbook_widget_update)
-
-    def orderbook_widget_update(self):
-        if self.orderbook.ex_queue.empty() == False:
-          bookstr = self.orderbook.ex_queue.get()
-          self.setText(bookstr)
+        self.exchange_obj = exchanges.Binance(api_key, api_secret)
+        self.exchange_obj.start_depth_websocket(self.symbol, self.process_message)
 
 if __name__ == "__main__":
   app = QtGui.QApplication(sys.argv)

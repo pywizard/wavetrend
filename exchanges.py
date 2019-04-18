@@ -13,3 +13,10 @@ class Binance:
 
     def stop_candlestick_websocket(self):
         self.manager.stop_socket(self.connection_key)
+
+    def start_depth_websocket(self, symbol, callback):
+        self.symbol = symbol.split("/")[0] + symbol.split("/")[1]
+        self.depth_key = self.manager.start_depth_socket(self.symbol, callback, depth=BinanceSocketManager.WEBSOCKET_DEPTH_20)
+
+    def stop_depth_websocket(self, symbol):
+        self.manager.stop_socket(self.depth_key)
