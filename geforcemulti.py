@@ -675,7 +675,7 @@ class ChartRunner(QtCore.QThread):
                   lowest_price = low_list[i]            
               ###
             
-            ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
+            #ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
             ax.set_ylim((lowest_price - lowest_price * 0.015, highest_price + highest_price * 0.015))
             
             xl = ax.get_xlim()
