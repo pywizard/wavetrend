@@ -387,19 +387,45 @@ class MplCanvas(FigureCanvas):
 main_shown = False
 
 class DataRunner:
-  def __init__(self, parent, symbol, tab_index, timeframe_entered):
+  def __init__(self, parent, symbol, window_id, tab_index, timeframe_entered):
     self.symbol = symbol
+    self.window_id = window_id
     self.tab_index = tab_index
     self.parent = parent
     self.timeframe_entered = timeframe_entered
     self.exchange_obj = exchanges.Binance(api_key, api_secret)
     self.exchange_obj.start_candlestick_websocket(symbol, timeframe_entered, self.process_message)
 
+    self.kill_websocket_watch_thread = False
+    self.websocket_alive_time = time.time()
+    self.websocket_watch_thread = threading.Thread(target=self.websocket_watch)
+    self.websocket_watch_thread.daemon = True
+    self.websocket_watch_thread.start()
+
+  def restart_websocket(self):
+      print("websocket reconnect")
+      self.exchange_obj.stop_candlestick_websocket()
+      self.exchange_obj.start_candlestick_websocket(self.symbol, self.timeframe_entered, self.process_message)
+
+  def websocket_watch(self):
+    while True:
+        if self.kill_websocket_watch_thread == True:
+            break
+        if time.time() - self.websocket_alive_time > 60:
+           self.restart_websocket()
+        else:
+           time.sleep(0.005)
+
   def process_message(self, msg):
-    if self.parent.tabWidget.currentIndex() != self.tab_index:
+    if "e" in msg and msg["e"] == "error":
+        self.restart_websocket()
         return
 
-    if msg["e"] == "kline":
+    if "e" in msg and msg["e"] == "kline":
+        self.websocket_alive_time = time.time()
+        if QtGui.QApplication.activeWindow() != self.parent.window() or \
+                self.parent.tabWidget.currentIndex() != self.tab_index:
+            return
         open_ = float(msg["k"]["o"])
         high = float(msg["k"]["h"])
         low = float(msg["k"]["l"])
@@ -410,9 +436,9 @@ class DataRunner:
 
         result = [dt, time_close, open_, high, low, close, volume, 1]
 
-        if dqs[self.tab_index].empty() == True:
-            dqs[self.tab_index].put(CHART_DATA_READY)
-            dqs[self.tab_index].put(result)
+        if dqs[self.window_id].empty() == True:
+            dqs[self.window_id].put(CHART_DATA_READY)
+            dqs[self.window_id].put(result)
 
 class ChartRunner(QtCore.QThread):
   RETRIEVE_CHART_DATA = QtCore.pyqtSignal(str)
@@ -1001,7 +1027,7 @@ class Window(QtGui.QMainWindow):
         aqs[window_id] = Queue.Queue()
         dqs[window_id] = Queue.Queue()
 
-        DataRunnerTabs[window_id] = DataRunner(self, symbol, window_id, timeframe_entered)
+        DataRunnerTabs[window_id] = DataRunner(self, symbol, window_id, 0, timeframe_entered)
 
         self.chart_runner_thread = ChartRunner(self, symbol, window_id, timeframe_entered)
         self.chart_runner_thread.RETRIEVE_CHART_DATA.connect(self.on_RETRIEVE_CHART_DATA)
@@ -1188,11 +1214,16 @@ class Window(QtGui.QMainWindow):
         self.tabWidget.removeTab(tab_index)
 
         global DataRunnerTabs
+
+        DataRunnerTabs[winid].kill_websocket_watch_thread = True
+        DataRunnerTabs[winid].websocket_watch_thread.join()
         DataRunnerTabs[winid].exchange_obj.stop_candlestick_websocket()
         del DataRunnerTabs[winid].exchange_obj
         del DataRunnerTabs[winid]
 
         self.OrderbookWidget[tab_index].exchange_obj.stop_depth_websocket()
+        self.OrderbookWidget[tab_index].kill_websocket_watch_thread = True
+        self.OrderbookWidget[tab_index].websocket_watch_thread.join()
         del self.OrderbookWidget[tab_index].exchange_obj
         del self.OrderbookWidget[tab_index]
 
@@ -1271,7 +1302,7 @@ class Window(QtGui.QMainWindow):
       dqs[window_id] = Queue.Queue()
       self.dcs[window_id] = dc
 
-      DataRunnerTabs[window_id] = DataRunner(self, symbol, window_id, timeframe_entered)
+      DataRunnerTabs[window_id] = DataRunner(self, symbol, window_id, tab_index, timeframe_entered)
 
       tab_current_index = window_id
 
@@ -1563,11 +1594,37 @@ class OrderBookWidget(QtGui.QLabel):
         self.symbol = symbol
         self.init_orderbook_widget()
 
+        self.kill_websocket_watch_thread = False
+        self.websocket_alive_time = time.time()
+        self.websocket_watch_thread = threading.Thread(target=self.websocket_watch)
+        self.websocket_watch_thread.daemon = True
+        self.websocket_watch_thread.start()
+
+    def restart_websocket(self):
+        print("websocket reconnect")
+        self.exchange_obj.stop_depth_websocket()
+        self.exchange_obj.start_depth_websocket(self.symbol, self.process_message)
+
+    def websocket_watch(self):
+        while True:
+            if self.kill_websocket_watch_thread == True:
+                break
+            if time.time() - self.websocket_alive_time > 60:
+                self.restart_websocket()
+            else:
+                time.sleep(0.005)
+
     def process_message(self, msg):
-        if self.parent.tabWidget.currentIndex() != self.tab_index:
+        if "e" in msg and msg["e"] == "error":
+            self.restart_websocket()
             return
 
         if "bids" in msg:
+            self.websocket_alive_time = time.time()
+            if QtGui.QApplication.activeWindow() != self.parent.window() or \
+                    self.parent.tabWidget.currentIndex() != self.tab_index:
+                return
+
             bids_ = msg["bids"]
             asks_ = msg["asks"]
 
