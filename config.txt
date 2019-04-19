@@ -1,4 +1,4 @@
 #exchange can be one of BINANCE, BITSTAMP, GEMINI, HITBTC, OKEX, BITMEX, GDAX, KRAKEN, BITTREX -- websockets: missing
 exchange = "BINANCE"
-api_key = ""
-api_secret = ""
+api_key = "KgW42pRCZLfnYiEL1Mzj827n0pjRkual0xvfSVKJDV8QOODezvIk9cUbNRtOqwJ2"
+api_secret = "HX4DYkInjP9k5ECFSXVRDajAUB0jD27DPsQIB8tmvRWg6nNQoUvOVwgtkPEw9O9l"

@@ -387,14 +387,18 @@ class MplCanvas(FigureCanvas):
 main_shown = False
 
 class DataRunner:
-  def __init__(self, symbol, tab_index, timeframe_entered):
+  def __init__(self, parent, symbol, tab_index, timeframe_entered):
     self.symbol = symbol
     self.tab_index = tab_index
+    self.parent = parent
     self.timeframe_entered = timeframe_entered
     self.exchange_obj = exchanges.Binance(api_key, api_secret)
     self.exchange_obj.start_candlestick_websocket(symbol, timeframe_entered, self.process_message)
 
   def process_message(self, msg):
+    if self.parent.tabWidget.currentIndex() != self.tab_index:
+        return
+
     if msg["e"] == "kline":
         open_ = float(msg["k"]["o"])
         high = float(msg["k"]["h"])
@@ -997,7 +1001,7 @@ class Window(QtGui.QMainWindow):
         aqs[window_id] = Queue.Queue()
         dqs[window_id] = Queue.Queue()
 
-        DataRunnerTabs[window_id] = DataRunner(symbol, window_id, timeframe_entered)
+        DataRunnerTabs[window_id] = DataRunner(self, symbol, window_id, timeframe_entered)
 
         self.chart_runner_thread = ChartRunner(self, symbol, window_id, timeframe_entered)
         self.chart_runner_thread.RETRIEVE_CHART_DATA.connect(self.on_RETRIEVE_CHART_DATA)
@@ -1267,7 +1271,7 @@ class Window(QtGui.QMainWindow):
       dqs[window_id] = Queue.Queue()
       self.dcs[window_id] = dc
 
-      DataRunnerTabs[window_id] = DataRunner(symbol, window_id, timeframe_entered)
+      DataRunnerTabs[window_id] = DataRunner(self, symbol, window_id, timeframe_entered)
 
       tab_current_index = window_id
 
