@@ -414,7 +414,7 @@ class DataRunner:
         if time.time() - self.websocket_alive_time > 60:
            self.restart_websocket()
         else:
-           time.sleep(0.005)
+           time.sleep(0.1)
 
   def process_message(self, msg):
     if "e" in msg and msg["e"] == "error":
@@ -489,6 +489,16 @@ class ChartRunner(QtCore.QThread):
 
     while True:
         try:
+          while True:
+              if init == True:
+                  update_time = time.time()
+                  break
+              if time.time() - update_time < 1:
+                  time.sleep(0.1)
+              else:
+                  update_time = time.time()
+                  break
+
           candle_type = window_configs[self.tab_index].candle_type
           trade_type = window_configs[self.tab_index].trade_type
 
@@ -822,6 +832,8 @@ class ChartRunner(QtCore.QThread):
               return_value = aqs[tab_index].get()
               if return_value == 0:
                   break
+              else:
+                  time.sleep(0.1)
 
           if do_break == True:
             break
@@ -1147,7 +1159,7 @@ class Window(QtGui.QMainWindow):
         global aqs
         if winid in dqs:
             if dqs[winid].qsize() > 0:
-                value = dqs[winid].get(block=False)
+                value = dqs[winid].get()
                 if value == CHART_DATA_READY:
                     chart_result = dqs[winid].get()
                     aqs[winid].put(chart_result)
@@ -1612,7 +1624,7 @@ class OrderBookWidget(QtGui.QLabel):
             if time.time() - self.websocket_alive_time > 60:
                 self.restart_websocket()
             else:
-                time.sleep(0.005)
+                time.sleep(0.1)
 
     def process_message(self, msg):
         if "e" in msg and msg["e"] == "error":
