@@ -406,6 +406,7 @@ class DataRunner:
       print("websocket reconnect")
       self.exchange_obj.stop_candlestick_websocket()
       self.exchange_obj.start_candlestick_websocket(self.symbol, self.timeframe_entered, self.process_message)
+      self.websocket_alive_time = time.time()
 
   def websocket_watch(self):
     while True:
@@ -1604,6 +1605,7 @@ class OrderBookWidget(QtGui.QLabel):
         print("websocket reconnect")
         self.exchange_obj.stop_depth_websocket()
         self.exchange_obj.start_depth_websocket(self.symbol, self.process_message)
+        self.websocket_alive_time = time.time()
 
     def websocket_watch(self):
         while True:
