@@ -702,8 +702,8 @@ class ChartRunner(QtCore.QThread):
               ###
             
             #ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
-            ax.set_ylim((lowest_price - lowest_price * 0.015, highest_price + highest_price * 0.015))
-            
+            ax.set_ylim((lowest_price, highest_price))
+
             xl = ax.get_xlim()
             ax.set_xlim(date[start_x], xl[1])
 

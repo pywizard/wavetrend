@@ -7,9 +7,7 @@ class Bitfinex:
         self.api_key = api_key
         self.api_secret = api_secret
         self.manager_candlestick = WssClient(self.api_key, self.api_secret)
-        self.manager_candlestick.authenticate(print)
         self.manager_depth = WssClient(self.api_key, self.api_secret)
-        self.manager_depth.authenticate(print)
         self.started_candlestick = False
         self.started_depth = False
 
