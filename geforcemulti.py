@@ -488,6 +488,8 @@ class ChartRunner(QtCore.QThread):
     current_candle_type = window_configs[self.tab_index].candle_type
     current_trade_type = window_configs[self.tab_index].trade_type
     time_close = 0
+    old_date = 0
+    new_data_retrieved = False
 
     while True:
         try:
@@ -514,6 +516,7 @@ class ChartRunner(QtCore.QThread):
               [date3, time_close3, open3_, high3, low3, close3, vol3, limit3] = chart_result
               if time_close == 0:
                   time_close = time_close2
+              new_data_retrieved = True
             else:
               try:
                 date2
@@ -532,18 +535,25 @@ class ChartRunner(QtCore.QThread):
           if first == True:
             self.FIGURE_ADD_SUBPLOT.emit(self.tab_index, 111, None)
             ax = aqs[self.tab_index].get()
-            len_candles = len(date)
-            
-            prices[:] = []
-            for i in range(0, len(date)):
-                prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
+
+            if init == False and exchange == "BITFINEX" and date[-1] == old_date:
+                candle_time_dt = datetime.datetime.fromtimestamp(next_candle_time)
+                prices[:] = []
+                for i in range(1, len(date)):
+                    prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
+                prices.append((date2num(candle_time_dt), close[-1], close[-1], close[-1], close[-1], 0, candle_time_dt))
+            else:
+                prices[:] = []
+                for i in range(0, len(date)):
+                    prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
 
             dates2 = [x[0] for x in prices]
                         
             ax.xaxis.set_tick_params(labelsize=9)
             ax.yaxis.set_tick_params(labelsize=9)
           else:
-            prices[-1] = [date2num(date2), open2_, high2, low2, close2, vol2, date2]
+            if not (init == False and exchange == "BITFINEX" and new_data_retrieved == False):
+                prices[-1] = [date2num(date2), open2_, high2, low2, close2, vol2, date2]
 
           if (first == False and time_close != 0 and time.time() >= time_close)  \
             or current_candle_type != candle_type or current_trade_type != trade_type:
@@ -558,6 +568,9 @@ class ChartRunner(QtCore.QThread):
             current_candle_type = candle_type
             current_trade_type = trade_type
             time_close = 0
+            next_candle_time = time.time() // elapsed_table[self.timeframe_entered] * elapsed_table[self.timeframe_entered]
+            old_date = prices[-1][6]
+            new_data_retrieved = False
             continue
 
           if first == True:
