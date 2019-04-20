@@ -521,6 +521,8 @@ class ChartRunner(QtCore.QThread):
                  [date2, time_close2, open2_, high2, low2, close2, vol2, limit2] = [date3, time_close3, open3_,
                                                                                     high3, low3, close3,
                                                                                     vol3, limit3]
+                 if time_close == 0:
+                     time_close = time_close3
                 except (NameError, UnboundLocalError) as e:
                     [date2, time_close2, open2_, high2, low2, close2, vol2, limit2] = \
                         [date[-1], time_close, open_[-1], high[-1], low[-1], close[-1], vol[-1], limit]
@@ -539,7 +541,7 @@ class ChartRunner(QtCore.QThread):
             ax.xaxis.set_tick_params(labelsize=9)
             ax.yaxis.set_tick_params(labelsize=9)
           else:
-            prices[-1] = (date2num(date2), open2_, high2, low2, close2, vol2, date2)
+            prices[-1] = [date2num(date2), open2_, high2, low2, close2, vol2, date2]
 
           if (first == False and time_close != 0 and time.time() >= time_close)  \
             or current_candle_type != candle_type or current_trade_type != trade_type:
