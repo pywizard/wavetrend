@@ -105,15 +105,16 @@ class FigureCanvas(FigureCanvasAgg, FigureCanvasQT):
 
 matplotlib.backends.backend_qt4agg.FigureCanvasQTAgg = FigureCanvas
 
-conf = {}
-exec(open("config.txt").read(), conf)
+config = {}
+exec(open("config.txt").read(), config)
 
-exchange = conf["exchange"]
-api_key = conf["api_key"]
-api_secret = conf["api_secret"]
+exchanges_keys = list(config["exchanges"].copy().keys())
+exchange = exchanges_keys[0]
+api_key = config["exchanges"][exchanges_keys[0]]["api_key"]
+api_secret = config["exchanges"][exchanges_keys[0]]["api_secret"]
 
-if exchange == "HITBTC":
-  client = ccxt.hitbtc2({
+if exchange == "BITFINEX":
+  client = ccxt.bitfinex2({
    'apiKey': api_key,
    'secret': api_secret,
    'enableRateLimit': True
@@ -124,48 +125,6 @@ elif exchange == "BINANCE":
    'secret': api_secret,
    'enableRateLimit': True,
    'options': {'adjustForTimeDifference': True}
-  })
-elif exchange == "BITSTAMP":
-   client = ccxt.bitstamp({
-   'apiKey': api_key,
-   'secret': api_secret,
-   'enableRateLimit': True
-  })
-elif exchange == "GEMINI":
-   client = ccxt.gemini({
-   'apiKey': api_key,
-   'secret': api_secret,
-   'enableRateLimit': True
-  })
-elif exchange == "OKEX":
-   client = ccxt.okex({
-   'apiKey': api_key,
-   'secret': api_secret,
-   'enableRateLimit': True
-  })
-elif exchange == "BITMEX":
-   client = ccxt.bitmex({
-   'apiKey': api_key,
-   'secret': api_secret,
-   'enableRateLimit': True
-  })
-elif exchange == "GDAX":
-   client = ccxt.gdax({
-   'apiKey': api_key,
-   'secret': api_secret,
-   'enableRateLimit': True
-  })
-elif exchange == "KRAKEN":
-   client = ccxt.kraken({
-   'apiKey': api_key,
-   'secret': api_secret,
-   'enableRateLimit': True
-  })
-elif exchange == "BITTREX":
-   client = ccxt.bittrex({
-   'apiKey': api_key,
-   'secret': api_secret,
-   'enableRateLimit': True
   })
 else:
   print("Please configure a valid Exchange.")
@@ -180,8 +139,6 @@ markets = client.fetch_markets()
 
 class abstract():
   pass
-
-config = {}
 
 def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, width=0.2, colorup='white', colordown='black',
                  alpha=1.0):
@@ -356,7 +313,8 @@ destroyed_window_ids = {}
 
 DataRunnerTabs = {}
 
-days_table = {"1m": 0.17, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, "4h": 40, "6h": 60, "12h": 120, "1d": 240}
+days_table = {"1m": 0.17, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, "4h": 40, "6h": 60, "12h": 120, "1d": 240, "1D": 240}
+elapsed_table = {"1m": 60, "5m": 60*5, "15m": 60*15, "30m": 60*30, "1h": 60*60, "4h": 60*60*4, "6h": 60*60*6, "12h": 60*60*12, "1d": 60*60*24, "1D": 60*60*24}
 
 def ceil_dt(dt, seconds):
     # how many secs have passed this hour
@@ -393,8 +351,15 @@ class DataRunner:
     self.tab_index = tab_index
     self.parent = parent
     self.timeframe_entered = timeframe_entered
-    self.exchange_obj = exchanges.Binance(api_key, api_secret)
-    self.exchange_obj.start_candlestick_websocket(symbol, timeframe_entered, self.process_message)
+    self.bfx_chanid = -1
+
+    if exchange == "BITFINEX":
+        self.exchange_obj = exchanges.Bitfinex(api_key, api_secret)
+        if timeframe_entered == "1d":
+            self.timeframe_entered = "1D"
+    elif exchange == "BINANCE":
+        self.exchange_obj = exchanges.Binance(api_key, api_secret)
+    self.exchange_obj.start_candlestick_websocket(self.symbol, self.timeframe_entered, self.process_message)
 
     self.kill_websocket_watch_thread = False
     self.websocket_alive_time = time.time()
@@ -403,6 +368,7 @@ class DataRunner:
     self.websocket_watch_thread.start()
 
   def restart_websocket(self):
+      self.bfx_chanid = -1
       self.exchange_obj.stop_candlestick_websocket()
       self.exchange_obj.start_candlestick_websocket(self.symbol, self.timeframe_entered, self.process_message)
       self.websocket_alive_time = time.time()
@@ -417,26 +383,62 @@ class DataRunner:
            time.sleep(0.1)
 
   def process_message(self, msg):
-    if "e" in msg and msg["e"] == "error":
-        self.restart_websocket()
-        return
-
-    if "e" in msg and msg["e"] == "kline":
-        self.websocket_alive_time = time.time()
-        if QtGui.QApplication.activeWindow() != self.parent.window() or \
-                self.parent.tabWidget.currentIndex() != self.tab_index:
+    if exchange == "BITFINEX":
+        if isinstance(msg, dict) and "chanId" in msg:
+            self.bfx_chanid = msg["chanId"]
+            print("CHANNEL ID: " + str(self.bfx_chanid))
             return
-        open_ = float(msg["k"]["o"])
-        high = float(msg["k"]["h"])
-        low = float(msg["k"]["l"])
-        close = float(msg["k"]["c"])
-        volume = float(msg["k"]["v"])
-        dt = datetime.datetime.fromtimestamp(msg["k"]["t"] / 1000)
-        time_close = msg["k"]["T"] / 1000
+        elif  self.bfx_chanid != -1  and isinstance(msg, list) and msg[0] == self.bfx_chanid:
+            import pprint
+            pprint.pprint(msg)
+            self.websocket_alive_time = time.time()
+            candle_time = time.time() // elapsed_table[self.timeframe_entered] * elapsed_table[self.timeframe_entered]
+            candle = None
+            if isinstance(msg[1][0], list):
+                candle = msg[1][0]
+            elif isinstance(msg[1], list):
+                candle = msg[1]
+            else:
+                return
 
-        result = [dt, time_close, open_, high, low, close, volume, 1]
+            if int((float(candle[0]) / 1000)) != candle_time:
+                return
 
-        if dqs[self.window_id].empty() == True:
+            dt = datetime.datetime.fromtimestamp(float(candle[0]) / 1000)
+            time_close = (float(candle[0]) / 1000) + elapsed_table[self.timeframe_entered]
+
+            open_ = float(candle[1])
+            high = float(candle[3])
+            low = float(candle[4])
+            close = float(candle[2])
+            volume = float(candle[5])
+
+            result = [dt, time_close, open_, high, low, close, volume, 1]
+
+            with dqs[self.window_id].mutex:
+                dqs[self.window_id].queue.clear()
+            dqs[self.window_id].put(CHART_DATA_READY)
+            dqs[self.window_id].put(result)
+
+    elif exchange == "BINANCE":
+        if "e" in msg and msg["e"] == "error":
+            self.restart_websocket()
+            return
+
+        if "e" in msg and msg["e"] == "kline":
+            self.websocket_alive_time = time.time()
+            open_ = float(msg["k"]["o"])
+            high = float(msg["k"]["h"])
+            low = float(msg["k"]["l"])
+            close = float(msg["k"]["c"])
+            volume = float(msg["k"]["v"])
+            dt = datetime.datetime.fromtimestamp(msg["k"]["t"] / 1000)
+            time_close = msg["k"]["T"] / 1000
+
+            result = [dt, time_close, open_, high, low, close, volume, 1]
+
+            with dqs[self.window_id].mutex:
+                dqs[self.window_id].queue.clear()
             dqs[self.window_id].put(CHART_DATA_READY)
             dqs[self.window_id].put(result)
 
@@ -521,6 +523,8 @@ class ChartRunner(QtCore.QThread):
                  [date2, time_close2, open2_, high2, low2, close2, vol2, limit2] = [date3, time_close3, open3_,
                                                                                     high3, low3, close3,
                                                                                     vol3, limit3]
+                 if time_close == 0:
+                    time_close = time_close3
                 except (NameError, UnboundLocalError) as e:
                     [date2, time_close2, open2_, high2, low2, close2, vol2, limit2] = \
                         [date[-1], time_close, open_[-1], high[-1], low[-1], close[-1], vol[-1], limit]
@@ -539,7 +543,7 @@ class ChartRunner(QtCore.QThread):
             ax.xaxis.set_tick_params(labelsize=9)
             ax.yaxis.set_tick_params(labelsize=9)
           else:
-            prices[-1] = (date2num(date2), open2_, high2, low2, close2, vol2, date2)
+            prices[-1] = [date2num(date2), open2_, high2, low2, close2, vol2, date2]
 
           if (first == False and time_close != 0 and time.time() >= time_close)  \
             or current_candle_type != candle_type or current_trade_type != trade_type:
@@ -1158,13 +1162,13 @@ class Window(QtGui.QMainWindow):
     def on_RETRIEVE_CHART_DATA(self, winid):
         global aqs
         if winid in dqs:
-            if dqs[winid].qsize() > 0:
-                value = dqs[winid].get()
-                if value == CHART_DATA_READY:
-                    chart_result = dqs[winid].get()
-                    aqs[winid].put(chart_result)
-            else:
-                aqs[winid].put(0)
+                if dqs[winid].qsize() > 0:
+                    value = dqs[winid].get()
+                    if value == CHART_DATA_READY:
+                        chart_result = dqs[winid].get()
+                        aqs[winid].put(chart_result)
+                else:
+                    aqs[winid].put(0)
 
     @QtCore.pyqtSlot(str, int, matplotlib.axes.Axes)
     def on_FIGURE_ADD_SUBPLOT(self, winid, rows, sharex):
@@ -1203,7 +1207,7 @@ class Window(QtGui.QMainWindow):
             if winid == window_ids[tab_index]:
                 break
 
-        if QtGui.QApplication.activeWindow() == self.window() and self.tabWidget.currentIndex() == tab_index:
+        if self.tabWidget.currentIndex() == tab_index:
             self.dcs[winid].draw_idle()
             aqs[winid].put(0)
         else:
@@ -1540,27 +1544,29 @@ class Dialog(QtGui.QDialog):
         coins_ = []
         for coin, value in coins.items():
             if coin.endswith("BTC"):
-              coins[coin]["volumeFloat"] =int(float(coins[coin]["quoteVolume"]) * btc_price)
+              coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]) * btc_price)
               coins_.append(coins[coin])
             if coin.endswith("USDT"):
-              coins[coin]["volumeFloat"] = int(float(coins[coin]["quoteVolume"]))
+              coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]))
               coins_.append(coins[coin])
             if coin.endswith("USD"):
-              coins[coin]["volumeFloat"] = int(float(coins[coin]["quoteVolume"]))
+              coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]))
               coins_.append(coins[coin])
         coins = sorted(coins_, key=itemgetter("volumeFloat"), reverse=True)
         
         self.tableWidget.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
         
         for coin in coins:
-          if coin["symbol"].endswith("BTC") or coin["symbol"].endswith("USDT"):
+          if coin["symbol"].endswith("BTC") or coin["symbol"].endswith("USDT") or coin["symbol"].endswith("USD"):
             rowPosition = self.tableWidget.rowCount() - 1
             self.tableWidget.insertRow(rowPosition)
             self.tableWidget.setItem(rowPosition, 0, QtGui.QTableWidgetItem(coin["symbol"]))
             if "change" in coin and coin["change"]:
               self.tableWidget.setItem(rowPosition, 1, QtGui.QTableWidgetItem(str("%.08f" % coin["change"])))
             if "percentage" in coin and coin["percentage"]:
-              self.tableWidget.setItem(rowPosition, 2, QtGui.QTableWidgetItem(str(coin["percentage"])))
+              self.tableWidget.setItem(rowPosition, 2, QtGui.QTableWidgetItem(str("%.02f" % coin["percentage"])))
+            else:
+              self.tableWidget.setItem(rowPosition, 2, QtGui.QTableWidgetItem("unknown"))
             self.tableWidget.setItem(rowPosition, 3, QtGui.QTableWidgetItem(str(coin["volumeFloat"])))
             if "change" in coin and coin["change"]:
               if float(coin["change"]) < 0:
@@ -1627,6 +1633,10 @@ class OrderBookWidget(QtGui.QLabel):
                 time.sleep(0.1)
 
     def process_message(self, msg):
+        if exchange == "BITFINEX":
+            self.websocket_alive_time = time.time()
+            return
+
         if "e" in msg and msg["e"] == "error":
             self.restart_websocket()
             return
@@ -1678,7 +1688,10 @@ class OrderBookWidget(QtGui.QLabel):
         self.setFont(newfont)
         self.setText("Orderbook Loading...")
         self.setStyleSheet("QLabel { background-color : #131D27; color : #C6C7C8; }")
-        self.exchange_obj = exchanges.Binance(api_key, api_secret)
+        if exchange == "BITFINEX":
+            self.exchange_obj = exchanges.Bitfinex(api_key, api_secret)
+        elif exchange == "BINANCE":
+            self.exchange_obj = exchanges.Binance(api_key, api_secret)
         self.exchange_obj.start_depth_websocket(self.symbol, self.process_message)
 
 if __name__ == "__main__":

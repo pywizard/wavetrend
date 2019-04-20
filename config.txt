@@ -1,4 +1,12 @@
 #exchange can be one of BINANCE, BITSTAMP, GEMINI, HITBTC, OKEX, BITMEX, GDAX, KRAKEN, BITTREX -- websockets: missing
-exchange = "BINANCE"
-api_key = "KgW42pRCZLfnYiEL1Mzj827n0pjRkual0xvfSVKJDV8QOODezvIk9cUbNRtOqwJ2"
-api_secret = "HX4DYkInjP9k5ECFSXVRDajAUB0jD27DPsQIB8tmvRWg6nNQoUvOVwgtkPEw9O9l"
+exchanges = {
+    "BITFINEX": {
+    "name": "BITFINEX",
+    "api_key": "toTFiy2DQyMlgwEgvqaev28nj2JUpHamDIGh4tL5g6Y",
+    "api_secret": "8GO7tonHru3FBB9qMyJDf4u2ccgzh7pLtDuvUI79eFP"
+    },
+    "BINANCE": {
+    "api_key": "KgW42pRCZLfnYiEL1Mzj827n0pjRkual0xvfSVKJDV8QOODezvIk9cUbNRtOqwJ2",
+    "api_secret": "HX4DYkInjP9k5ECFSXVRDajAUB0jD27DPsQIB8tmvRWg6nNQoUvOVwgtkPEw9O9l"
+    },
+ }

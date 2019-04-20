@@ -5,3 +5,4 @@ pandas
 ccxt
 functools32==3.2.3.post2
 ta-lib==0.4.17
+python-binance==0.7.1
