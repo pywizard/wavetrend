@@ -522,6 +522,7 @@ class ChartRunner(QtCore.QThread):
     current_trade_type = window_configs[self.tab_index].trade_type
     time_close = 0
     old_date = 0
+    date = 0
     new_data_retrieved = False
     force_redraw_chart = False # True means switched from tab
 
@@ -606,6 +607,8 @@ class ChartRunner(QtCore.QThread):
             new_data_retrieved = False
             if force_redraw_chart == True:
                 old_date = 0
+            else:
+                old_date = prices[-1][6]
             force_redraw_chart = False
             continue
 
@@ -889,7 +892,8 @@ class ChartRunner(QtCore.QThread):
               if return_value == 0:
                   break
               else:
-                  force_redraw_chart = True
+                  if time_close != 0 and time.time() >= time_close:
+                    force_redraw_chart = True
                   time.sleep(0.1)
 
           if do_break == True:
