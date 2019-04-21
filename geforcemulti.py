@@ -135,8 +135,6 @@ is_usdt = False
 if "BTC/USDT" in ticker:
   is_usdt = True
 
-markets = client.fetch_markets()
-
 class abstract():
   pass
 
@@ -386,11 +384,8 @@ class DataRunner:
     if exchange == "BITFINEX":
         if isinstance(msg, dict) and "chanId" in msg:
             self.bfx_chanid = msg["chanId"]
-            print("CHANNEL ID: " + str(self.bfx_chanid))
             return
         elif  self.bfx_chanid != -1  and isinstance(msg, list) and msg[0] == self.bfx_chanid:
-            import pprint
-            pprint.pprint(msg)
             self.websocket_alive_time = time.time()
             candle_time = time.time() // elapsed_table[self.timeframe_entered] * elapsed_table[self.timeframe_entered]
             candle = None
@@ -700,15 +695,15 @@ class ChartRunner(QtCore.QThread):
                 if low_list[i] < lowest_price:
                   lowest_price = low_list[i]            
               ###
-            
-            #ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
-            ax.set_ylim((lowest_price, highest_price))
 
             xl = ax.get_xlim()
             ax.set_xlim(date[start_x], xl[1])
 
+          #ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
+          ax.set_ylim((lowest_price - lowest_price*0.001, highest_price + highest_price*0.001))
+
           ticker = prices[-1][4]
-          ticker_formatted = str(ticker)
+          ticker_formatted = str(client.amount_to_precision(symbol, ticker))
           ticker_for_line = prices[-1][4]
           
           if "e-" in str(ticker) or "e+" in str(ticker):
@@ -736,8 +731,7 @@ class ChartRunner(QtCore.QThread):
 
           if first == True:
             price_line = ax.axhline(ticker_for_line, color='gray', linestyle="dotted", lw=.9)
-            decimal_places = str(ticker_formatted[::-1].find('.'))
-            annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker_for_line, ("%." + decimal_places + "f") % ticker, fontsize=7, color=white)
+            annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker_for_line, ticker_formatted, fontsize=7, color=white)
             annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
 
             self.CANVAS_GET_SIZE.emit(self.tab_index, annotation)
@@ -751,8 +745,7 @@ class ChartRunner(QtCore.QThread):
           else:
             price_line.set_ydata(ticker_for_line)
             
-            decimal_places = str(ticker_formatted[::-1].find('.'))
-            annotation.set_text(("%." + decimal_places + "f") % ticker)
+            annotation.set_text(ticker_formatted)
               
             annotation.set_y(ticker_for_line)
             annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
