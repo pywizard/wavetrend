@@ -8,8 +8,10 @@ class Bitfinex:
         self.api_secret = api_secret
         self.manager_candlestick = WssClient(self.api_key, self.api_secret)
         self.manager_depth = WssClient(self.api_key, self.api_secret)
+        self.manager_ticker = WssClient(self.api_key, self.api_secret)
         self.started_candlestick = False
         self.started_depth = False
+        self.started_ticker = False
 
     def start_candlestick_websocket(self, symbol, interval, callback):
         self.symbol = symbol.split("/")[0] + symbol.split("/")[1]
@@ -17,6 +19,19 @@ class Bitfinex:
         if self.started_candlestick == False:
             self.manager_candlestick.start()
             self.started_candlestick = True
+
+    def stop_candlestick_websocket(self):
+        self.manager_candlestick.close()
+
+    def start_ticker_websocket(self, symbol, callback):
+        self.symbol = symbol.split("/")[0] + symbol.split("/")[1]
+        self.manager_ticker.subscribe_to_ticker(symbol=self.symbol,callback=callback)
+        if self.started_ticker == False:
+            self.manager_ticker.start()
+            self.started_ticker = True
+
+    def stop_ticker_websocket(self):
+        self.manager_ticker.close()
 
     def stop_candlestick_websocket(self):
         self.manager_candlestick.close()

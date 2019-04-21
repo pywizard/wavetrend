@@ -350,11 +350,15 @@ class DataRunner:
     self.parent = parent
     self.timeframe_entered = timeframe_entered
     self.bfx_chanid = -1
+    self.bfx_chanid_ticker = -1
 
     if exchange == "BITFINEX":
         self.exchange_obj = exchanges.Bitfinex(api_key, api_secret)
+        self.exchange_obj.start_ticker_websocket(self.symbol, self.process_message_ticker)
+        self.websocket_ticker_alive_time = time.time()
         if timeframe_entered == "1d":
             self.timeframe_entered = "1D"
+        self.last_result = []
     elif exchange == "BINANCE":
         self.exchange_obj = exchanges.Binance(api_key, api_secret)
     self.exchange_obj.start_candlestick_websocket(self.symbol, self.timeframe_entered, self.process_message)
@@ -371,14 +375,47 @@ class DataRunner:
       self.exchange_obj.start_candlestick_websocket(self.symbol, self.timeframe_entered, self.process_message)
       self.websocket_alive_time = time.time()
 
+  def restart_ticker_websocket(self):
+      self.bfx_chanid_ticker = -1
+      self.exchange_obj.stop_ticker_websocket()
+      self.exchange_obj.start_ticker_websocket(self.symbol, self.process_message_ticker)
+      self.websocket_ticker_alive_time = time.time()
+
   def websocket_watch(self):
     while True:
         if self.kill_websocket_watch_thread == True:
             break
         if time.time() - self.websocket_alive_time > 60:
            self.restart_websocket()
-        else:
-           time.sleep(0.1)
+        if time.time() - self.websocket_ticker_alive_time > 60:
+           self.restart_ticker_websocket()
+        time.sleep(0.1)
+
+  def process_message_ticker(self, msg):
+      if exchange != "BITFINEX":
+          return
+
+      if isinstance(msg, dict) and "chanId" in msg:
+          self.bfx_chanid_ticker = msg["chanId"]
+          return
+      elif self.bfx_chanid_ticker != -1  and isinstance(msg, list) and msg[0] == self.bfx_chanid_ticker:
+          self.websocket_ticker_alive_time = time.time()
+          if not isinstance(msg[1], list):
+              return
+
+          if len(self.last_result) != 0:
+            result = copy.copy(self.last_result)
+            last_price = float(msg[1][6])
+            if last_price > result[3]: #high
+                result[3] = last_price
+            if last_price < result[4]: #low
+                result[4] = last_price
+            result[5] = last_price # close
+
+            with dqs[self.window_id].mutex:
+                dqs[self.window_id].queue.clear()
+            dqs[self.window_id].put(CHART_DATA_READY)
+            dqs[self.window_id].put(result)
 
   def process_message(self, msg):
     if exchange == "BITFINEX":
@@ -409,6 +446,7 @@ class DataRunner:
             volume = float(candle[5])
 
             result = [dt, time_close, open_, high, low, close, volume, 1]
+            self.last_result = copy.copy(result)
 
             with dqs[self.window_id].mutex:
                 dqs[self.window_id].queue.clear()
@@ -699,8 +737,13 @@ class ChartRunner(QtCore.QThread):
             xl = ax.get_xlim()
             ax.set_xlim(date[start_x], xl[1])
 
+
+          if prices[-1][4] > highest_price:
+              highest_price = prices[-1][4]
+          if prices[-1][4] < lowest_price:
+              lowest_price = prices[-1][4]
           #ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
-          ax.set_ylim((lowest_price - lowest_price*0.001, highest_price + highest_price*0.001))
+          ax.set_ylim((lowest_price - lowest_price*0.0015, highest_price + highest_price*0.0015))
 
           ticker = prices[-1][4]
           ticker_formatted = str(client.amount_to_precision(symbol, ticker))
@@ -1240,6 +1283,8 @@ class Window(QtGui.QMainWindow):
         DataRunnerTabs[winid].kill_websocket_watch_thread = True
         DataRunnerTabs[winid].websocket_watch_thread.join()
         DataRunnerTabs[winid].exchange_obj.stop_candlestick_websocket()
+        if hasattr(DataRunnerTabs[winid].exchange_obj, "stop_ticker_websocket"):
+            DataRunnerTabs[winid].exchange_obj.stop_ticker_websocket()
         del DataRunnerTabs[winid].exchange_obj
         del DataRunnerTabs[winid]
 
