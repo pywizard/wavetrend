@@ -3,6 +3,12 @@ warnings.filterwarnings("ignore")
 import matplotlib
 import matplotlib.style
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+import matplotlib.ticker as matplotlib_ticker
+from matplotlib.dates import date2num
+from matplotlib.lines import Line2D
+from matplotlib.patches import Rectangle
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 import ctypes
 from matplotlib.transforms import Bbox
 from matplotlib import cbook
@@ -11,11 +17,6 @@ from matplotlib.backends.backend_qt5 import (
     QtCore, QtGui, QtWidgets, _BackendQT5, FigureCanvasQT, FigureManagerQT,
     NavigationToolbar2QT, backend_version)
 from matplotlib.backends.qt_compat import QT_API
-from matplotlib.figure import Figure
-import matplotlib.ticker as matplotlib_ticker
-from matplotlib.dates import date2num
-from matplotlib.lines import Line2D
-from matplotlib.patches import Rectangle
 import sys
 import time
 import datetime
@@ -33,6 +34,61 @@ import decimal
 import random
 import functools
 import exchanges
+
+class FigureCanvas(FigureCanvasAgg, FigureCanvasQT):
+
+    def __init__(self, figure):
+        # Must pass 'figure' as kwarg to Qt base class.
+        super().__init__(figure=figure)
+
+    def paintEvent(self, event):
+        """Copy the image from the Agg canvas to the qt.drawable.
+        In Qt, all drawing should be done inside of here when a widget is
+        shown onscreen.
+        """
+        if self._update_dpi():
+            # The dpi update triggered its own paintEvent.
+            return
+        self._draw_idle()  # Only does something if a draw is pending.
+
+        # If the canvas does not have a renderer, then give up and wait for
+        # FigureCanvasAgg.draw(self) to be called.
+        if not hasattr(self, 'renderer'):
+            return
+
+        painter = QtGui.QPainter(self)
+
+        rect = event.rect()
+        left = rect.left()
+        top = rect.top()
+        width = rect.width()
+        height = rect.height()
+        # See documentation of QRect: bottom() and right() are off by 1, so use
+        # left() + width() and top() + height().
+        bbox = Bbox(
+            [[left, self.renderer.height - (top + height * self._dpi_ratio)],
+             [left + width * self._dpi_ratio, self.renderer.height - top]])
+        reg = self.copy_from_bbox(bbox)
+        buf = memoryview(reg)
+
+        # clear the widget canvas
+        painter.eraseRect(rect)
+
+        # pyqt5 supports Format_RGBA8888, qt4 doesn't, since we are using
+        # pyqt5 we don't convert the buf to argb32. this is much faster!
+        qimage = QtGui.QImage(buf, buf.shape[1], buf.shape[0],
+                              QtGui.QImage.Format_RGBA8888)
+        if hasattr(qimage, 'setDevicePixelRatio'):
+            # Not available on Qt4 or some older Qt5.
+            qimage.setDevicePixelRatio(self._dpi_ratio)
+        origin = QtCore.QPoint(left, top)
+        painter.drawImage(origin / self._dpi_ratio, qimage)
+
+        #self._draw_rect_callback(painter)
+
+        painter.end()
+
+matplotlib.backends.backend_qt5agg.FigureCanvasQTAgg = FigureCanvas
 
 config = {}
 exec(open("config.txt").read(), config)

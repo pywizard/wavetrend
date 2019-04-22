@@ -43,10 +43,16 @@ example command for installation:
 
 pip install ta_lib-0.4.17-cp27-cp27m-win_amd64.whl
 
+For the macOS installation first install homebrew,
+then install python inside homebrew and use this python
+including pip installation manager.
+To install ta-lib with brew type:
+brew install ta-lib
+
 RUNNING
 =====
 python geforcemulti.py
 
 SUPPORTED OPERATING SYSTEMS
 =====
-Linux, Windows
+Linux, Windows, macOS
