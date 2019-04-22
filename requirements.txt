@@ -1,8 +1,7 @@
 matplotlib==3.0.3
-PyQt4==4.11.4
+pyqt5
 numpy
 pandas
 ccxt
-functools32==3.2.3.post2
 ta-lib==0.4.17
 python-binance==0.7.1

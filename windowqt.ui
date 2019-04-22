@@ -13,6 +13,10 @@
   <property name="windowTitle">
    <string>Select coin from 24hr price change list</string>
   </property>
+  <property name="windowIcon">
+   <iconset>
+    <normaloff>logotop.png</normaloff>joker.gif</iconset>
+  </property>
   <widget class="QDialogButtonBox" name="buttonBox">
    <property name="geometry">
     <rect>

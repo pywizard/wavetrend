@@ -2,8 +2,7 @@ import warnings
 warnings.filterwarnings("ignore")
 import matplotlib
 import matplotlib.style
-matplotlib.use("QT4Agg")
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import ctypes
 from matplotlib.transforms import Bbox
 from matplotlib import cbook
@@ -20,7 +19,7 @@ from matplotlib.patches import Rectangle
 import sys
 import time
 import datetime
-from PyQt4 import QtGui, QtCore, uic
+from PyQt5 import QtGui, QtWidgets, QtCore, uic
 import traceback
 import copy
 import threading
@@ -34,76 +33,6 @@ import decimal
 import random
 import functools
 import exchanges
-
-class FigureCanvas(FigureCanvasAgg, FigureCanvasQT):
-
-    def __init__(self, figure):
-        # Must pass 'figure' as kwarg to Qt base class.
-        super().__init__(figure=figure)
-
-    def _unmultiplied_rgba8888_to_premultiplied_argb32(self, rgba8888):
-        """
-        Convert an unmultiplied RGBA8888 buffer to a premultiplied ARGB32 buffer.
-        """
-        if sys.byteorder == "little":
-            argb32 = np.take(rgba8888, [2, 1, 0, 3], axis=2)
-            rgb24 = argb32[..., :-1]
-            alpha8 = argb32[..., -1:]
-        else:
-            argb32 = np.take(rgba8888, [3, 0, 1, 2], axis=2)
-            alpha8 = argb32[..., :1]
-            rgb24 = argb32[..., 1:]
-        # Only bother premultiplying when the alpha channel is not fully opaque,
-        # as the cost is not negligible.  The unsafe cast is needed to do the
-        # multiplication in-place in an integer buffer.
-        #if alpha8.min() != 0xff: # XXX performance lagging
-        #    np.multiply(rgb24, alpha8 / 0xff, out=rgb24, casting="unsafe")
-        return argb32
-
-    def paintEvent(self, event):
-        """Copy the image from the Agg canvas to the qt.drawable.
-        In Qt, all drawing should be done inside of here when a widget is
-        shown onscreen.
-        """
-        if self._update_dpi():
-            # The dpi update triggered its own paintEvent.
-            return
-
-        # If the canvas does not have a renderer, then give up and wait for
-        # FigureCanvasAgg.draw(self) to be called.
-        if not hasattr(self, 'renderer'):
-            return
-
-        painter = QtGui.QPainter(self)
-
-        rect = event.rect()
-        left = rect.left()
-        top = rect.top()
-        width = rect.width()
-        height = rect.height()
-        # See documentation of QRect: bottom() and right() are off by 1, so use
-        # left() + width() and top() + height().
-
-        bbox = Bbox(
-            [[left, self.renderer.height - (top + height * self._dpi_ratio)],
-             [left + width * self._dpi_ratio, self.renderer.height - top]])
-
-        reg = self.copy_from_bbox(bbox)
-        buf = self._unmultiplied_rgba8888_to_premultiplied_argb32(memoryview(reg))
-
-        painter.eraseRect(rect)
-
-        qimage = QtGui.QImage(buf, buf.shape[1], buf.shape[0],
-                              QtGui.QImage.Format_ARGB32_Premultiplied)
-        if hasattr(qimage, 'setDevicePixelRatio'):
-            # Not available on Qt4 or some older Qt5.
-            qimage.setDevicePixelRatio(self._dpi_ratio)
-        origin = QtCore.QPoint(left, top)
-        painter.drawImage(origin / self._dpi_ratio, qimage)
-
-        painter.end()
-
-matplotlib.backends.backend_qt4agg.FigureCanvasQTAgg = FigureCanvas
 
 config = {}
 exec(open("config.txt").read(), config)
@@ -336,8 +265,8 @@ class MplCanvas(FigureCanvas):
         self.setParent(parent)
 
         FigureCanvas.setSizePolicy(self,
-                                   QtGui.QSizePolicy.Expanding,
-                                   QtGui.QSizePolicy.Expanding)
+                                   QtWidgets.QSizePolicy.Expanding,
+                                   QtWidgets.QSizePolicy.Expanding)
         FigureCanvas.updateGeometry(self)
 
 main_shown = False
@@ -522,7 +451,7 @@ class ChartRunner(QtCore.QThread):
     current_trade_type = window_configs[self.tab_index].trade_type
     time_close = 0
     old_date = 0
-    date = 0
+    date = None
     new_data_retrieved = False
     force_redraw_chart = False # True means switched from tab
 
@@ -1042,15 +971,15 @@ class UpdateUsdBalanceRunner(QtCore.QThread):
         
       time.sleep(35)
 
-class Window(QtGui.QMainWindow):
+class Window(QtWidgets.QMainWindow):
     global tab_widgets
     global config
     global window_ids
     def __init__(self, symbol, timeframe_entered):
         global selected_symbol
         global DataRunnerTabs
-        QtGui.QMainWindow.__init__(self)
-        resolution = QtGui.QDesktopWidget().screenGeometry()
+        QtWidgets.QMainWindow.__init__(self)
+        resolution = QtWidgets.QDesktopWidget().screenGeometry()
         uic.loadUi('mainwindowqt.ui', self)
         self.setWindowTitle("WAVETREND - " + exchange)
         self.setGeometry(0, 0, int(resolution.width()/1.1), int(resolution.height()/1.2))
@@ -1071,17 +1000,17 @@ class Window(QtGui.QMainWindow):
         window_configs[window_id].trade_type = TRADE_TYPE_TRENDING
         
         self.tabBar = self.tabWidget.tabBar()
-        tabBarMenu = QtGui.QMenu()
-        closeAction = QtGui.QAction("close", self)
+        tabBarMenu = QtWidgets.QMenu()
+        closeAction = QtWidgets.QAction("close", self)
         tabBarMenu.addAction(closeAction)
         closeAction.triggered.connect(functools.partial(self.removeTab, window_ids[0]))
-        menuButton = QtGui.QToolButton(self)
+        menuButton = QtWidgets.QToolButton(self)
         menuButton.setStyleSheet('border: 0px; padding: 0px;')
-        menuButton.setPopupMode(QtGui.QToolButton.InstantPopup)
+        menuButton.setPopupMode(QtWidgets.QToolButton.InstantPopup)
         menuButton.setMenu(tabBarMenu)
-        self.tabBar.setTabButton(0, QtGui.QTabBar.RightSide, menuButton)
+        self.tabBar.setTabButton(0, QtWidgets.QTabBar.RightSide, menuButton)
 
-        widget = QtGui.QHBoxLayout(self.tabWidget.widget(0))
+        widget = QtWidgets.QHBoxLayout(self.tabWidget.widget(0))
         self.OrderbookWidget = []
         OrderBookWidget_ = OrderBookWidget(self, symbol, 0)
         self.OrderbookWidget.append(OrderBookWidget_)
@@ -1239,7 +1168,7 @@ class Window(QtGui.QMainWindow):
         self.dcs[winid].fig.clf()
         aqs[winid].put(0)
 
-    @QtCore.pyqtSlot(str, dict, matplotlib.axes.Axes)
+    @QtCore.pyqtSlot(str, list, matplotlib.axes.Axes)
     def on_FIGURE_ADD_AXES(self, winid, position, sharex):
         global aqs
         axis = self.dcs[winid].fig.add_axes(position, facecolor=black, sharex=sharex)
@@ -1339,11 +1268,11 @@ class Window(QtGui.QMainWindow):
       global tab_current_index
       global DataRunnerTabs
 
-      self.tab_widgets.append(QtGui.QWidget())
+      self.tab_widgets.append(QtWidgets.QWidget())
       tab_index = self.tabWidget.addTab(self.tab_widgets[-1], symbol + " " + timeframe_entered)
       self.tabWidget.setCurrentWidget(self.tab_widgets[-1])
       main.tabWidget.setTabIcon(tab_index, QtGui.QIcon("coin.ico"))
-      widget = QtGui.QHBoxLayout(self.tabWidget.widget(tab_index))
+      widget = QtWidgets.QHBoxLayout(self.tabWidget.widget(tab_index))
 
       window_id = get_window_id()
       window_ids[tab_index] = window_id
@@ -1351,15 +1280,15 @@ class Window(QtGui.QMainWindow):
       window_configs[window_id].candle_type = CANDLE_TYPE_CANDLESTICK
       window_configs[window_id].trade_type = TRADE_TYPE_TRENDING
       
-      tabBarMenu = QtGui.QMenu()
-      closeAction = QtGui.QAction("close", self)
+      tabBarMenu = QtWidgets.QMenu()
+      closeAction = QtWidgets.QAction("close", self)
       tabBarMenu.addAction(closeAction)
       closeAction.triggered.connect(functools.partial(self.removeTab, window_ids[tab_index]))      
-      menuButton = QtGui.QToolButton(self)
+      menuButton = QtWidgets.QToolButton(self)
       menuButton.setStyleSheet('border: 0px; padding: 0px;')
-      menuButton.setPopupMode(QtGui.QToolButton.InstantPopup)
+      menuButton.setPopupMode(QtWidgets.QToolButton.InstantPopup)
       menuButton.setMenu(tabBarMenu)      
-      self.tabBar.setTabButton(tab_index, QtGui.QTabBar.RightSide, menuButton)
+      self.tabBar.setTabButton(tab_index, QtWidgets.QTabBar.RightSide, menuButton)
 
       OrderBookWidget_ = OrderBookWidget(self, symbol, tab_index)
       self.OrderbookWidget.append(OrderBookWidget_)
@@ -1401,10 +1330,10 @@ class Window(QtGui.QMainWindow):
       self.trade_dialog = TradeDialog(self)
       self.trade_dialog.show()
       
-class TradeDialog(QtGui.QDialog):
+class TradeDialog(QtWidgets.QDialog):
   def __init__(self, parent):
     self.parent = parent
-    QtGui.QDialog.__init__(self)
+    QtWidgets.QDialog.__init__(self)
     uic.loadUi('trade.ui', self)
     self.setFixedSize(713, 385)
     self.symbol = str(self.parent.tabWidget.tabText(self.parent.tabWidget.currentIndex())).split(" ")[0]
@@ -1578,13 +1507,13 @@ class TradeDialog(QtGui.QDialog):
     amount = truncate(float(self.editAmount2_3.text()), 2)
     self.editTotal2_3.setText("%.04f" % (amount * price))
 
-class Dialog(QtGui.QDialog):
+class Dialog(QtWidgets.QDialog):
     global config
     def __init__(self):
-        QtGui.QDialog.__init__(self)
+        QtWidgets.QDialog.__init__(self)
         uic.loadUi('windowqt.ui', self)
         self.setFixedSize(555, 575)
-        self.tableWidget.horizontalHeader().setResizeMode(QtGui.QHeaderView.Stretch)
+        self.tableWidget.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
         
         self.comboBox.addItem("1h")
         for key, value in client.timeframes.items():
@@ -1613,20 +1542,20 @@ class Dialog(QtGui.QDialog):
               coins_.append(coins[coin])
         coins = sorted(coins_, key=itemgetter("volumeFloat"), reverse=True)
         
-        self.tableWidget.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
+        self.tableWidget.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         
         for coin in coins:
           if coin["symbol"].endswith("BTC") or coin["symbol"].endswith("USDT") or coin["symbol"].endswith("USD"):
             rowPosition = self.tableWidget.rowCount() - 1
             self.tableWidget.insertRow(rowPosition)
-            self.tableWidget.setItem(rowPosition, 0, QtGui.QTableWidgetItem(coin["symbol"]))
+            self.tableWidget.setItem(rowPosition, 0, QtWidgets.QTableWidgetItem(coin["symbol"]))
             if "change" in coin and coin["change"]:
-              self.tableWidget.setItem(rowPosition, 1, QtGui.QTableWidgetItem(str("%.08f" % coin["change"])))
+              self.tableWidget.setItem(rowPosition, 1, QtWidgets.QTableWidgetItem(str("%.08f" % coin["change"])))
             if "percentage" in coin and coin["percentage"]:
-              self.tableWidget.setItem(rowPosition, 2, QtGui.QTableWidgetItem(str("%.02f" % coin["percentage"])))
+              self.tableWidget.setItem(rowPosition, 2, QtWidgets.QTableWidgetItem(str("%.02f" % coin["percentage"])))
             else:
-              self.tableWidget.setItem(rowPosition, 2, QtGui.QTableWidgetItem("unknown"))
-            self.tableWidget.setItem(rowPosition, 3, QtGui.QTableWidgetItem(str(coin["volumeFloat"])))
+              self.tableWidget.setItem(rowPosition, 2, QtWidgets.QTableWidgetItem(""))
+            self.tableWidget.setItem(rowPosition, 3, QtWidgets.QTableWidgetItem(str(coin["volumeFloat"])))
             if "change" in coin and coin["change"]:
               if float(coin["change"]) < 0:
                 self.tableWidget.item(rowPosition, 0).setForeground(QtGui.QColor(255,0,0))
@@ -1663,7 +1592,7 @@ class Dialog(QtGui.QDialog):
 def orderbook(exchange, symbol):
   return exchange.fetch_order_book(symbol)
 
-class OrderBookWidget(QtGui.QLabel):
+class OrderBookWidget(QtWidgets.QLabel):
     def __init__(self, parent, symbol, tab_index):
         super(OrderBookWidget,self).__init__(parent)
         self.parent = parent
@@ -1702,7 +1631,7 @@ class OrderBookWidget(QtGui.QLabel):
 
         if "bids" in msg:
             self.websocket_alive_time = time.time()
-            if QtGui.QApplication.activeWindow() != self.parent.window() or \
+            if QtWidgets.QApplication.activeWindow() != self.parent.window() or \
                     self.parent.tabWidget.currentIndex() != self.tab_index:
                 return
 
@@ -1743,7 +1672,7 @@ class OrderBookWidget(QtGui.QLabel):
 
     def init_orderbook_widget(self):
         self.setMinimumWidth(337)
-        newfont = QtGui.QFont("Courier New", 9, QtGui.QFont.Bold) 
+        newfont = QtGui.QFont("Courier New", 9, QtGui.QFont.Bold)
         self.setFont(newfont)
         self.setText("Orderbook Loading...")
         self.setStyleSheet("QLabel { background-color : #131D27; color : #C6C7C8; }")
@@ -1754,7 +1683,7 @@ class OrderBookWidget(QtGui.QLabel):
         self.exchange_obj.start_depth_websocket(self.symbol, self.process_message)
 
 if __name__ == "__main__":
-  app = QtGui.QApplication(sys.argv)
+  app = QtWidgets.QApplication(sys.argv)
   with open("style.qss","r") as fh:
     app.setStyleSheet(fh.read())
   dialog = Dialog()

@@ -43,16 +43,6 @@ example command for installation:
 
 pip install ta_lib-0.4.17-cp27-cp27m-win_amd64.whl
 
-Then choose the correct PyQT4 version from here:
-
-https://www.lfd.uci.edu/~gohlke/pythonlibs/
-
-For example the package PyQt4‑4.11.4‑cp27‑cp27m‑win_amd64.whl is for python 2.7 and Windows 64-Bits.
-
-Once downloaded, install the package:
-
-pip install PyQt4‑4.11.4‑cp27‑cp27m‑win_amd64.whl
-
 RUNNING
 =====
 python geforcemulti.py
