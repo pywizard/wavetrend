@@ -1291,7 +1291,7 @@ class Window(QtWidgets.QMainWindow):
         DataRunnerTabs[winid].kill_websocket_watch_thread = True
         DataRunnerTabs[winid].websocket_watch_thread.join()
         DataRunnerTabs[winid].exchange_obj.stop_candlestick_websocket()
-        if hasattr(DataRunnerTabs[winid].exchange_obj, "stop_ticker_websocket"):
+        if exchange == "BITFINEX":
             DataRunnerTabs[winid].exchange_obj.stop_ticker_websocket()
         del DataRunnerTabs[winid].exchange_obj
         del DataRunnerTabs[winid]
