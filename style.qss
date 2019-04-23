@@ -181,7 +181,7 @@ QMenu::icon {
 }
 
 QMenu::item {
-    padding: 5px 30px 5px 30px;
+    padding: 2px 5px 2px 5px;
     border: 1px solid transparent;
     /* reserve space for selection border */
 }
@@ -521,7 +521,7 @@ QPushButton {
     border-width: 1px;
     border-color: #76797C;
     border-style: solid;
-    padding: 5px;
+    padding: 1px;
     border-radius: 2px;
     outline: none;
 }
@@ -556,7 +556,7 @@ QToolButton {
     border-width: 1px;
     border-color: #76797C;
     border-style: solid;
-    padding: 5px;
+    padding: 1px;
     border-radius: 2px;
     outline: none;
 }
@@ -706,7 +706,7 @@ QTabWidget {
 
 QTabWidget::pane {
     border: 1px solid #76797C;
-    padding: 5px;
+    padding: 1px;
     margin: 0px;
 }
 
@@ -746,7 +746,7 @@ QTabBar::tab:top {
     border: 1px solid #76797C;
 /*    border-bottom: 1px transparent black; */
     background-color: #31363b;
-    padding: 5px;
+    padding: 1px;
     min-width: 50px;
     border-top-left-radius: 2px;
     border-top-right-radius: 2px;
@@ -1124,7 +1124,7 @@ QTableCornerButton::section {
 }
 
 QToolBox {
-    padding: 5px;
+    padding: 1px;
     border: 1px transparent black;
 }
 
