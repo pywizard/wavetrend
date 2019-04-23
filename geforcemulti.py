@@ -1684,27 +1684,36 @@ class OrderBookWidget(QtWidgets.QLabel):
     def get_book_str(self, bids_, asks_):
         strs = []
 
-        maxlen = 0
+        maxlen_price = 0
+        maxlen_amount = 0
         for bid in bids_:
-            bid_strlen = len(str(client.price_to_precision(self.symbol, bid[0])))
-            if  bid_strlen > maxlen:
-                maxlen = bid_strlen
-        maxlen = maxlen + 2
+            bid_price_strlen = len(str(client.price_to_precision(self.symbol, bid[0])))
+            bid_amount_strlen = len(str(client.amount_to_precision(self.symbol, bid[1])))
+            if bid_price_strlen > maxlen_price:
+                maxlen_price = bid_price_strlen
+            if bid_amount_strlen > maxlen_amount:
+                maxlen_amount = bid_amount_strlen
 
-        strs.append("BIDS" + " " * int(maxlen*2.5) + "ASKS\n")
+        strs.append("")
+        strs.append("")
 
+        char_offset = 0
         for bid in bids_:
             try:
                 ask = asks_.pop()
                 ask[1] = str(client.amount_to_precision(self.symbol, ask[1]))
                 ask[0] = str(client.price_to_precision(self.symbol, ask[0]))
-                asks = ask[0] + " " * (maxlen-len(str(ask[0]))) + str(ask[1])
+                asks = ask[0] + " " * (maxlen_price-len(str(ask[0]))) + "  " + str(ask[1])
             except:
                 asks = ""
 
             bid[0] = str(client.price_to_precision(self.symbol, bid[0]))
             bid[1] = str(client.amount_to_precision(self.symbol, bid[1]))
-            strs.append(bid[0] + " " * (maxlen-len(bid[0])) + bid[1] + " " * 4  + " " * (maxlen - len(bid[1])) + asks)
+            strs.append(bid[0] + " " * (maxlen_price-len(bid[0])) + "  "  + bid[1] + " " * 4  + " " * (maxlen_amount-len(bid[1])) + asks)
+            char_offset = len(bid[0] + " " * (maxlen_price - len(bid[0])) + "  " + bid[1] + " " * 4 + " " * (
+                        maxlen_amount - len(bid[1]))) - 4
+
+        strs[0] = "BIDS" + " " * char_offset + "ASKS"
 
         bookstr = ""
         for s in strs:
