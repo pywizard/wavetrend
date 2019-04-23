@@ -93,10 +93,21 @@ matplotlib.backends.backend_qt5agg.FigureCanvasQTAgg = FigureCanvas
 config = {}
 exec(open("config.txt").read(), config)
 
-exchanges_keys = list(config["exchanges"].copy().keys())
-exchange = exchanges_keys[0]
-api_key = config["exchanges"][exchanges_keys[0]]["api_key"]
-api_secret = config["exchanges"][exchanges_keys[0]]["api_secret"]
+exchanges_ = config["exchanges"].copy()
+
+active_count = 0
+exchange = ""
+for exchange_name in exchanges_:
+    if exchanges_[exchange_name]["active"] == True:
+        exchange = exchange_name
+        api_key = config["exchanges"][exchange_name]["api_key"]
+        api_secret = config["exchanges"][exchange_name]["api_secret"]
+        active_count = active_count + 1
+
+if active_count > 1 or active_count == 0:
+    print("Please configure a valid Exchange.")
+    print("One exchange must be configured active.")
+    sys.exit(1)
 
 if exchange == "BITFINEX":
   client = ccxt.bitfinex2({
@@ -115,6 +126,7 @@ else:
   print("Please configure a valid Exchange.")
   sys.exit(1)
 
+markets = client.fetch_markets()
 ticker = client.fetch_tickers()
 is_usdt = False
 if "BTC/USDT" in ticker:
@@ -329,6 +341,7 @@ main_shown = False
 
 class DataRunner:
   def __init__(self, parent, symbol, window_id, tab_index, timeframe_entered):
+    global markets
     self.symbol = symbol
     self.window_id = window_id
     self.tab_index = tab_index
@@ -338,14 +351,14 @@ class DataRunner:
     self.bfx_chanid_ticker = -1
 
     if exchange == "BITFINEX":
-        self.exchange_obj = exchanges.Bitfinex(api_key, api_secret)
+        self.exchange_obj = exchanges.Bitfinex(markets, api_key, api_secret)
         self.exchange_obj.start_ticker_websocket(self.symbol, self.process_message_ticker)
         self.websocket_ticker_alive_time = time.time()
         if timeframe_entered == "1d":
             self.timeframe_entered = "1D"
         self.last_result = []
     elif exchange == "BINANCE":
-        self.exchange_obj = exchanges.Binance(api_key, api_secret)
+        self.exchange_obj = exchanges.Binance(markets, api_key, api_secret)
     self.exchange_obj.start_candlestick_websocket(self.symbol, self.timeframe_entered, self.process_message)
 
     self.kill_websocket_watch_thread = False
@@ -372,8 +385,9 @@ class DataRunner:
             break
         if time.time() - self.websocket_alive_time > 60:
            self.restart_websocket()
-        if time.time() - self.websocket_ticker_alive_time > 60:
-           self.restart_ticker_websocket()
+        if exchange == "BITFINEX":
+            if time.time() - self.websocket_ticker_alive_time > 60:
+               self.restart_ticker_websocket()
         time.sleep(0.1)
 
   def process_message_ticker(self, msg):
@@ -411,9 +425,10 @@ class DataRunner:
             self.websocket_alive_time = time.time()
             candle_time = time.time() // elapsed_table[self.timeframe_entered] * elapsed_table[self.timeframe_entered]
             candle = None
-            if isinstance(msg[1][0], list):
+
+            if isinstance(msg[1], list) and len(msg[1]) > 0 and isinstance(msg[1][0], list) and len(msg[1][0]) > 0:
                 candle = msg[1][0]
-            elif isinstance(msg[1], list):
+            elif isinstance(msg[1], list) and len(msg[1]) > 0:
                 candle = msg[1]
             else:
                 return
@@ -737,7 +752,7 @@ class ChartRunner(QtCore.QThread):
           ax.set_ylim((lowest_price - lowest_price*0.0015, highest_price + highest_price*0.0015))
 
           ticker = prices[-1][4]
-          ticker_formatted = str(client.amount_to_precision(symbol, ticker))
+          ticker_formatted = str(client.price_to_precision(symbol, ticker))
           ticker_for_line = prices[-1][4]
           
           if "e-" in str(ticker) or "e+" in str(ticker):
@@ -1661,6 +1676,41 @@ class OrderBookWidget(QtWidgets.QLabel):
         self.websocket_watch_thread = threading.Thread(target=self.websocket_watch)
         self.websocket_watch_thread.daemon = True
         self.websocket_watch_thread.start()
+        self.bfx_chanid = -1
+        self.bfx_orderbook = {}
+        self.bfx_orderbook["bids"] = {}
+        self.bfx_orderbook["asks"] = {}
+
+    def get_book_str(self, bids_, asks_):
+        strs = []
+
+        maxlen = 0
+        for bid in bids_:
+            bid_strlen = len(str(client.price_to_precision(self.symbol, bid[0])))
+            if  bid_strlen > maxlen:
+                maxlen = bid_strlen
+        maxlen = maxlen + 2
+
+        strs.append("BIDS" + " " * int(maxlen*2.5) + "ASKS\n")
+
+        for bid in bids_:
+            try:
+                ask = asks_.pop()
+                ask[1] = str(client.amount_to_precision(self.symbol, ask[1]))
+                ask[0] = str(client.price_to_precision(self.symbol, ask[0]))
+                asks = ask[0] + " " * (maxlen-len(str(ask[0]))) + str(ask[1])
+            except:
+                asks = ""
+
+            bid[0] = str(client.price_to_precision(self.symbol, bid[0]))
+            bid[1] = str(client.amount_to_precision(self.symbol, bid[1]))
+            strs.append(bid[0] + " " * (maxlen-len(bid[0])) + bid[1] + " " * 4  + " " * (maxlen - len(bid[1])) + asks)
+
+        bookstr = ""
+        for s in strs:
+            bookstr = bookstr + s + "\n"
+
+        return bookstr
 
     def restart_websocket(self):
         self.exchange_obj.stop_depth_websocket()
@@ -1678,7 +1728,55 @@ class OrderBookWidget(QtWidgets.QLabel):
 
     def process_message(self, msg):
         if exchange == "BITFINEX":
-            self.websocket_alive_time = time.time()
+            if isinstance(msg, dict) and "chanId" in msg:
+                self.websocket_alive_time = time.time()
+                self.bfx_orderbook = {}
+                self.bfx_orderbook["bids"] = {}
+                self.bfx_orderbook["asks"] = {}
+                self.bfx_chanid = msg["chanId"]
+                return
+            elif self.bfx_chanid != -1 and isinstance(msg, list) and msg[0] == self.bfx_chanid:
+                self.websocket_alive_time = time.time()
+
+                if isinstance(msg[1], list) and len(msg[1]) > 0 and isinstance(msg[1][0], list) and len(msg[1][0]) > 0:
+                    #create in memory orderbook
+                    for order in msg[1]:
+                        price = float(order[0])
+                        count = int(order[1])
+                        amount = float(order[2])
+                        if amount > 0:
+                            self.bfx_orderbook["bids"][price] = [count, amount]
+                        else:
+                            self.bfx_orderbook["asks"][price] = [count, amount * -1]
+                elif isinstance(msg[1], list) and len(msg[1]) > 0:
+                    #update in memory orderbook
+                    order = msg[1]
+                    price = float(order[0])
+                    count = int(order[1])
+                    amount = float(order[2])
+
+                    if count == 0:
+                        if amount == 1:
+                            del self.bfx_orderbook["bids"][price]
+                        elif amount == -1:
+                            del self.bfx_orderbook["asks"][price]
+                    elif count > 0:
+                        if amount > 0:
+                            self.bfx_orderbook["bids"][price] = [count, amount]
+                        elif amount < 0:
+                            self.bfx_orderbook["asks"][price] = [count, amount * -1]
+                else:
+                    return
+
+            bids = []
+            asks = []
+            for order in sorted(self.bfx_orderbook["bids"], reverse=True):
+                bids.append([order, self.bfx_orderbook["bids"][order][1]])
+            for order in sorted(self.bfx_orderbook["asks"], reverse=True):
+                asks.append([order, self.bfx_orderbook["asks"][order][1]])
+
+            bookstr = self.get_book_str(bids, asks)
+            self.setText(bookstr)
             return
 
         if "e" in msg and msg["e"] == "error":
@@ -1687,55 +1785,28 @@ class OrderBookWidget(QtWidgets.QLabel):
 
         if "bids" in msg:
             self.websocket_alive_time = time.time()
-            if QtWidgets.QApplication.activeWindow() != self.parent.window() or \
-                    self.parent.tabWidget.currentIndex() != self.tab_index:
+
+            if self.parent.tabWidget.currentIndex() != self.tab_index:
                 return
 
             bids_ = msg["bids"]
             asks_ = msg["asks"]
 
-            strs = []
-            for bid in bids_:
-                try:
-                    ask = asks_.pop()
-                    if not self.symbol.endswith("BTC"):
-                        if self.symbol == "BTC/USDT":
-                            ask[0] = "%.2f" % float(ask[0])
-                        else:
-                            ask[0] = "%.4f" % float(ask[0])
-                        asks = str(ask[0]) + " " * (9 - len(str(ask[0]))) + str(ask[1])
-                    else:
-                        ask[1] = "%.2f" % float(ask[1])
-                        asks = "%.8f" % float(ask[0]) + " " * (10 - len(str(ask[1]))) + str(ask[1])
-                except:
-                    asks = ""
-                if not self.symbol.endswith("BTC"):
-                    if self.symbol == "BTC/USDT":
-                        bid[0] = "%.2f" % float(bid[0])
-                    else:
-                        bid[0] = "%.4f" % float(bid[0])
-                    strs.append(str(bid[0]) + " " * (9 - len(str(bid[0]))) + str(bid[1]) + "\t" + asks)
-                else:
-                    bid[1] = "%.2f" % float(bid[1])
-                    strs.append("%.8f" % float(bid[0]) + " " + " " * (
-                                10 - len(str(bid[1]))) + str(bid[1]) + "\t" + asks)
-
-            bookstr = ""
-            for s in strs:
-                bookstr = bookstr + s + "\n"
-
+            bookstr = self.get_book_str(bids_, asks_)
             self.setText(bookstr)
+            return
 
     def init_orderbook_widget(self):
+        global markets
         self.setMinimumWidth(337)
-        newfont = QtGui.QFont("Courier New", 9, QtGui.QFont.Bold)
+        newfont = QtGui.QFont("Courier New")
         self.setFont(newfont)
         self.setText("Orderbook Loading...")
         self.setStyleSheet("QLabel { background-color : #131D27; color : #C6C7C8; }")
         if exchange == "BITFINEX":
-            self.exchange_obj = exchanges.Bitfinex(api_key, api_secret)
+            self.exchange_obj = exchanges.Bitfinex(markets, api_key, api_secret)
         elif exchange == "BINANCE":
-            self.exchange_obj = exchanges.Binance(api_key, api_secret)
+            self.exchange_obj = exchanges.Binance(markets, api_key, api_secret)
         self.exchange_obj.start_depth_websocket(self.symbol, self.process_message)
 
 if __name__ == "__main__":
