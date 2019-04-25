@@ -628,11 +628,11 @@ class ChartRunner(QtCore.QThread):
             if not (init == False and exchange == "BITFINEX" and new_data_retrieved == False):
                 prices[-1] = [date2num(date2), open2_, high2, low2, close2, vol2, date2]
 
-          if ((first == False and time.time() > time_close)  \
-            or current_candle_type != candle_type or current_trade_type != trade_type):
+          hotkeys_pressed = current_candle_type != candle_type or current_trade_type != trade_type
+          if hotkeys_pressed == True:
               force_redraw_chart = True
 
-          if (first == False and force_redraw_chart == True):
+          if first == False and (force_redraw_chart == True or time.time() > time_close):
             self.FIGURE_CLEAR.emit(self.tab_index)
             aqs[self.tab_index].get()
             first = True
@@ -643,7 +643,8 @@ class ChartRunner(QtCore.QThread):
             indicator_axes[:] = []
             current_candle_type = candle_type
             current_trade_type = trade_type
-            new_data_retrieved = False
+            if not hotkeys_pressed:
+                new_data_retrieved = False
             if force_redraw_chart == True:
                 old_date = 0
             else:
