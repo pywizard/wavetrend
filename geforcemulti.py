@@ -1827,6 +1827,9 @@ class OrderBookWidget(QtWidgets.QLabel):
                 else:
                     return
 
+            if self.parent.tabWidget.currentIndex() != self.tab_index:
+                return
+
             bids = []
             asks = []
             for order in sorted(self.bfx_orderbook["bids"], reverse=True):
