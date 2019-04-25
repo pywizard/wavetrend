@@ -660,11 +660,19 @@ class ChartRunner(QtCore.QThread):
 
           start_x = 0
           indicator_axes_count = 0
+
+          pdate = [x[0] for x in prices]
+          popen = [x[1] for x in prices]
+          phigh = [x[2] for x in prices]
+          plow = [x[3] for x in prices]
+          pclose = [x[4] for x in prices]
+          pvol = [x[5] for x in prices]
+
           for indicator in indicators:
             if first == True:
-              indicator.generate_values(open_, high, low, close, vol)
+              indicator.generate_values(popen, phigh, plow, pclose, pvol)
               if indicator.overlay_chart:
-                indicator.plot_once(ax, dates2)
+                indicator.plot_once(ax, pdate)
               else:
                 indicator_axes_count += 1
                 rows = 0
@@ -703,14 +711,9 @@ class ChartRunner(QtCore.QThread):
                 new_ax.tick_params(axis='y', colors=white)
                 indicator_axes.append(new_ax)
                 indicator_update_time = time.time()
-                indicator.plot_once(new_ax, dates2)
+                indicator.plot_once(new_ax, pdate)
             else:
-              open_[-1] = open2_
-              high[-1] = high2
-              low[-1] = low2
-              close[-1] = close2
-              vol[-1] = vol2
-              indicator.generate_values(open_, high, low, close, vol)
+              indicator.generate_values(popen, phigh, plow, pclose, pvol)
               if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or current_trade_type != trade_type:
                 indicator.update()              
             
@@ -724,13 +727,13 @@ class ChartRunner(QtCore.QThread):
           if current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
             ### Heikin Ashi
             if first == True:  
-              date_list    = range(0, len(open_))
-              open_list    = copy.deepcopy(open_)
-              close_list   = copy.deepcopy(close)
-              high_list    = copy.deepcopy(high)
-              low_list     = copy.deepcopy(low)
-              volume_list  = copy.deepcopy(vol)
-              elements        = len(open_)
+              date_list    = range(0, len(popen))
+              open_list    = copy.deepcopy(popen)
+              close_list   = copy.deepcopy(pclose)
+              high_list    = copy.deepcopy(phigh)
+              low_list     = copy.deepcopy(plow)
+              volume_list  = copy.deepcopy(pvol)
+              elements        = len(popen)
 
               for i in range(1, elements):
                   close_list[i] = (open_list[i] + close_list[i] + high_list[i] + low_list[i])/4
@@ -743,11 +746,11 @@ class ChartRunner(QtCore.QThread):
               for i in range(0, len(date)):
                   prices2.append((date2num(date[i]), open_list[i], high_list[i], low_list[i], close_list[i], volume_list[i], date[i]))
             else:
-              open_list[-1]    = open_[-1]
-              close_list[-1]   = close[-1]
-              high_list[-1]    = high[-1]
-              low_list[-1]     = low[-1]
-              volume_list[-1]  = vol[-1]
+              open_list[-1]    = popen[-1]
+              close_list[-1]   = pclose[-1]
+              high_list[-1]    = phigh[-1]
+              low_list[-1]     = plow[-1]
+              volume_list[-1]  = pvol[-1]
               
               close_list[-1] = (open_list[-1] + close_list[-1] + high_list[-1] + low_list[-1])/4
               open_list[-1]  = (open_list[-2] + close_list[-2])/2
@@ -914,6 +917,13 @@ class ChartRunner(QtCore.QThread):
             legend = ax.legend(frameon=False,loc="upper left", fontsize="medium")
             for text in legend.get_texts():
               text.set_color(grayscale_lighter)
+
+          pdate[:] = []
+          popen[:] = []
+          phigh[:] = []
+          plow[:] = []
+          pclose[:] = []
+          pvol[:] = []
 
           first = False
 
