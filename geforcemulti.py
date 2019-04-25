@@ -445,11 +445,11 @@ class DataRunner:
           if len(self.last_result) != 0:
             result = copy.copy(self.last_result)
             last_price = float(msg[1][6])
-            if last_price > result[3]: #high
+            if last_price > result[2]: #high
+                result[2] = last_price
+            if last_price < result[3]: #low
                 result[3] = last_price
-            if last_price < result[4]: #low
-                result[4] = last_price
-            result[5] = last_price # close
+            result[4] = last_price # close
 
             with dqs[self.window_id].mutex:
                 dqs[self.window_id].queue.clear()
@@ -477,7 +477,6 @@ class DataRunner:
                 return
 
             dt = datetime.datetime.fromtimestamp(float(candle[0]) / 1000)
-            time_close = (float(candle[0]) / 1000) + elapsed_table[self.timeframe_entered]
 
             open_ = float(candle[1])
             high = float(candle[3])
@@ -485,7 +484,7 @@ class DataRunner:
             close = float(candle[2])
             volume = float(candle[5])
 
-            result = [dt, time_close, open_, high, low, close, volume, 1]
+            result = [dt, open_, high, low, close, volume, 1]
             self.last_result = copy.copy(result)
 
             with dqs[self.window_id].mutex:
@@ -506,9 +505,8 @@ class DataRunner:
             close = float(msg["k"]["c"])
             volume = float(msg["k"]["v"])
             dt = datetime.datetime.fromtimestamp(msg["k"]["t"] / 1000)
-            time_close = msg["k"]["T"] / 1000
 
-            result = [dt, time_close, open_, high, low, close, volume, 1]
+            result = [dt, open_, high, low, close, volume, 1]
 
             with dqs[self.window_id].mutex:
                 dqs[self.window_id].queue.clear()
@@ -560,7 +558,6 @@ class ChartRunner(QtCore.QThread):
     indicator_update_time = 0
     current_candle_type = window_configs[self.tab_index].candle_type
     current_trade_type = window_configs[self.tab_index].trade_type
-    time_close = 0
     old_date = 0
     date = None
     new_data_retrieved = False
@@ -583,14 +580,14 @@ class ChartRunner(QtCore.QThread):
 
           if first == True:
             date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol, False)
+            time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
+                         elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
           else:
             self.RETRIEVE_CHART_DATA.emit(self.tab_index)
             chart_result = aqs[self.tab_index].get()
             if chart_result != 0:
-              [date2, time_close2, open2_, high2, low2, close2, vol2, limit2] = chart_result
-              [date3, time_close3, open3_, high3, low3, close3, vol3, limit3] = chart_result
-              if time_close == 0:
-                  time_close = time_close2
+              [date2, open2_, high2, low2, close2, vol2, limit2] = chart_result
+              [date3, open3_, high3, low3, close3, vol3, limit3] = chart_result
               new_data_retrieved = True
             else:
               try:
@@ -598,25 +595,26 @@ class ChartRunner(QtCore.QThread):
               except (NameError, UnboundLocalError) as e:
                 try:
                  date3
-                 [date2, time_close2, open2_, high2, low2, close2, vol2, limit2] = [date3, time_close3, open3_,
-                                                                                    high3, low3, close3,
-                                                                                    vol3, limit3]
-                 if time_close == 0:
-                    time_close = time_close3
+                 [date2, open2_, high2, low2, close2, vol2, limit2] = [date3, open3_,
+                                                                              high3, low3, close3,
+                                                                              vol3, limit3]
                 except (NameError, UnboundLocalError) as e:
-                    [date2, time_close2, open2_, high2, low2, close2, vol2, limit2] = \
-                        [date[-1], time_close, open_[-1], high[-1], low[-1], close[-1], vol[-1], limit]
+                    [date2, open2_, high2, low2, close2, vol2, limit2] = \
+                        [date[-1], open_[-1], high[-1], low[-1], close[-1], vol[-1], limit]
 
           if first == True:
             self.FIGURE_ADD_SUBPLOT.emit(self.tab_index, 111, None)
             ax = aqs[self.tab_index].get()
 
             if init == False and exchange == "BITFINEX" and date[-1] == old_date:
-                candle_time_dt = datetime.datetime.fromtimestamp(next_candle_time)
                 prices[:] = []
                 for i in range(1, len(date)):
                     prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
+
+                candle_time_dt = datetime.datetime.fromtimestamp(datetime.datetime.timestamp(date[-1]) + elapsed_table[self.timeframe_entered])
                 prices.append((date2num(candle_time_dt), close[-1], close[-1], close[-1], close[-1], 0, candle_time_dt))
+                time_close = (datetime.datetime.timestamp(candle_time_dt) // elapsed_table[self.timeframe_entered] * \
+                             elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
             else:
                 prices[:] = []
                 for i in range(0, len(date)):
@@ -630,7 +628,7 @@ class ChartRunner(QtCore.QThread):
             if not (init == False and exchange == "BITFINEX" and new_data_retrieved == False):
                 prices[-1] = [date2num(date2), open2_, high2, low2, close2, vol2, date2]
 
-          if (first == False and force_redraw_chart == True) or ((first == False and time_close != 0 and time.time() >= time_close)  \
+          if (first == False and force_redraw_chart == True) or ((first == False and time.time() > time_close)  \
             or current_candle_type != candle_type or current_trade_type != trade_type):
             self.FIGURE_CLEAR.emit(self.tab_index)
             aqs[self.tab_index].get()
@@ -642,8 +640,6 @@ class ChartRunner(QtCore.QThread):
             indicator_axes[:] = []
             current_candle_type = candle_type
             current_trade_type = trade_type
-            time_close = 0
-            next_candle_time = time.time() // elapsed_table[self.timeframe_entered] * elapsed_table[self.timeframe_entered]
             new_data_retrieved = False
             if force_redraw_chart == True:
                 old_date = 0
@@ -932,7 +928,7 @@ class ChartRunner(QtCore.QThread):
               if return_value == 0:
                   break
               else:
-                  if time_close != 0 and time.time() >= time_close:
+                  if time.time() > time_close:
                     force_redraw_chart = True
                   time.sleep(0.1)
 
