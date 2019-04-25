@@ -1730,6 +1730,7 @@ class OrderBookWidget(QtWidgets.QLabel):
         self.bfx_orderbook = {}
         self.bfx_orderbook["bids"] = {}
         self.bfx_orderbook["asks"] = {}
+        self.orderbook_time_shown = 0
 
     def get_book_str(self, bids_, asks_):
         strs = []
@@ -1830,6 +1831,9 @@ class OrderBookWidget(QtWidgets.QLabel):
             if self.parent.tabWidget.currentIndex() != self.tab_index:
                 return
 
+            if self.orderbook_time_shown != 0 and time.time() - self.orderbook_time_shown < 1:
+                return
+
             bids = []
             asks = []
             for order in sorted(self.bfx_orderbook["bids"], reverse=True):
@@ -1839,6 +1843,8 @@ class OrderBookWidget(QtWidgets.QLabel):
 
             bookstr = self.get_book_str(bids, asks)
             self.setText(bookstr)
+
+            self.orderbook_time_shown = time.time()
             return
 
         if "e" in msg and msg["e"] == "error":
@@ -1851,11 +1857,15 @@ class OrderBookWidget(QtWidgets.QLabel):
             if self.parent.tabWidget.currentIndex() != self.tab_index:
                 return
 
+            if self.orderbook_time_shown != 0 and time.time() - self.orderbook_time_shown < 1:
+                return
+
             bids_ = msg["bids"]
             asks_ = msg["asks"]
 
             bookstr = self.get_book_str(bids_, asks_)
             self.setText(bookstr)
+            self.orderbook_time_shown = time.time()
             return
 
     def init_orderbook_widget(self):
