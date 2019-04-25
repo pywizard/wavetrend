@@ -336,7 +336,6 @@ aqs = {}
 dqs = {}
 qs_local = Queue.Queue()
 
-CHART_DATA_READY = 1
 SHOW_STATUSBAR_MESSAGE = 0
 CANDLE_TYPE_CANDLESTICK = 0
 CANDLE_TYPE_HEIKIN_ASHI = 1
@@ -453,7 +452,6 @@ class DataRunner:
 
             with dqs[self.window_id].mutex:
                 dqs[self.window_id].queue.clear()
-            dqs[self.window_id].put(CHART_DATA_READY)
             dqs[self.window_id].put(result)
 
   def process_message(self, msg):
@@ -489,7 +487,6 @@ class DataRunner:
 
             with dqs[self.window_id].mutex:
                 dqs[self.window_id].queue.clear()
-            dqs[self.window_id].put(CHART_DATA_READY)
             dqs[self.window_id].put(result)
 
     elif exchange == "BINANCE":
@@ -510,11 +507,9 @@ class DataRunner:
 
             with dqs[self.window_id].mutex:
                 dqs[self.window_id].queue.clear()
-            dqs[self.window_id].put(CHART_DATA_READY)
             dqs[self.window_id].put(result)
 
 class ChartRunner(QtCore.QThread):
-  RETRIEVE_CHART_DATA = QtCore.pyqtSignal(str)
   FIGURE_ADD_SUBPLOT = QtCore.pyqtSignal(str, int, object)
   FIGURE_CLEAR = QtCore.pyqtSignal(str)
   FIGURE_ADD_AXES = QtCore.pyqtSignal(str, list, object)
@@ -583,8 +578,10 @@ class ChartRunner(QtCore.QThread):
             time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
                          elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
           else:
-            self.RETRIEVE_CHART_DATA.emit(self.tab_index)
-            chart_result = aqs[self.tab_index].get()
+            if dqs[self.tab_index].empty() == False:
+                chart_result = dqs[self.tab_index].get()
+            else:
+                chart_result = 0
             if chart_result != 0:
               [date2, open2_, high2, low2, close2, vol2, limit2] = chart_result
               [date3, open3_, high3, low3, close3, vol3, limit3] = chart_result
@@ -945,6 +942,7 @@ class ChartRunner(QtCore.QThread):
                   if time.time() > time_close:
                     force_redraw_chart = True
                   time.sleep(0.1)
+                  update_time = time.time() - 1
 
           if do_break == True:
             break
@@ -1153,7 +1151,6 @@ class Window(QtWidgets.QMainWindow):
         DataRunnerTabs[window_id] = DataRunner(self, symbol, window_id, 0, timeframe_entered)
 
         self.chart_runner_thread = ChartRunner(self, symbol, window_id, timeframe_entered)
-        self.chart_runner_thread.RETRIEVE_CHART_DATA.connect(self.on_RETRIEVE_CHART_DATA)
         self.chart_runner_thread.FIGURE_ADD_SUBPLOT.connect(self.on_FIGURE_ADD_SUBPLOT)
         self.chart_runner_thread.FIGURE_CLEAR.connect(self.on_FIGURE_CLEAR)
         self.chart_runner_thread.FIGURE_ADD_AXES.connect(self.on_FIGURE_ADD_AXES)
@@ -1264,18 +1261,6 @@ class Window(QtWidgets.QMainWindow):
      if str(key) == "16777272": # F9 pressed
       self.tabWidget.setCurrentIndex(8)
       return
-
-    @QtCore.pyqtSlot(str)
-    def on_RETRIEVE_CHART_DATA(self, winid):
-        global aqs
-        if winid in dqs:
-                if dqs[winid].qsize() > 0:
-                    value = dqs[winid].get()
-                    if value == CHART_DATA_READY:
-                        chart_result = dqs[winid].get()
-                        aqs[winid].put(chart_result)
-                else:
-                    aqs[winid].put(0)
 
     @QtCore.pyqtSlot(str, int, matplotlib.axes.Axes)
     def on_FIGURE_ADD_SUBPLOT(self, winid, rows, sharex):
@@ -1432,7 +1417,6 @@ class Window(QtWidgets.QMainWindow):
       tab_current_index = window_id
 
       self.chart_runner_thread = ChartRunner(self, symbol, window_id, timeframe_entered)
-      self.chart_runner_thread.RETRIEVE_CHART_DATA.connect(self.on_RETRIEVE_CHART_DATA)
       self.chart_runner_thread.FIGURE_ADD_SUBPLOT.connect(self.on_FIGURE_ADD_SUBPLOT)
       self.chart_runner_thread.FIGURE_CLEAR.connect(self.on_FIGURE_CLEAR)
       self.chart_runner_thread.FIGURE_ADD_AXES.connect(self.on_FIGURE_ADD_AXES)
