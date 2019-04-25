@@ -172,6 +172,8 @@ is_usdt = False
 if "BTC/USDT" in ticker:
   is_usdt = True
 
+matplotlib.rcParams['font.family'] = 'monospace'
+
 class abstract():
   pass
 
@@ -837,8 +839,7 @@ class ChartRunner(QtCore.QThread):
             tbox = aqs[tab_index].get()
 
             dbox = tbox.transformed(ax.transData.inverted())
-            y0 = dbox.height
-            annotation.set_y(ticker_for_line + y0)
+            annotation.set_y(ticker_for_line)
             annotation.set_bbox(dict(facecolor=color, edgecolor=white, lw=.5))
           else:
             color = "#2c681d" # green
@@ -855,7 +856,7 @@ class ChartRunner(QtCore.QThread):
             price_line.set_ydata(ticker_for_line)
             price_line.set_color(line_color)
             annotation.set_text(tag_title)
-            annotation.set_y(ticker_for_line + y0)
+            annotation.set_y(ticker_for_line)
             annotation.set_backgroundcolor(color)
             annotation.set_bbox(dict(facecolor=color, edgecolor=white, lw=.5))
 
