@@ -34,6 +34,45 @@ import decimal
 import random
 import functools
 import exchanges
+import weakref
+
+#FIX: squash memory leak for redraws
+class MyTransformNode(object):
+    def __init__(self, shorthand_name=None):
+        self._parents = {}
+        self._invalid = 1
+        self._shorthand_name = shorthand_name or ''
+
+    def set_children(self, *children):
+        """
+        Set the children of the transform, to let the invalidation
+        system know which transforms can invalidate this transform.
+        Should be called from the constructor of any transforms that
+        depend on other transforms.
+        """
+        # Parents are stored as weak references, so that if the
+        # parents are destroyed, references from the children won't
+        # keep them alive.
+        for child in children:
+            # Use weak references so this dictionary won't keep obsolete nodes
+            # alive; the callback deletes the dictionary entry. This is a
+            # performance improvement over using WeakValueDictionary.
+            ref = weakref.ref(self, lambda ref, sid=id(self),
+                                        target=child._parents: target.pop(sid))
+            child._parents[id(self)] = ref
+
+    def __setstate__(self, data_dict):
+        self.__dict__ = data_dict
+        # turn the normal dictionary back into a dictionary with weak values
+        # The extra lambda is to provide a callback to remove dead
+        # weakrefs from the dictionary when garbage collection is done.
+        self._parents = {k: weakref.ref(v, lambda ref, sid=k,
+                                                  target=self._parents:
+                                                        target.pop(sid))
+                         for k, v in self._parents.items() if v is not None}
+
+matplotlib.transforms.TransformNode.set_children = MyTransformNode.set_children
+matplotlib.transforms.TransformNode.__setstate__ = MyTransformNode.__setstate__
 
 class FigureCanvas(FigureCanvasAgg, FigureCanvasQT):
 
