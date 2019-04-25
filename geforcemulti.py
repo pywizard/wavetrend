@@ -819,29 +819,45 @@ class ChartRunner(QtCore.QThread):
           time_to_hour = "%02d:%02d" % (minutes, seconds)
 
           if first == True:
-            price_line = ax.axhline(ticker_for_line, color='gray', linestyle="dotted", lw=.9)
-            annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker_for_line, ticker_formatted, fontsize=7, color=white)
-            annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
+            color = "#2c681d" # green
+            line_color = green
+            if prices[-1][4] < prices[-1][1]:
+                color = "#681d1d" # red
+                line_color = red
+
+            tag_title = symbol + " " + ticker_formatted
+            if timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:
+             tag_title = tag_title + "\n"
+             tag_title = tag_title + " " * (len(tag_title)-len(time_to_hour)-1) + time_to_hour
+
+            price_line = ax.axhline(ticker_for_line, color=line_color, linestyle="dotted", lw=.9)
+            annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker_for_line, tag_title, fontsize=8, weight="bold", color=white, backgroundcolor=color, family="monospace")
 
             self.CANVAS_GET_SIZE.emit(self.tab_index, annotation)
             tbox = aqs[tab_index].get()
-          
+
             dbox = tbox.transformed(ax.transData.inverted())
-            y0 = dbox.height * 2.4
-            if timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:
-              time_annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker_for_line - y0, time_to_hour, fontsize=7, color=white)
-              time_annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
+            y0 = dbox.height
+            annotation.set_y(ticker_for_line + y0)
+            annotation.set_bbox(dict(facecolor=color, edgecolor=white, lw=.5))
           else:
+            color = "#2c681d" # green
+            line_color = green
+            if prices[-1][4] < prices[-1][1]:
+                color = "#681d1d" # red
+                line_color = red
+
+            tag_title = symbol + " " + ticker_formatted
+            if timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:
+             tag_title = tag_title + "\n"
+             tag_title = tag_title + " " * (len(tag_title)-len(time_to_hour)-1) + time_to_hour
+
             price_line.set_ydata(ticker_for_line)
-            
-            annotation.set_text(ticker_formatted)
-              
-            annotation.set_y(ticker_for_line)
-            annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
-            if timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:            
-              time_annotation.set_text(time_to_hour)
-              time_annotation.set_bbox(dict(facecolor=black, edgecolor=white, lw=.5))
-              time_annotation.set_y(ticker_for_line - y0)
+            price_line.set_color(line_color)
+            annotation.set_text(tag_title)
+            annotation.set_y(ticker_for_line + y0)
+            annotation.set_backgroundcolor(color)
+            annotation.set_bbox(dict(facecolor=color, edgecolor=white, lw=.5))
 
           if init == True:
             xl = ax.get_xlim()
