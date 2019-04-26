@@ -1148,7 +1148,7 @@ class Window(QtWidgets.QMainWindow):
 
         widget = QtWidgets.QHBoxLayout(self.tabWidget.widget(0))
         self.OrderbookWidget = []
-        OrderBookWidget_ = OrderBookWidget(self, symbol, 0)
+        OrderBookWidget_ = OrderBookWidget(self, symbol, window_id)
         self.OrderbookWidget.append(OrderBookWidget_)
         dc = MplCanvas(self.tabWidget.widget(0), symbol=symbol)
         widget.addWidget(dc)
@@ -1413,7 +1413,7 @@ class Window(QtWidgets.QMainWindow):
       menuButton.setMenu(tabBarMenu)      
       self.tabBar.setTabButton(tab_index, QtWidgets.QTabBar.RightSide, menuButton)
 
-      OrderBookWidget_ = OrderBookWidget(self, symbol, tab_index)
+      OrderBookWidget_ = OrderBookWidget(self, symbol, window_id)
       self.OrderbookWidget.append(OrderBookWidget_)
       dc = MplCanvas(self.tabWidget.widget(0), symbol=symbol)
       widget.addWidget(dc)
@@ -1715,10 +1715,10 @@ def orderbook(exchange, symbol):
   return exchange.fetch_order_book(symbol)
 
 class OrderBookWidget(QtWidgets.QLabel):
-    def __init__(self, parent, symbol, tab_index):
+    def __init__(self, parent, symbol, winid):
         super(OrderBookWidget,self).__init__(parent)
         self.parent = parent
-        self.tab_index = tab_index
+        self.winid = winid
         self.symbol = symbol
         self.init_orderbook_widget()
 
@@ -1829,7 +1829,11 @@ class OrderBookWidget(QtWidgets.QLabel):
                 else:
                     return
 
-            if self.parent.tabWidget.currentIndex() != self.tab_index:
+            for tab_index in window_ids:
+                if self.winid == window_ids[tab_index]:
+                    break
+
+            if self.parent.tabWidget.currentIndex() != tab_index:
                 return
 
             if self.orderbook_time_shown != 0 and time.time() - self.orderbook_time_shown < 1:
@@ -1855,7 +1859,11 @@ class OrderBookWidget(QtWidgets.QLabel):
         if "bids" in msg:
             self.websocket_alive_time = time.time()
 
-            if self.parent.tabWidget.currentIndex() != self.tab_index:
+            for tab_index in window_ids:
+                if self.winid == window_ids[tab_index]:
+                    break
+
+            if self.parent.tabWidget.currentIndex() != tab_index:
                 return
 
             if self.orderbook_time_shown != 0 and time.time() - self.orderbook_time_shown < 1:
