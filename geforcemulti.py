@@ -35,6 +35,7 @@ import random
 import functools
 import exchanges
 import weakref
+import numpy
 
 #FIX: squash memory leak for redraws
 class MyTransformNode(object):
@@ -177,8 +178,8 @@ matplotlib.rcParams['font.family'] = 'monospace'
 class abstract():
   pass
 
-def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, width=0.2, colorup='white', colordown='black',
-                 alpha=1.0):
+def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, \
+                 scanner_results, highest_price, width=0.2, colorup='white', colordown='black', alpha=1.0):
 
     width = candle_width
     line_width = 0.9
@@ -186,6 +187,7 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
 
     lines = []
     patches = []
+    annotations = []
 
     colorup = "#134F5C"
     colordown = "#A61C00"
@@ -194,7 +196,16 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
 
     if first == False:
       quotes = [quotes[-1]]
+
+    i = 0
     for q in quotes:
+        annotate = False
+        for scanner_result in scanner_results:
+            if scanner_result[0] == i:
+                annotate = True
+                break
+        i = i + 1
+
         t, open, high, low, close = q[:5]
         
         if close >= open:
@@ -261,6 +272,33 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
           ax.add_line(vline1)
           ax.add_line(vline2)
           ax.add_patch(rect)
+
+          if annotate == True:
+              rect.set_facecolor(orange)
+              rect.set_edgecolor(orange)
+              vline1.set_color(orange)
+              vline2.set_color(orange)
+
+              rx, ry = rect.get_xy()
+              cx = rx + rect.get_width()
+              cy = highest_price
+              color = green
+              if scanner_result[1] > 0:
+                  color = green
+              elif scanner_result[1] < 0:
+                  color = red
+
+              text = ax.annotate(scanner_result[2], (cx, cy), color=color, weight='bold',
+                          fontsize=6, ha='center', va='center')
+
+              returns = 0
+              for annotation_x in annotations:
+                  if rx < annotation_x + rect.get_width()*40:
+                     returns = returns + 1
+              text.set_text(" " + "\n\n" * returns + scanner_result[2])
+
+              annotations.append(rx)
+
           last_line1 = vline1
           last_line2 = vline2
           last_rect = rect
@@ -273,7 +311,7 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
           last_rect.set_height(height)
           last_rect.set_facecolor(color)
           last_rect.set_edgecolor(color2)
-        
+
     ax.autoscale_view()
 
     return last_line1, last_line2, last_rect
@@ -349,8 +387,8 @@ destroyed_window_ids = {}
 
 DataRunnerTabs = {}
 
-days_table = {"1m": 0.17, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, "4h": 40, "6h": 60, "12h": 120, "1d": 240, "1D": 240}
-elapsed_table = {"1m": 60, "5m": 60*5, "15m": 60*15, "30m": 60*30, "1h": 60*60, "4h": 60*60*4, "6h": 60*60*6, "12h": 60*60*12, "1d": 60*60*24, "1D": 60*60*24}
+days_table = {"1m": 0.17, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, "2h": 20, "3h": 30, "4h": 40, "6h": 60, "12h": 120, "1d": 240, "1D": 240}
+elapsed_table = {"1m": 60, "5m": 60*5, "15m": 60*15, "30m": 60*30, "1h": 60*60, "2h": 60*60*2, "3h": 60*60*3, "4h": 60*60*4, "6h": 60*60*6, "12h": 60*60*12, "1d": 60*60*24, "1D": 60*60*24}
 
 def ceil_dt(dt, seconds):
     # how many secs have passed this hour
@@ -526,6 +564,86 @@ class ChartRunner(QtCore.QThread):
     self.symbol = symbol
     self.tab_index = tab_index
     self.timeframe_entered = timeframe_entered
+
+  def candlescanner(self, open_, high, low, close):
+      patterns = [['CDL2CROWS', "Two Crows", "Bearish market reversal signal STRONG"],
+                  ['CDL3BLACKCROWS', "Three Black Crows", "78% Reversal of the current uptrend STRONG"],
+                  ['CDL3INSIDE', "Three Inside", "Reversal signal Moderate"],
+                  ['CDL3LINESTRIKE', "Three Line Strike", "%84 Reversal signal STRONG"],
+                  ['CDL3OUTSIDE', "Three Outside", "Reversal signal Moderate"],
+                  ['CDL3STARSINSOUTH', "Three Stars in South", "Bullish Reversal STRONG"],
+                  ['CDL3WHITESOLDIERS', "Three White Soldiers", "Bullish Reversal STRONG"],
+                  ['CDLABANDONEDBABY', "Abandonded Baby", "70% Reversal of the current trend STRONG"],
+                  ['CDLADVANCEBLOCK', "Advance Block", "Advance Block STRONG"],
+                  ['CDLBREAKAWAY', "Breakaway", "63% Reversal Signal STRONG"],
+                  ['CDLDARKCLOUDCOVER', "Dark Cloud Cover", "Bearish Reversal STRONG"],
+                  ['CDLDRAGONFLYDOJI', "Dragonfly Doji", "Reversal Pattern Moderate"],
+                  ['CDLENGULFING', "Engulfing", "Reversal Pattern Moderate"],
+                  ['CDLEVENINGDOJISTAR', "Evening Doji", "Bearish Reversal STRONG"],
+                  ['CDLEVENINGSTAR', "Evening Star", "72% Bearish Reversal STRONG"],
+                  ['CDLHAMMER', "Hammer", "Bullish Reversal Moderate"],
+                  ['CDLHANGINGMAN', "Hanging Man", "Bearish Reversal Moderate"],
+                  ['CDLIDENTICAL3CROWS', "Identical Three Crows", "Bearish"],
+                  ['CDLINNECK', "In Neck", "Bearish Continuation"],
+                  ['CDLLADDERBOTTOM', "Ladder Bottom", "Ladder Bottom"],
+                  ['CDLLONGLINE', "Long Line", ""],
+                  ['CDLMORNINGDOJISTAR', "Morning Doji Star", "Bullish Reversal STRONG"],
+                  ['CDLMORNINGSTAR', "Morning Star", "Bullish Reversal Moderate STRONG"],
+                  ['CDLONNECK', "On Neck", "Bearish Continuation"],
+                  ['CDLPIERCING', "Piercing Line", "Bullish Reversal Moderate"],
+                  ['CDLRISEFALL3METHODS', "Rise Fall 3 Methods", "Bullish Continuation"],
+                  ['CDLSHORTLINE', "Short Line", ""],
+                  ['CDLTHRUSTING', "Thrusting", "Bearish Continuation"],
+                  ['CDLTRISTAR', "Tristar", "Reversal Moderate STRING"],
+                  ['CDLTASUKIGAP', "Tasuki Gap", "Market Continuation"],
+                  ['CDLCLOSINGMARUBOZU', 'Closing Marubozu', 'Closing Marubozu'],
+                  ['CDLCONCEALBABYSWALL', 'Concealing Baby Swallow STRONG'],
+                  ['CDLCOUNTERATTACK', 'Counterattack'],
+                  ['CDLDOJISTAR', 'Doji Star'],
+                  ['CDLGAPSIDESIDEWHITE', 'Up/Down-gap side-by-side white lines'],
+                  ['CDLGRAVESTONEDOJI', 'Gravestone Doji', 'Gravestone Doji'],
+                  ['CDLHANGINGMAN', 'Hanging Man'],
+                  ['CDLHARAMI', 'Harami Pattern'],
+                  ['CDLHARAMICROSS', 'Harami Cross Pattern'],
+                  ['CDLHIKKAKE', 'Hikkake Pattern'],
+                  ['CDLHIKKAKEMOD', 'Modified Hikkake Pattern'],
+                  ['CDLHOMINGPIGEON', 'Homing Pigeon'],
+                  ['CDLINVERTEDHAMMER', 'Inverted Hammer', 'Inverted Hammer'],
+                  ['CDLKICKING', 'Kicking'],
+                  ['CDLKICKINGBYLENGTH', 'Kicking - bull/bear determined by the longer marubozu'],
+                  ['CDLMARUBOZU', 'Marubozu', 'Marubozu DTRONG'],
+                  ['CDLMATCHINGLOW', 'Matching Low', 'Matching Low'],
+                  ['CDLMATHOLD', 'Mat Hold', 'Mat Hold STRONG'],
+                  ['CDLSEPARATINGLINES', 'Separating Lines'],
+                  ['CDLSHOOTINGSTAR', 'Shooting Star', 'Shooting Star'],
+                  ['CDLSTALLEDPATTERN', 'Stalled Pattern'],
+                  ['CDLSTICKSANDWICH', 'Stick Sandwich', 'Stick Sandwich'],
+                  ['CDLTAKURI', 'Takuri (Dragonfly Doji with very long lower shadow)'],
+                  ['CDLUNIQUE3RIVER', 'Unique 3 River'],
+                  ['CDLUPSIDEGAP2CROWS', 'Upside Gap Two Crows'],
+                  ['CDLXSIDEGAP3METHODS', 'Upside/Downside Gap Three Methods']]
+
+      results = []
+      for pattern in patterns:
+          talib_function = pattern[0]
+          pattern_name = pattern[1]
+          if len(pattern) == 3:
+              pattern_description = pattern[2]
+          else:
+              pattern_description = pattern_name
+
+          if pattern_description.find("STRONG") < 0:
+              continue
+
+          execute_string = "talib." + talib_function + "(numpy.array(open_), numpy.array(high), numpy.array(low), numpy.array(close))"
+          result = eval(execute_string)
+
+          for i in range(0, len(close)):
+              if result[i] != 0:
+                  # result[i] contains positive value, bullish pattern
+                  # or negative value, bearish pattern
+                  results.append([i, result[i], pattern_name, pattern_description])
+      return results
 
   def run(self):
     global qs
@@ -868,11 +986,14 @@ class ChartRunner(QtCore.QThread):
               if indicators[i].name == "MACD" or indicators[i].name == "VOLUME":
                 indicators[i].candle_width = candle_width
                 indicators[i].update()
-          
+
+
+          if first == True:
+            scanner_results = self.candlescanner(popen, phigh, plow, pclose)
           if current_candle_type == CANDLE_TYPE_CANDLESTICK:
-            last_line1, last_line2, last_rect = _candlestick(ax, prices, first, last_line1, last_line2, last_rect, candle_width)
+            last_line1, last_line2, last_rect = _candlestick(ax, prices, first, last_line1, last_line2, last_rect, candle_width, scanner_results, highest_price)
           elif current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:        
-            last_line1, last_line2, last_rect = _candlestick(ax, prices2, first, last_line1, last_line2, last_rect, candle_width)
+            last_line1, last_line2, last_rect = _candlestick(ax, prices2, first, last_line1, last_line2, last_rect, candle_width, scanner_results, highest_price)
           
           if first == True:
             ax.autoscale_view()
@@ -989,6 +1110,12 @@ class ChartRunner(QtCore.QThread):
         if timeframe_entered == "1h":
             limit = int(days_entered * 24)
 
+        if timeframe_entered == "2h":
+            limit = int(days_entered * (24/2))
+
+        if timeframe_entered == "3h":
+            limit = int(days_entered * (24/3))
+
         if timeframe_entered == "4h":
             limit = int(days_entered * (24/4))
 
@@ -1037,6 +1164,7 @@ class ChartRunner(QtCore.QThread):
         volume.append(float(candle[5]))
 
       return dt, open_, high, low, close, volume, limit
+
 
 class UpdateUsdBalanceRunner(QtCore.QThread):
   data_ready = QtCore.pyqtSignal()
