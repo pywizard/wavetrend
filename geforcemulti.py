@@ -1,3 +1,7 @@
+import os
+#macos: run openblas single threaded
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
 import warnings
 warnings.filterwarnings("ignore")
 import matplotlib
@@ -25,7 +29,6 @@ import traceback
 import copy
 import threading
 import math
-import os
 import queue as Queue
 import ccxt
 from indicators import *
@@ -36,6 +39,8 @@ import functools
 import exchanges
 import weakref
 import numpy
+import platform
+
 
 #FIX: squash memory leak for redraws
 class MyTransformNode(object):
@@ -175,6 +180,8 @@ if "BTC/USDT" in ticker:
 
 matplotlib.rcParams['font.family'] = 'monospace'
 
+is_darwin = platform.system() == "Darwin"
+
 class abstract():
   pass
 
@@ -234,7 +241,8 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
                 height=height,
                 facecolor=color,
                 edgecolor=colorup2,
-                linewidth=line_width
+                linewidth=line_width,
+                antialiased=True
             )
         else:
             color = colordown
@@ -262,7 +270,8 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
                 height=height,
                 facecolor=color,
                 edgecolor=colordown2,
-                linewidth=line_width
+                linewidth=line_width,
+                antialiased=True,
             )
 
         if first == True:
@@ -293,7 +302,7 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
 
               returns = 0
               for annotation_x in annotations:
-                  if rx < annotation_x + rect.get_width()*40:
+                  if rx < annotation_x + rect.get_width()*15:
                      returns = returns + 1
               text.set_text(" " + "\n\n" * returns + scanner_result[2])
 
@@ -566,64 +575,68 @@ class ChartRunner(QtCore.QThread):
     self.timeframe_entered = timeframe_entered
 
   def candlescanner(self, open_, high, low, close):
-      patterns = [['CDL2CROWS', "Two Crows", "Bearish market reversal signal STRONG"],
-                  ['CDL3BLACKCROWS', "Three Black Crows", "78% Reversal of the current uptrend STRONG"],
-                  ['CDL3INSIDE', "Three Inside", "Reversal signal Moderate"],
-                  ['CDL3LINESTRIKE', "Three Line Strike", "%84 Reversal signal STRONG"],
-                  ['CDL3OUTSIDE', "Three Outside", "Reversal signal Moderate"],
-                  ['CDL3STARSINSOUTH', "Three Stars in South", "Bullish Reversal STRONG"],
-                  ['CDL3WHITESOLDIERS', "Three White Soldiers", "Bullish Reversal STRONG"],
-                  ['CDLABANDONEDBABY', "Abandonded Baby", "70% Reversal of the current trend STRONG"],
-                  ['CDLADVANCEBLOCK', "Advance Block", "Advance Block STRONG"],
-                  ['CDLBREAKAWAY', "Breakaway", "63% Reversal Signal STRONG"],
-                  ['CDLDARKCLOUDCOVER', "Dark Cloud Cover", "Bearish Reversal STRONG"],
-                  ['CDLDRAGONFLYDOJI', "Dragonfly Doji", "Reversal Pattern Moderate"],
-                  ['CDLENGULFING', "Engulfing", "Reversal Pattern Moderate"],
-                  ['CDLEVENINGDOJISTAR', "Evening Doji", "Bearish Reversal STRONG"],
-                  ['CDLEVENINGSTAR', "Evening Star", "72% Bearish Reversal STRONG"],
-                  ['CDLHAMMER', "Hammer", "Bullish Reversal Moderate"],
-                  ['CDLHANGINGMAN', "Hanging Man", "Bearish Reversal Moderate"],
-                  ['CDLIDENTICAL3CROWS', "Identical Three Crows", "Bearish"],
-                  ['CDLINNECK', "In Neck", "Bearish Continuation"],
-                  ['CDLLADDERBOTTOM', "Ladder Bottom", "Ladder Bottom"],
-                  ['CDLLONGLINE', "Long Line", ""],
-                  ['CDLMORNINGDOJISTAR', "Morning Doji Star", "Bullish Reversal STRONG"],
-                  ['CDLMORNINGSTAR', "Morning Star", "Bullish Reversal Moderate STRONG"],
-                  ['CDLONNECK', "On Neck", "Bearish Continuation"],
-                  ['CDLPIERCING', "Piercing Line", "Bullish Reversal Moderate"],
-                  ['CDLRISEFALL3METHODS', "Rise Fall 3 Methods", "Bullish Continuation"],
-                  ['CDLSHORTLINE', "Short Line", ""],
-                  ['CDLTHRUSTING', "Thrusting", "Bearish Continuation"],
-                  ['CDLTRISTAR', "Tristar", "Reversal Moderate STRING"],
-                  ['CDLTASUKIGAP', "Tasuki Gap", "Market Continuation"],
-                  ['CDLCLOSINGMARUBOZU', 'Closing Marubozu', 'Closing Marubozu'],
-                  ['CDLCONCEALBABYSWALL', 'Concealing Baby Swallow STRONG'],
-                  ['CDLCOUNTERATTACK', 'Counterattack'],
-                  ['CDLDOJISTAR', 'Doji Star'],
-                  ['CDLGAPSIDESIDEWHITE', 'Up/Down-gap side-by-side white lines'],
-                  ['CDLGRAVESTONEDOJI', 'Gravestone Doji', 'Gravestone Doji'],
-                  ['CDLHANGINGMAN', 'Hanging Man'],
-                  ['CDLHARAMI', 'Harami Pattern'],
-                  ['CDLHARAMICROSS', 'Harami Cross Pattern'],
-                  ['CDLHIKKAKE', 'Hikkake Pattern'],
-                  ['CDLHIKKAKEMOD', 'Modified Hikkake Pattern'],
-                  ['CDLHOMINGPIGEON', 'Homing Pigeon'],
-                  ['CDLINVERTEDHAMMER', 'Inverted Hammer', 'Inverted Hammer'],
-                  ['CDLKICKING', 'Kicking'],
-                  ['CDLKICKINGBYLENGTH', 'Kicking - bull/bear determined by the longer marubozu'],
-                  ['CDLMARUBOZU', 'Marubozu', 'Marubozu DTRONG'],
-                  ['CDLMATCHINGLOW', 'Matching Low', 'Matching Low'],
-                  ['CDLMATHOLD', 'Mat Hold', 'Mat Hold STRONG'],
-                  ['CDLSEPARATINGLINES', 'Separating Lines'],
-                  ['CDLSHOOTINGSTAR', 'Shooting Star', 'Shooting Star'],
-                  ['CDLSTALLEDPATTERN', 'Stalled Pattern'],
-                  ['CDLSTICKSANDWICH', 'Stick Sandwich', 'Stick Sandwich'],
-                  ['CDLTAKURI', 'Takuri (Dragonfly Doji with very long lower shadow)'],
-                  ['CDLUNIQUE3RIVER', 'Unique 3 River'],
-                  ['CDLUPSIDEGAP2CROWS', 'Upside Gap Two Crows'],
-                  ['CDLXSIDEGAP3METHODS', 'Upside/Downside Gap Three Methods']]
+      patterns = [[talib.CDL2CROWS, "Two Crows", "Bearish market reversal signal STRONG"],
+                  [talib.CDL3BLACKCROWS, "Three Black Crows", "78% Reversal of the current uptrend STRONG"],
+                  [talib.CDL3INSIDE, "Three Inside", "Reversal signal Moderate"],
+                  [talib.CDL3LINESTRIKE, "Three Line Strike", "%84 Reversal signal STRONG"],
+                  [talib.CDL3OUTSIDE, "Three Outside", "Reversal signal Moderate"],
+                  [talib.CDL3STARSINSOUTH, "Three Stars in South", "Bullish Reversal STRONG"],
+                  [talib.CDL3WHITESOLDIERS, "Three White Soldiers", "Bullish Reversal STRONG"],
+                  [talib.CDLABANDONEDBABY, "Abandonded Baby", "70% Reversal of the current trend STRONG"],
+                  [talib.CDLADVANCEBLOCK, "Advance Block", "Advance Block STRONG"],
+                  [talib.CDLBREAKAWAY, "Breakaway", "63% Reversal Signal STRONG"],
+                  [talib.CDLDARKCLOUDCOVER, "Dark Cloud Cover", "Bearish Reversal STRONG"],
+                  [talib.CDLDRAGONFLYDOJI, "Dragonfly Doji", "Reversal Pattern Moderate"],
+                  [talib.CDLENGULFING, "Engulfing", "Reversal Pattern Moderate"],
+                  [talib.CDLEVENINGDOJISTAR, "Evening Doji", "Bearish Reversal STRONG"],
+                  [talib.CDLEVENINGSTAR, "Evening Star", "72% Bearish Reversal STRONG"],
+                  [talib.CDLHAMMER, "Hammer", "Bullish Reversal Moderate"],
+                  [talib.CDLHANGINGMAN, "Hanging Man", "Bearish Reversal Moderate"],
+                  [talib.CDLIDENTICAL3CROWS, "Identical Three Crows", "Bearish"],
+                  [talib.CDLINNECK, "In Neck", "Bearish Continuation"],
+                  [talib.CDLLADDERBOTTOM, "Ladder Bottom", "Ladder Bottom"],
+                  [talib.CDLLONGLINE, "Long Line", ""],
+                  [talib.CDLMORNINGDOJISTAR, "Morning Doji Star", "Bullish Reversal STRONG"],
+                  [talib.CDLMORNINGSTAR, "Morning Star", "Bullish Reversal Moderate STRONG"],
+                  [talib.CDLONNECK, "On Neck", "Bearish Continuation"],
+                  [talib.CDLPIERCING, "Piercing Line", "Bullish Reversal Moderate"],
+                  [talib.CDLRISEFALL3METHODS, "Rise Fall 3 Methods", "Bullish Continuation"],
+                  [talib.CDLSHORTLINE, "Short Line", ""],
+                  [talib.CDLTHRUSTING, "Thrusting", "Bearish Continuation"],
+                  [talib.CDLTRISTAR, "Tristar", "Reversal Moderate STRING"],
+                  [talib.CDLTASUKIGAP, "Tasuki Gap", "Market Continuation"],
+                  [talib.CDLCLOSINGMARUBOZU, 'Closing Marubozu', 'Closing Marubozu'],
+                  [talib.CDLCONCEALBABYSWALL, 'Concealing Baby Swallow STRONG'],
+                  [talib.CDLCOUNTERATTACK, 'Counterattack'],
+                  [talib.CDLDOJISTAR, 'Doji Star'],
+                  [talib.CDLGAPSIDESIDEWHITE, 'Up/Down-gap side-by-side white lines'],
+                  [talib.CDLGRAVESTONEDOJI, 'Gravestone Doji', 'Gravestone Doji'],
+                  [talib.CDLHANGINGMAN, 'Hanging Man'],
+                  [talib.CDLHARAMI, 'Harami Pattern'],
+                  [talib.CDLHARAMICROSS, 'Harami Cross Pattern'],
+                  [talib.CDLHIKKAKE, 'Hikkake Pattern'],
+                  [talib.CDLHIKKAKEMOD, 'Modified Hikkake Pattern'],
+                  [talib.CDLHOMINGPIGEON, 'Homing Pigeon'],
+                  [talib.CDLINVERTEDHAMMER, 'Inverted Hammer', 'Inverted Hammer'],
+                  [talib.CDLKICKING, 'Kicking'],
+                  [talib.CDLKICKINGBYLENGTH, 'Kicking - bull/bear determined by the longer marubozu'],
+                  [talib.CDLMARUBOZU, 'Marubozu', 'Marubozu DTRONG'],
+                  [talib.CDLMATCHINGLOW, 'Matching Low', 'Matching Low'],
+                  [talib.CDLMATHOLD, 'Mat Hold', 'Mat Hold STRONG'],
+                  [talib.CDLSEPARATINGLINES, 'Separating Lines'],
+                  [talib.CDLSHOOTINGSTAR, 'Shooting Star', 'Shooting Star'],
+                  [talib.CDLSTALLEDPATTERN, 'Stalled Pattern'],
+                  [talib.CDLSTICKSANDWICH, 'Stick Sandwich', 'Stick Sandwich'],
+                  [talib.CDLTAKURI, 'Takuri (Dragonfly Doji with very long lower shadow)'],
+                  [talib.CDLUNIQUE3RIVER, 'Unique 3 River'],
+                  [talib.CDLUPSIDEGAP2CROWS, 'Upside Gap Two Crows'],
+                  [talib.CDLXSIDEGAP3METHODS, 'Upside/Downside Gap Three Methods']]
 
       results = []
+      ndarray_open = numpy.array(open_)
+      ndarray_high = numpy.array(high)
+      ndarray_low = numpy.array(low)
+      ndarray_close = numpy.array(close)
       for pattern in patterns:
           talib_function = pattern[0]
           pattern_name = pattern[1]
@@ -635,8 +648,7 @@ class ChartRunner(QtCore.QThread):
           if pattern_description.find("STRONG") < 0:
               continue
 
-          execute_string = "talib." + talib_function + "(numpy.array(open_), numpy.array(high), numpy.array(low), numpy.array(close))"
-          result = eval(execute_string)
+          result = talib_function(ndarray_open, ndarray_high, ndarray_low, ndarray_close)
 
           for i in range(0, len(close)):
               if result[i] != 0:
@@ -1277,8 +1289,14 @@ class Window(QtWidgets.QMainWindow):
         widget = QtWidgets.QHBoxLayout(self.tabWidget.widget(0))
         self.OrderbookWidget = []
         OrderBookWidget_ = OrderBookWidget(self, symbol, window_id)
+        OrderBookWidget_.DISPLAY_ORDERBOOK.connect(OrderBookWidget_.on_DISPLAY_ORDERBOOK, QtCore.Qt.BlockingQueuedConnection)
         self.OrderbookWidget.append(OrderBookWidget_)
         dc = MplCanvas(self.tabWidget.widget(0), symbol=symbol)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
+        sizePolicy.setHorizontalStretch(1)
+        sizePolicy.setVerticalStretch(1)
+        sizePolicy.setHeightForWidth(dc.sizePolicy().hasHeightForWidth())
+        dc.setSizePolicy(sizePolicy)
         widget.addWidget(dc)
         widget.addWidget(OrderBookWidget_, alignment=QtCore.Qt.AlignTop)
         widget.setContentsMargins(0,0,0,0)
@@ -1542,8 +1560,14 @@ class Window(QtWidgets.QMainWindow):
       self.tabBar.setTabButton(tab_index, QtWidgets.QTabBar.RightSide, menuButton)
 
       OrderBookWidget_ = OrderBookWidget(self, symbol, window_id)
+      OrderBookWidget_.DISPLAY_ORDERBOOK.connect(OrderBookWidget_.on_DISPLAY_ORDERBOOK)
       self.OrderbookWidget.append(OrderBookWidget_)
       dc = MplCanvas(self.tabWidget.widget(0), symbol=symbol)
+      sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
+      sizePolicy.setHorizontalStretch(1)
+      sizePolicy.setVerticalStretch(1)
+      sizePolicy.setHeightForWidth(dc.sizePolicy().hasHeightForWidth())
+      dc.setSizePolicy(sizePolicy)
       widget.addWidget(dc)
       widget.addWidget(OrderBookWidget_, alignment=QtCore.Qt.AlignTop)
       widget.setContentsMargins(0, 0, 0, 0)
@@ -1842,13 +1866,19 @@ class Dialog(QtWidgets.QDialog):
 def orderbook(exchange, symbol):
   return exchange.fetch_order_book(symbol)
 
-class OrderBookWidget(QtWidgets.QLabel):
+class OrderBookWidget(QtWidgets.QWidget):
+    DISPLAY_ORDERBOOK = QtCore.pyqtSignal(list, list)
     def __init__(self, parent, symbol, winid):
         super(OrderBookWidget,self).__init__(parent)
         self.parent = parent
         self.winid = winid
         self.symbol = symbol
         self.init_orderbook_widget()
+        if is_darwin == False:
+            self.setMaximumWidth(parent.width()/4.3)
+        else:
+            self.setMaximumWidth(parent.width() / 4.2)
+        self.setMaximumHeight(parent.height() / 2)
 
         self.kill_websocket_watch_thread = False
         self.websocket_alive_time = time.time()
@@ -1861,45 +1891,181 @@ class OrderBookWidget(QtWidgets.QLabel):
         self.bfx_orderbook["asks"] = {}
         self.orderbook_time_shown = 0
 
-    def get_book_str(self, bids_, asks_):
-        strs = []
+        widget = QtWidgets.QHBoxLayout(self)
+        self.tableWidgetBids = QtWidgets.QTableWidget()
+        self.tableWidgetBids.setColumnCount(3)
+        self.tableWidgetBids.verticalHeader().setVisible(False)
+        self.tableWidgetBids.horizontalHeader().setStyleSheet("QHeaderView::section{border: 0px; border-bottom: 0px;}")
+        self.tableWidgetBids.setShowGrid(False)
+        self.tableWidgetBids.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        self.tableWidgetBids.setHorizontalHeaderLabels(["Price", "Qty", "Sum"])
+        self.tableWidgetBids.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        header = self.tableWidgetBids.horizontalHeader()
+        header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)
+        widget.addWidget(self.tableWidgetBids, 1)
+        self.tableWidgetAsks = QtWidgets.QTableWidget()
+        self.tableWidgetAsks.setColumnCount(3)
+        self.tableWidgetAsks.verticalHeader().setVisible(False)
+        self.tableWidgetAsks.horizontalHeader().setStyleSheet("QHeaderView::section{border: 0px; border-bottom: 0px}")
+        self.tableWidgetAsks.setShowGrid(False)
+        self.tableWidgetAsks.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        self.tableWidgetAsks.setHorizontalHeaderLabels(["Price", "Qty", "Sum"])
+        self.tableWidgetAsks.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        header = self.tableWidgetAsks.horizontalHeader()
+        header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)
+        widget.addWidget(self.tableWidgetAsks, 1)
 
-        maxlen_price = 0
-        maxlen_amount = 0
+    @QtCore.pyqtSlot(list, list)
+    def on_DISPLAY_ORDERBOOK(self, bids_, asks_):
+        font = QtGui.QFont()
+        font.setPointSize(9)
+
+        if is_darwin == True:
+            font.setPointSize(10)
+
+        self.tableWidgetBids.setRowCount(len(bids_))
+        highest_amount = 0
         for bid in bids_:
-            bid_price_strlen = len(str(client.price_to_precision(self.symbol, bid[0])))
-            bid_amount_strlen = len(str(client.amount_to_precision(self.symbol, bid[1])))
-            if bid_price_strlen > maxlen_price:
-                maxlen_price = bid_price_strlen
-            if bid_amount_strlen > maxlen_amount:
-                maxlen_amount = bid_amount_strlen
-
-        strs.append("")
-        strs.append("")
-
-        char_offset = 0
+            if bid[1] > highest_amount:
+                highest_amount = bid[1]
+        second_highest_amount = 0
         for bid in bids_:
-            try:
-                ask = asks_.pop()
-                ask[1] = str(client.amount_to_precision(self.symbol, ask[1]))
-                ask[0] = str(client.price_to_precision(self.symbol, ask[0]))
-                asks = ask[0] + " " * (maxlen_price-len(str(ask[0]))) + "  " + str(ask[1])
-            except:
-                asks = ""
+            if bid[1] > second_highest_amount and bid[1] != highest_amount:
+                second_highest_amount = bid[1]
+        third_highest_amount = 0
+        for bid in bids_:
+            if bid[1] > third_highest_amount and bid[1] != highest_amount and bid[1] != second_highest_amount:
+                third_highest_amount = bid[1]
 
-            bid[0] = str(client.price_to_precision(self.symbol, bid[0]))
-            bid[1] = str(client.amount_to_precision(self.symbol, bid[1]))
-            strs.append(bid[0] + " " * (maxlen_price-len(bid[0])) + "  "  + bid[1] + " " * 4  + " " * (maxlen_amount-len(bid[1])) + asks)
-            char_offset = len(bid[0] + " " * (maxlen_price - len(bid[0])) + "  " + bid[1] + " " * 4 + " " * (
-                        maxlen_amount - len(bid[1]))) - 4
+        highest_amount_ask = 0
+        for ask in asks_:
+            if ask[1] > highest_amount_ask:
+                highest_amount_ask = ask[1]
+        second_highest_amount_ask = 0
+        for ask in asks_:
+            if ask[1] > second_highest_amount_ask and ask[1] != highest_amount_ask:
+                second_highest_amount_ask = ask[1]
+        third_highest_amount_ask = 0
+        for ask in asks_:
+            if ask[1] > third_highest_amount_ask and ask[1] != highest_amount_ask and ask[1] != second_highest_amount_ask:
+                third_highest_amount_ask = ask[1]
+        i = 0
+        sum = 0
+        for bid in bids_:
+            self.tableWidgetBids.setRowHeight(i, 23)
+            price = str(client.price_to_precision(self.symbol, bid[0]))
+            amount = str(client.amount_to_precision(self.symbol, bid[1]))
+            sum = sum + bid[1]
+            sum_str = str(client.amount_to_precision(self.symbol, sum))
 
-        strs[0] = "BIDS" + " " * char_offset + "ASKS"
+            columnItem = QtWidgets.QTableWidgetItem(price)
+            columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
 
-        bookstr = ""
-        for s in strs:
-            bookstr = bookstr + s + "\n"
+            if bid[1] == highest_amount:
+                columnItem.setBackground(QtGui.QColor(11, 83, 69))
+            elif bid[1] == second_highest_amount:
+                columnItem.setBackground(QtGui.QColor(14, 102, 85))
+            elif bid[1] == third_highest_amount:
+                columnItem.setBackground(QtGui.QColor(17, 122, 101))
+            else:
+                columnItem.setBackground(QtGui.QColor(33, 47, 60))
+            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+            columnItem.setFont(font)
+            columnItem.setFlags(QtCore.Qt.NoItemFlags)
+            self.tableWidgetBids.setItem(i, 0, columnItem)
+            columnItem = QtWidgets.QTableWidgetItem(amount)
+            columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            if bid[1] == highest_amount:
+                columnItem.setBackground(QtGui.QColor(11, 83, 69))
+            elif bid[1] == second_highest_amount:
+                columnItem.setBackground(QtGui.QColor(14, 102, 85))
+            elif bid[1] == third_highest_amount:
+                columnItem.setBackground(QtGui.QColor(17, 122, 101))
+            else:
+                columnItem.setBackground(QtGui.QColor(33, 47, 60))
+            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+            columnItem.setFont(font)
+            columnItem.setFlags(QtCore.Qt.NoItemFlags)
+            self.tableWidgetBids.setItem(i, 1, columnItem)
+            columnItem = QtWidgets.QTableWidgetItem(sum_str)
+            columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            if bid[1] == highest_amount:
+                columnItem.setBackground(QtGui.QColor(11, 83, 69))
+            elif bid[1] == second_highest_amount:
+                columnItem.setBackground(QtGui.QColor(14, 102, 85))
+            elif bid[1] == third_highest_amount:
+                columnItem.setBackground(QtGui.QColor(17, 122, 101))
+            else:
+                columnItem.setBackground(QtGui.QColor(33, 47, 60))
+            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+            columnItem.setFont(font)
+            columnItem.setFlags(QtCore.Qt.NoItemFlags)
+            self.tableWidgetBids.setItem(i, 2, columnItem)
+            i = i + 1
 
-        return bookstr
+        i = 0
+        sum = 0
+        self.tableWidgetAsks.setRowCount(len(asks_))
+        for ask in asks_:
+            self.tableWidgetAsks.setRowHeight(i, 23)
+            price = str(client.price_to_precision(self.symbol, ask[0]))
+            amount = str(client.amount_to_precision(self.symbol, ask[1]))
+            sum = sum + ask[1]
+            sum_str = str(client.amount_to_precision(self.symbol, sum))
+
+            columnItem = QtWidgets.QTableWidgetItem(price)
+            columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            if ask[1] == highest_amount_ask:
+                columnItem.setBackground(QtGui.QColor(100, 30, 22))
+            elif ask[1] == second_highest_amount_ask:
+                columnItem.setBackground(QtGui.QColor(123, 36, 28))
+            elif ask[1] == third_highest_amount_ask:
+                columnItem.setBackground(QtGui.QColor(146, 43, 33))
+            else:
+                columnItem.setBackground(QtGui.QColor(33, 47, 60))
+            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+            columnItem.setFont(font)
+            columnItem.setFlags(QtCore.Qt.NoItemFlags)
+            self.tableWidgetAsks.setItem(i, 0, columnItem)
+            columnItem = QtWidgets.QTableWidgetItem(amount)
+            columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            if ask[1] == highest_amount_ask:
+                columnItem.setBackground(QtGui.QColor(100, 30, 22))
+            elif ask[1] == second_highest_amount_ask:
+                columnItem.setBackground(QtGui.QColor(123, 36, 28))
+            elif ask[1] == third_highest_amount_ask:
+                columnItem.setBackground(QtGui.QColor(146, 43, 33))
+            else:
+                columnItem.setBackground(QtGui.QColor(33, 47, 60))
+            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+            columnItem.setFont(font)
+            columnItem.setFlags(QtCore.Qt.NoItemFlags)
+            self.tableWidgetAsks.setItem(i, 1, columnItem)
+            columnItem = QtWidgets.QTableWidgetItem(sum_str)
+            columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            if ask[1] == highest_amount_ask:
+                columnItem.setBackground(QtGui.QColor(100, 30, 22))
+            elif ask[1] == second_highest_amount_ask:
+                columnItem.setBackground(QtGui.QColor(123, 36, 28))
+            elif ask[1] == third_highest_amount_ask:
+                columnItem.setBackground(QtGui.QColor(146, 43, 33))
+            else:
+                columnItem.setBackground(QtGui.QColor(33, 47, 60))
+            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+            columnItem.setFont(font)
+            columnItem.setFlags(QtCore.Qt.NoItemFlags)
+            self.tableWidgetAsks.setItem(i, 2, columnItem)
+            i = i + 1
+
+        if len(bids_) > len(asks_):
+            multiplier = len(bids_)
+        else:
+            multiplier = len(asks_)
+        self.setMinimumHeight(int(23*multiplier))
 
     def restart_websocket(self):
         self.exchange_obj.stop_depth_websocket()
@@ -1974,9 +2140,7 @@ class OrderBookWidget(QtWidgets.QLabel):
             for order in sorted(self.bfx_orderbook["asks"], reverse=True):
                 asks.append([order, self.bfx_orderbook["asks"][order][1]])
 
-            bookstr = self.get_book_str(bids, asks)
-            self.setText(bookstr)
-
+            self.DISPLAY_ORDERBOOK.emit(bids, asks)
             self.orderbook_time_shown = time.time()
             return
 
@@ -1997,11 +2161,10 @@ class OrderBookWidget(QtWidgets.QLabel):
             if self.orderbook_time_shown != 0 and time.time() - self.orderbook_time_shown < 1:
                 return
 
-            bids_ = msg["bids"]
-            asks_ = msg["asks"]
+            bids_ = [[float(bid[0]), float(bid[1])] for bid in msg["bids"]]
+            asks_ = [[float(ask[0]), float(ask[1])] for ask in msg["asks"]]
 
-            bookstr = self.get_book_str(bids_, asks_)
-            self.setText(bookstr)
+            self.DISPLAY_ORDERBOOK.emit(bids_, asks_)
             self.orderbook_time_shown = time.time()
             return
 
@@ -2010,7 +2173,6 @@ class OrderBookWidget(QtWidgets.QLabel):
         self.setMinimumWidth(337)
         newfont = QtGui.QFont("Courier New")
         self.setFont(newfont)
-        self.setText("Orderbook Loading...")
         self.setStyleSheet("QLabel { background-color : #131D27; color : #C6C7C8; }")
         if exchange == "BITFINEX":
             self.exchange_obj = exchanges.Bitfinex(markets, api_key, api_secret)

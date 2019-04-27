@@ -521,7 +521,7 @@ QPushButton {
     border-width: 1px;
     border-color: #76797C;
     border-style: solid;
-    padding: 1px;
+    padding: 3px;
     border-radius: 2px;
     outline: none;
 }
