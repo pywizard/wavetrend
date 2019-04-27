@@ -2137,7 +2137,7 @@ class OrderBookWidget(QtWidgets.QWidget):
             asks = []
             for order in sorted(self.bfx_orderbook["bids"], reverse=True):
                 bids.append([order, self.bfx_orderbook["bids"][order][1]])
-            for order in sorted(self.bfx_orderbook["asks"], reverse=True):
+            for order in sorted(self.bfx_orderbook["asks"]):
                 asks.append([order, self.bfx_orderbook["asks"][order][1]])
 
             self.DISPLAY_ORDERBOOK.emit(bids, asks)
