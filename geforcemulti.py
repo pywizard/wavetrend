@@ -40,7 +40,7 @@ import exchanges
 import weakref
 import numpy
 import platform
-
+import prettydate
 
 #FIX: squash memory leak for redraws
 class MyTransformNode(object):
@@ -1290,16 +1290,20 @@ class Window(QtWidgets.QMainWindow):
         self.OrderbookWidget = []
         OrderBookWidget_ = OrderBookWidget(self, symbol, window_id)
         OrderBookWidget_.DISPLAY_ORDERBOOK.connect(OrderBookWidget_.on_DISPLAY_ORDERBOOK, QtCore.Qt.BlockingQueuedConnection)
+        OrderBookWidget_.DISPLAY_TRADES.connect(OrderBookWidget_.on_DISPLAY_TRADES, QtCore.Qt.BlockingQueuedConnection)
         self.OrderbookWidget.append(OrderBookWidget_)
         dc = MplCanvas(self.tabWidget.widget(0), symbol=symbol)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
-        sizePolicy.setHorizontalStretch(1)
+        sizePolicy.setHorizontalStretch(4)
         sizePolicy.setVerticalStretch(1)
-        sizePolicy.setHeightForWidth(dc.sizePolicy().hasHeightForWidth())
         dc.setSizePolicy(sizePolicy)
         widget.addWidget(dc)
-        widget.addWidget(OrderBookWidget_, alignment=QtCore.Qt.AlignTop)
-        widget.setContentsMargins(0,0,0,0)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
+        sizePolicy.setHorizontalStretch(1)
+        sizePolicy.setVerticalStretch(1)
+        OrderBookWidget_.setSizePolicy(sizePolicy)
+        widget.addWidget(OrderBookWidget_, alignment=QtCore.Qt.AlignRight)
+        #widget.setContentsMargins(0,0,0,0)
 
         self.dcs = {}
         self.dcs[window_id] = dc
@@ -1528,7 +1532,8 @@ class Window(QtWidgets.QMainWindow):
       global tab_current_index
       if self.tabWidget.currentIndex() in window_ids:
         tab_current_index = window_ids[self.tabWidget.currentIndex()]
-      
+        self.OrderbookWidget[self.tabWidget.currentIndex()].update_trades_display()
+
     def removeTab(self, window_id):
       global destroyed_window_ids
       destroyed_window_ids[window_id] = "DESTROYED"
@@ -1561,16 +1566,20 @@ class Window(QtWidgets.QMainWindow):
 
       OrderBookWidget_ = OrderBookWidget(self, symbol, window_id)
       OrderBookWidget_.DISPLAY_ORDERBOOK.connect(OrderBookWidget_.on_DISPLAY_ORDERBOOK)
+      OrderBookWidget_.DISPLAY_TRADES.connect(OrderBookWidget_.on_DISPLAY_TRADES, QtCore.Qt.BlockingQueuedConnection)
       self.OrderbookWidget.append(OrderBookWidget_)
       dc = MplCanvas(self.tabWidget.widget(0), symbol=symbol)
       sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
-      sizePolicy.setHorizontalStretch(1)
+      sizePolicy.setHorizontalStretch(4)
       sizePolicy.setVerticalStretch(1)
-      sizePolicy.setHeightForWidth(dc.sizePolicy().hasHeightForWidth())
       dc.setSizePolicy(sizePolicy)
       widget.addWidget(dc)
-      widget.addWidget(OrderBookWidget_, alignment=QtCore.Qt.AlignTop)
-      widget.setContentsMargins(0, 0, 0, 0)
+      sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
+      sizePolicy.setHorizontalStretch(1)
+      sizePolicy.setVerticalStretch(1)
+      OrderBookWidget_.setSizePolicy(sizePolicy)
+      widget.addWidget(OrderBookWidget_, alignment=QtCore.Qt.AlignRight)
+      #widget.setContentsMargins(0, 0, 0, 0)
 
       global qs
       global aqs
@@ -1848,8 +1857,8 @@ class Dialog(QtWidgets.QDialog):
         row = self.tableWidget.selectedItems()[0].row()
         timeframe_entered = str(self.comboBox.currentText())
         symbol = str(self.tableWidget.item(row, 0).text())
-        symbol_with_timeframe = symbol + " " + timeframe_entered
-  
+        self.close()
+
         global main
         global main_shown
 
@@ -1861,27 +1870,23 @@ class Dialog(QtWidgets.QDialog):
           main_shown = True
         else:
           main.addTab(symbol, timeframe_entered)
-        self.close()
 
 def orderbook(exchange, symbol):
   return exchange.fetch_order_book(symbol)
 
 class OrderBookWidget(QtWidgets.QWidget):
     DISPLAY_ORDERBOOK = QtCore.pyqtSignal(list, list)
+    DISPLAY_TRADES = QtCore.pyqtSignal(list)
+
     def __init__(self, parent, symbol, winid):
         super(OrderBookWidget,self).__init__(parent)
         self.parent = parent
         self.winid = winid
         self.symbol = symbol
-        self.init_orderbook_widget()
-        if is_darwin == False:
-            self.setMaximumWidth(parent.width()/4.3)
-        else:
-            self.setMaximumWidth(parent.width() / 4.2)
-        self.setMaximumHeight(parent.height() / 2)
 
         self.kill_websocket_watch_thread = False
         self.websocket_alive_time = time.time()
+        self.websocket_alive_time_trades = time.time()
         self.websocket_watch_thread = threading.Thread(target=self.websocket_watch)
         self.websocket_watch_thread.daemon = True
         self.websocket_watch_thread.start()
@@ -1890,9 +1895,15 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.bfx_orderbook["bids"] = {}
         self.bfx_orderbook["asks"] = {}
         self.orderbook_time_shown = 0
+        self.trades_list = []
+        self.bfx_chanid_trades = -1
 
-        widget = QtWidgets.QHBoxLayout(self)
+        widget = QtWidgets.QHBoxLayout()
         self.tableWidgetBids = QtWidgets.QTableWidget()
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
+        sizePolicy.setHorizontalStretch(1)
+        sizePolicy.setVerticalStretch(2)
+        self.tableWidgetBids.setSizePolicy(sizePolicy)
         self.tableWidgetBids.setColumnCount(3)
         self.tableWidgetBids.verticalHeader().setVisible(False)
         self.tableWidgetBids.horizontalHeader().setStyleSheet("QHeaderView::section{border: 0px; border-bottom: 0px;}")
@@ -1906,6 +1917,10 @@ class OrderBookWidget(QtWidgets.QWidget):
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)
         widget.addWidget(self.tableWidgetBids, 1)
         self.tableWidgetAsks = QtWidgets.QTableWidget()
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
+        sizePolicy.setHorizontalStretch(1)
+        sizePolicy.setVerticalStretch(2)
+        self.tableWidgetAsks.setSizePolicy(sizePolicy)
         self.tableWidgetAsks.setColumnCount(3)
         self.tableWidgetAsks.verticalHeader().setVisible(False)
         self.tableWidgetAsks.horizontalHeader().setStyleSheet("QHeaderView::section{border: 0px; border-bottom: 0px}")
@@ -1919,11 +1934,35 @@ class OrderBookWidget(QtWidgets.QWidget):
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)
         widget.addWidget(self.tableWidgetAsks, 1)
 
+        widget_verticalLayout = QtWidgets.QVBoxLayout(self)
+        widget_verticalLayout.addLayout(widget, 1)
+        self.tableWidgetTrades = QtWidgets.QTableWidget()
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(1)
+        sizePolicy.setVerticalStretch(0)
+        self.tableWidgetTrades.setSizePolicy(sizePolicy)
+        self.tableWidgetTrades.setColumnCount(3)
+        self.tableWidgetTrades.verticalHeader().setVisible(False)
+        self.tableWidgetTrades.horizontalHeader().setStyleSheet("QHeaderView::section{border: 0px; border-bottom: 0px;}")
+        self.tableWidgetTrades.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        self.tableWidgetTrades.setHorizontalHeaderLabels(["Time", "Price", "Quantity"])
+        self.tableWidgetTrades.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        header = self.tableWidgetTrades.horizontalHeader()
+        header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)
+        widget_verticalLayout.addWidget(self.tableWidgetTrades)
+        self.tableWidgetTrades.setMinimumHeight(self.height()*0.4)
+
+        self.init_orderbook_widget()
+
+    def resizeEvent(self, event):
+        self.tableWidgetTrades.setMinimumHeight(self.height()*0.4)
+
     @QtCore.pyqtSlot(list, list)
     def on_DISPLAY_ORDERBOOK(self, bids_, asks_):
         font = QtGui.QFont()
         font.setPointSize(9)
-
         if is_darwin == True:
             font.setPointSize(10)
 
@@ -2065,12 +2104,69 @@ class OrderBookWidget(QtWidgets.QWidget):
             multiplier = len(bids_)
         else:
             multiplier = len(asks_)
-        self.setMinimumHeight(int(23*multiplier))
+
+    @QtCore.pyqtSlot(list)
+    def on_DISPLAY_TRADES(self, trades_list):
+        self.tableWidgetTrades.setRowCount(len(self.trades_list))
+        font = QtGui.QFont()
+        font.setPointSize(9)
+        if is_darwin == True:
+            font.setPointSize(10)
+
+        i = 0
+        for trade in reversed(trades_list):
+            trade_time = trade[0]
+            trade_price = trade[1]
+            trade_quantity = trade[2]
+            trade_buy_maker = trade[3]
+            trade_time_pretty = prettydate.date(datetime.datetime.fromtimestamp(trade_time))
+
+            self.tableWidgetTrades.setRowHeight(i, 23)
+            trade_price = str(client.price_to_precision(self.symbol, trade_price))
+            trade_quantity = str(client.amount_to_precision(self.symbol, trade_quantity))
+
+            columnItem = QtWidgets.QTableWidgetItem(str(trade_time_pretty))
+            columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            if trade_buy_maker == True:
+                columnItem.setBackground(QtGui.QColor(17, 122, 101))
+            else:
+                columnItem.setBackground(QtGui.QColor(146, 43, 33))
+            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+            columnItem.setFont(font)
+            columnItem.setFlags(QtCore.Qt.NoItemFlags)
+            self.tableWidgetTrades.setItem(i, 0, columnItem)
+
+            columnItem = QtWidgets.QTableWidgetItem(trade_price)
+            columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            if trade_buy_maker == True:
+                columnItem.setBackground(QtGui.QColor(17, 122, 101))
+            else:
+                columnItem.setBackground(QtGui.QColor(146, 43, 33))
+            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+            columnItem.setFont(font)
+            columnItem.setFlags(QtCore.Qt.NoItemFlags)
+            self.tableWidgetTrades.setItem(i, 1, columnItem)
+
+            columnItem = QtWidgets.QTableWidgetItem(trade_quantity)
+            columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            if trade_buy_maker == True:
+                columnItem.setBackground(QtGui.QColor(17, 122, 101))
+            else:
+                columnItem.setBackground(QtGui.QColor(146, 43, 33))
+            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+            columnItem.setFont(font)
+            columnItem.setFlags(QtCore.Qt.NoItemFlags)
+            self.tableWidgetTrades.setItem(i, 2, columnItem)
+            i = i + 1
 
     def restart_websocket(self):
         self.exchange_obj.stop_depth_websocket()
         self.exchange_obj.start_depth_websocket(self.symbol, self.process_message)
-        self.websocket_alive_time = time.time()
+
+    def restart_websocket_trades(self):
+        self.exchange_obj.stop_trades_websocket()
+        self.exchange_obj.start_trades_websocket(self.symbol, self.process_message_trades)
+        self.websocket_alive_time_trades = time.time()
 
     def websocket_watch(self):
         while True:
@@ -2078,8 +2174,9 @@ class OrderBookWidget(QtWidgets.QWidget):
                 break
             if time.time() - self.websocket_alive_time > 60:
                 self.restart_websocket()
-            else:
-                time.sleep(0.1)
+            if time.time() - self.websocket_alive_time_trades > 60:
+                self.restart_websocket_trades()
+            time.sleep(0.1)
 
     def process_message(self, msg):
         if exchange == "BITFINEX":
@@ -2144,33 +2241,102 @@ class OrderBookWidget(QtWidgets.QWidget):
             self.orderbook_time_shown = time.time()
             return
 
-        if "e" in msg and msg["e"] == "error":
-            self.restart_websocket()
-            return
+        elif exchange == "BINANCE":
+            #msg is a python-binance depth cache instance
+            if msg is not None:
+                self.websocket_alive_time = time.time()
+                for tab_index in window_ids:
+                    if self.winid == window_ids[tab_index]:
+                        break
+                if self.parent.tabWidget.currentIndex() != tab_index:
+                    return
+                if self.orderbook_time_shown != 0 and time.time() - self.orderbook_time_shown < 1:
+                    return
 
-        if "bids" in msg:
-            self.websocket_alive_time = time.time()
-
-            for tab_index in window_ids:
-                if self.winid == window_ids[tab_index]:
-                    break
-
-            if self.parent.tabWidget.currentIndex() != tab_index:
+                bids_ = msg.get_bids()[:25]
+                asks_ = msg.get_asks()[:25]
+                #bids_ = [[float(bid[0]), float(bid[1])] for bid in msg["bids"]]
+                #asks_ = [[float(ask[0]), float(ask[1])] for ask in msg["asks"]]
+                self.DISPLAY_ORDERBOOK.emit(bids_, asks_)
+                self.orderbook_time_shown = time.time()
+                return
+            else:
+                self.restart_websocket()
                 return
 
-            if self.orderbook_time_shown != 0 and time.time() - self.orderbook_time_shown < 1:
+    def process_message_trades(self, msg):
+        if exchange == "BITFINEX":
+            if isinstance(msg, dict) and "chanId" in msg:
+                self.websocket_alive_time = time.time()
+                self.bfx_chanid_trades = msg["chanId"]
+                return
+            elif self.bfx_chanid_trades != -1 and isinstance(msg, list) and msg[0] == self.bfx_chanid_trades:
+                self.websocket_alive_time_trades = time.time()
+
+                if isinstance(msg[1], list) and len(msg[1]) > 0 and isinstance(msg[1][0], list) and len(msg[1][0]) > 0:
+                    for trade in reversed(msg[1]):
+                        trade_time = trade[1] / 1000
+                        trade_price = float(trade[3])
+                        trade_quantity = float(trade[2])
+                        trade_buy_maker = trade_quantity > 0
+                        if trade_quantity < 0:
+                            trade_quantity = trade_quantity * -1
+                        self.trades_list.append([trade_time, trade_price, trade_quantity, trade_buy_maker])
+
+                    for tab_index in window_ids:
+                        if self.winid == window_ids[tab_index]:
+                            break
+                    if self.parent.tabWidget.currentIndex() != tab_index:
+                        return
+
+                    self.DISPLAY_TRADES.emit(self.trades_list)
+                elif isinstance(msg[1], str) and msg[1] == "te" and isinstance(msg[2], list) and len(msg[2]) > 0:
+                    trade = msg[2]
+                    trade_time = trade[1] / 1000
+                    trade_price = float(trade[3])
+                    trade_quantity = float(trade[2])
+                    trade_buy_maker = trade_quantity > 0
+                    if trade_quantity < 0:
+                        trade_quantity = trade_quantity * -1
+                    self.trades_list.append([trade_time, trade_price, trade_quantity, trade_buy_maker])
+                    if len(self.trades_list) > 100:
+                        self.trades_list.pop(0)
+
+                    for tab_index in window_ids:
+                        if self.winid == window_ids[tab_index]:
+                            break
+                    if self.parent.tabWidget.currentIndex() != tab_index:
+                        return
+
+                    self.DISPLAY_TRADES.emit(self.trades_list)
+                    return
+
+        elif exchange == "BINANCE":
+            if isinstance(msg, dict) and "T" in msg:
+                self.websocket_alive_time_trades = time.time()
+                trade_time = msg["T"] / 1000
+                trade_price = float(msg["p"])
+                trade_quantity = float(msg["q"])
+                trade_buy_maker = msg["m"]
+                self.trades_list.append([trade_time, trade_price, trade_quantity, trade_buy_maker])
+
+                if len(self.trades_list) > 100:
+                    self.trades_list.pop(0)
+
+                for tab_index in window_ids:
+                    if self.winid == window_ids[tab_index]:
+                        break
+                if self.parent.tabWidget.currentIndex() != tab_index:
+                    return
+
+                self.DISPLAY_TRADES.emit(self.trades_list)
                 return
 
-            bids_ = [[float(bid[0]), float(bid[1])] for bid in msg["bids"]]
-            asks_ = [[float(ask[0]), float(ask[1])] for ask in msg["asks"]]
-
-            self.DISPLAY_ORDERBOOK.emit(bids_, asks_)
-            self.orderbook_time_shown = time.time()
-            return
+    def update_trades_display(self):
+        self.on_DISPLAY_TRADES(self.trades_list)
 
     def init_orderbook_widget(self):
         global markets
-        self.setMinimumWidth(337)
         newfont = QtGui.QFont("Courier New")
         self.setFont(newfont)
         self.setStyleSheet("QLabel { background-color : #131D27; color : #C6C7C8; }")
@@ -2179,6 +2345,7 @@ class OrderBookWidget(QtWidgets.QWidget):
         elif exchange == "BINANCE":
             self.exchange_obj = exchanges.Binance(markets, api_key, api_secret)
         self.exchange_obj.start_depth_websocket(self.symbol, self.process_message)
+        self.exchange_obj.start_trades_websocket(self.symbol, self.process_message_trades)
 
 if __name__ == "__main__":
   app = QtWidgets.QApplication(sys.argv)
@@ -2187,4 +2354,3 @@ if __name__ == "__main__":
   dialog = Dialog()
   dialog.show()
   os._exit(app.exec_())
-

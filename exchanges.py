@@ -1,6 +1,9 @@
 from bitfinex import WssClient
 from binance.client import Client
 from binance.websockets import BinanceSocketManager
+from binance.depthcache import DepthCacheManager
+import threading
+import time
 
 class Bitfinex:
     def __init__(self, markets, api_key, api_secret):
@@ -10,9 +13,11 @@ class Bitfinex:
         self.manager_candlestick = WssClient(self.api_key, self.api_secret)
         self.manager_depth = WssClient(self.api_key, self.api_secret)
         self.manager_ticker = WssClient(self.api_key, self.api_secret)
+        self.manager_trades = WssClient(self.api_key, self.api_secret)
         self.started_candlestick = False
         self.started_depth = False
         self.started_ticker = False
+        self.started_trades = False
 
     def get_exchange_symbol(self, symbol):
         for market in self.markets:
@@ -53,6 +58,16 @@ class Bitfinex:
     def stop_depth_websocket(self):
         self.manager_depth.close()
 
+    def start_trades_websocket(self, symbol, callback):
+        self.symbol = self.get_exchange_symbol(symbol)
+        self.manager_trades.subscribe_to_trades(symbol=self.symbol,callback=callback)
+        if self.started_trades == False:
+            self.manager_trades.start()
+            self.started_trades = True
+
+    def stop_trades_websocket(self):
+        self.manager_trades.close()
+
 
 class Binance:
     def __init__(self, markets, api_key, api_secret):
@@ -77,12 +92,27 @@ class Binance:
     def stop_candlestick_websocket(self):
         self.manager.stop_socket(self.connection_key)
 
+    def start_depth_websocket_internal(self, symbol, callback):
+        time.sleep(0.1)
+        self.depth_cache_manager = DepthCacheManager(self.client, self.symbol, callback=callback, limit=50, refresh_interval=0)
+        self.started = True
+
     def start_depth_websocket(self, symbol, callback):
         self.symbol = self.get_exchange_symbol(symbol)
-        self.depth_key = self.manager.start_depth_socket(self.symbol, callback, depth=BinanceSocketManager.WEBSOCKET_DEPTH_20)
+        #Binance Depth Cache Websocket inititally fetches orderbook data from Binance,
+        #which would block the main thread, put the start call into a thread
+        thread = threading.Thread(target=self.start_depth_websocket_internal, args=(symbol, callback))
+        thread.start()
+
+    def stop_depth_websocket(self):
+        self.depth_cache_manager.close(close_socket=True)
+
+    def start_trades_websocket(self, symbol, callback):
+        self.symbol = self.get_exchange_symbol(symbol)
+        self.connection_key_trades = self.manager.start_trade_socket(self.symbol, callback)
         if self.started == False:
             self.manager.start()
             self.started = True
 
-    def stop_depth_websocket(self):
-        self.manager.stop_socket(self.depth_key)
+    def stop_trades_websocket(self):
+        self.manager.stop_socket(self.connection_key_trades)
