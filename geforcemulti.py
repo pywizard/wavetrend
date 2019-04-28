@@ -692,6 +692,7 @@ class ChartRunner(QtCore.QThread):
               date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol, False)
               time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
                             elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
+              date2 = None
           elif init == False and first == False and exchange == "BITFINEX" and time.time() > time_close:
               [date2, open2_, high2, low2, close2, vol2, limit2] = [date[-1], open_[-1], high[-1], low[-1], close[-1], vol[-1], limit]
           elif first == True:
@@ -699,6 +700,7 @@ class ChartRunner(QtCore.QThread):
                                                                          symbol, False)
                 time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
                               elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
+                date2 = None
           else:
             try:
                 chart_result = dqs[self.tab_index].pop()
