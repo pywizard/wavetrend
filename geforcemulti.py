@@ -41,6 +41,7 @@ import weakref
 import numpy
 import platform
 import prettydate
+import collections
 
 #FIX: squash memory leak for redraws
 class MyTransformNode(object):
@@ -399,17 +400,6 @@ DataRunnerTabs = {}
 days_table = {"1m": 0.17, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, "2h": 20, "3h": 30, "4h": 40, "6h": 60, "12h": 120, "1d": 240, "1D": 240}
 elapsed_table = {"1m": 60, "5m": 60*5, "15m": 60*15, "30m": 60*30, "1h": 60*60, "2h": 60*60*2, "3h": 60*60*3, "4h": 60*60*4, "6h": 60*60*6, "12h": 60*60*12, "1d": 60*60*24, "1D": 60*60*24}
 
-def ceil_dt(dt, seconds):
-    # how many secs have passed this hour
-    nsecs = dt.minute*60 + dt.second + dt.microsecond*1e-6
-    # number of seconds to next quarter hour mark
-    # Non-analytic (brute force is fun) way:  
-    #   delta = next(x for x in xrange(0,3601,900) if x>=nsecs) - nsecs
-    # analytic way:
-    delta = math.ceil(nsecs / seconds) * seconds - nsecs
-    #time + number of seconds to quarter hour mark.
-    return dt + datetime.timedelta(seconds=delta)
-
 from operator import itemgetter
 
 class MplCanvas(FigureCanvas):
@@ -499,9 +489,7 @@ class DataRunner:
                 result[3] = last_price
             result[4] = last_price # close
 
-            with dqs[self.window_id].mutex:
-                dqs[self.window_id].queue.clear()
-            dqs[self.window_id].put(result)
+            dqs[self.window_id].append(result)
 
   def process_message(self, msg):
     if exchange == "BITFINEX":
@@ -534,9 +522,7 @@ class DataRunner:
             result = [dt, open_, high, low, close, volume, 1]
             self.last_result = copy.copy(result)
 
-            with dqs[self.window_id].mutex:
-                dqs[self.window_id].queue.clear()
-            dqs[self.window_id].put(result)
+            dqs[self.window_id].append(result)
 
     elif exchange == "BINANCE":
         if "e" in msg and msg["e"] == "error":
@@ -554,9 +540,7 @@ class DataRunner:
 
             result = [dt, open_, high, low, close, volume, 1]
 
-            with dqs[self.window_id].mutex:
-                dqs[self.window_id].queue.clear()
-            dqs[self.window_id].put(result)
+            dqs[self.window_id].append(result)
 
 class ChartRunner(QtCore.QThread):
   FIGURE_ADD_SUBPLOT = QtCore.pyqtSignal(str, int, object)
@@ -685,9 +669,7 @@ class ChartRunner(QtCore.QThread):
     indicator_update_time = 0
     current_candle_type = window_configs[self.tab_index].candle_type
     current_trade_type = window_configs[self.tab_index].trade_type
-    old_date = 0
     date = None
-    new_data_retrieved = False
     force_redraw_chart = False # True means switched from tab
 
     while True:
@@ -706,56 +688,60 @@ class ChartRunner(QtCore.QThread):
           trade_type = window_configs[self.tab_index].trade_type
 
           if first == True:
-            date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol, False)
-            time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
-                         elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
-          else:
-            if dqs[self.tab_index].empty() == False:
-                chart_result = dqs[self.tab_index].get()
-            else:
-                chart_result = 0
-            if chart_result != 0:
-              [date2, open2_, high2, low2, close2, vol2, limit2] = chart_result
-              [date3, open3_, high3, low3, close3, vol3, limit3] = chart_result
-              new_data_retrieved = True
-            else:
-              try:
-                date2
-              except (NameError, UnboundLocalError) as e:
+            if init == True:
+                date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol, False)
+                time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
+                             elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
+            elif exchange == "BITFINEX" and time.time() > time_close:
                 try:
-                 date3
-                 [date2, open2_, high2, low2, close2, vol2, limit2] = [date3, open3_,
-                                                                              high3, low3, close3,
-                                                                              vol3, limit3]
+                    dqs[self.tab_index].pop()
+                    date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered,
+                                                                             symbol, False)
+                    time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
+                                 elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
+                except IndexError:
+                    # new candle is initially created but we have no data yet
+                    pass
+            elif init == False:
+                #all supported exchanges except bitfinex
+                date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered,
+                                                                         symbol, False)
+                time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
+                              elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
+
+          else:
+            try:
+                chart_result = dqs[self.tab_index].pop()
+                dqs[self.tab_index].clear()
+                [date2, open2_, high2, low2, close2, vol2, limit2] = chart_result
+                [date3, open3_, high3, low3, close3, vol3, limit3] = chart_result
+            except IndexError:
+                try:
+                  date2
                 except (NameError, UnboundLocalError) as e:
-                    [date2, open2_, high2, low2, close2, vol2, limit2] = \
-                        [date[-1], open_[-1], high[-1], low[-1], close[-1], vol[-1], limit]
+                  try:
+                   date3
+                   [date2, open2_, high2, low2, close2, vol2, limit2] = [date3, open3_,
+                                                                                high3, low3, close3,
+                                                                                vol3, limit3]
+                  except (NameError, UnboundLocalError) as e:
+                      [date2, open2_, high2, low2, close2, vol2, limit2] = \
+                          [date[-1], open_[-1], high[-1], low[-1], close[-1], vol[-1], limit]
 
           if first == True:
             self.FIGURE_ADD_SUBPLOT.emit(self.tab_index, 111, None)
             ax = aqs[self.tab_index].get()
 
-            if init == False and exchange == "BITFINEX" and date[-1] == old_date:
-                prices[:] = []
-                for i in range(1, len(date)):
-                    prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
-
-                candle_time_dt = datetime.datetime.fromtimestamp(datetime.datetime.timestamp(date[-1]) + elapsed_table[self.timeframe_entered])
-                prices.append((date2num(candle_time_dt), close[-1], close[-1], close[-1], close[-1], 0, candle_time_dt))
-                time_close = (datetime.datetime.timestamp(candle_time_dt) // elapsed_table[self.timeframe_entered] * \
-                             elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
-            else:
-                prices[:] = []
-                for i in range(0, len(date)):
-                    prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
+            prices[:] = []
+            for i in range(0, len(date)):
+                prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
 
             dates2 = [x[0] for x in prices]
                         
             ax.xaxis.set_tick_params(labelsize=9)
             ax.yaxis.set_tick_params(labelsize=9)
           else:
-            if not (init == False and exchange == "BITFINEX" and new_data_retrieved == False):
-                prices[-1] = [date2num(date2), open2_, high2, low2, close2, vol2, date2]
+            prices[-1] = [date2num(date2), open2_, high2, low2, close2, vol2, date2]
 
           hotkeys_pressed = current_candle_type != candle_type or current_trade_type != trade_type
           if hotkeys_pressed == True:
@@ -772,12 +758,6 @@ class ChartRunner(QtCore.QThread):
             indicator_axes[:] = []
             current_candle_type = candle_type
             current_trade_type = trade_type
-            if not hotkeys_pressed:
-                new_data_retrieved = False
-            if force_redraw_chart == True:
-                old_date = 0
-            else:
-                old_date = prices[-1][6]
             force_redraw_chart = False
             continue
 
@@ -931,24 +911,18 @@ class ChartRunner(QtCore.QThread):
             d1 = ctx.create_decimal(repr(ticker))
             ticker_formatted = format(d1, 'f')
 
-          in_time = datetime.datetime.now()
-          if timeframe_entered == "1m":
-            in_time = ceil_dt(in_time, 60)
-          elif timeframe_entered == "5m":
-            in_time = ceil_dt(in_time, 5*60)
-          elif timeframe_entered == "15m":
-            in_time = ceil_dt(in_time, 15*60)
-          elif timeframe_entered == "30m":
-            in_time = ceil_dt(in_time, 30*60)
-          elif timeframe_entered == "1h":
-            in_time = ceil_dt(in_time, 60*60)
+          next_candle_start_time = time.time() // elapsed_table[timeframe_entered] * \
+                                   elapsed_table[timeframe_entered] + elapsed_table[timeframe_entered]
 
-          duration = in_time - datetime.datetime.now()
+          duration = datetime.datetime.fromtimestamp(next_candle_start_time) - datetime.datetime.now()
           days, seconds = duration.days, duration.seconds
           hours = days * 24 + seconds // 3600
           minutes = (seconds % 3600) // 60
           seconds = seconds % 60
-          time_to_hour = "%02d:%02d" % (minutes, seconds)
+          if hours == 0:
+            time_to_next_candle = "%02d:%02d" % (minutes, seconds)
+          else:
+            time_to_next_candle = "%02d:%02d:%02d" % (hours, minutes, seconds)
 
           if first == True:
             color = "#2c681d" # green
@@ -958,9 +932,10 @@ class ChartRunner(QtCore.QThread):
                 line_color = red
 
             tag_title = symbol + " " + ticker_formatted
-            if timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:
-             tag_title = tag_title + "\n"
-             tag_title = tag_title + " " * (len(tag_title)-len(time_to_hour)-1) + time_to_hour
+
+            if not (exchange == "BITFINEX" and time.time() > time_close): # bitfinex not waiting for new candle data
+                tag_title = tag_title + "\n"
+                tag_title = tag_title + " " * (len(tag_title)-len(time_to_next_candle)-1) + time_to_next_candle
 
             price_line = ax.axhline(ticker_for_line, color=line_color, linestyle="dotted", lw=.9)
             annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker_for_line, tag_title, fontsize=8, weight="bold", color=white, backgroundcolor=color, family="monospace")
@@ -979,9 +954,9 @@ class ChartRunner(QtCore.QThread):
                 line_color = red
 
             tag_title = symbol + " " + ticker_formatted
-            if timeframe_entered in ["1m", "5m", "15m", "30m", "1h"]:
-             tag_title = tag_title + "\n"
-             tag_title = tag_title + " " * (len(tag_title)-len(time_to_hour)-1) + time_to_hour
+            if not (exchange == "BITFINEX" and time.time() > time_close):
+                tag_title = tag_title + "\n"
+                tag_title = tag_title + " " * (len(tag_title)-len(time_to_next_candle)-1) + time_to_next_candle
 
             price_line.set_ydata(ticker_for_line)
             price_line.set_color(line_color)
@@ -1303,7 +1278,6 @@ class Window(QtWidgets.QMainWindow):
         sizePolicy.setVerticalStretch(1)
         OrderBookWidget_.setSizePolicy(sizePolicy)
         widget.addWidget(OrderBookWidget_, alignment=QtCore.Qt.AlignRight)
-        #widget.setContentsMargins(0,0,0,0)
 
         self.dcs = {}
         self.dcs[window_id] = dc
@@ -1313,7 +1287,7 @@ class Window(QtWidgets.QMainWindow):
         global dqs
         qs[window_id] = Queue.Queue()
         aqs[window_id] = Queue.Queue()
-        dqs[window_id] = Queue.Queue()
+        dqs[window_id] = collections.deque()
 
         DataRunnerTabs[window_id] = DataRunner(self, symbol, window_id, 0, timeframe_entered)
 
@@ -1486,7 +1460,6 @@ class Window(QtWidgets.QMainWindow):
         del dqs[winid]
         self.dcs[winid].fig.clf()
         del self.dcs[winid]
-        self.tabWidget.removeTab(tab_index)
 
         global DataRunnerTabs
 
@@ -1499,11 +1472,13 @@ class Window(QtWidgets.QMainWindow):
         del DataRunnerTabs[winid]
 
         self.OrderbookWidget[tab_index].exchange_obj.stop_depth_websocket()
+        self.OrderbookWidget[tab_index].exchange_obj.stop_trades_websocket()
         self.OrderbookWidget[tab_index].kill_websocket_watch_thread = True
         self.OrderbookWidget[tab_index].websocket_watch_thread.join()
         del self.OrderbookWidget[tab_index].exchange_obj
         del self.OrderbookWidget[tab_index]
 
+        self.tabWidget.removeTab(tab_index)
         self.tabWidget.setCurrentIndex(tab_index)
 
         window_ids_copy = {}
@@ -1579,7 +1554,6 @@ class Window(QtWidgets.QMainWindow):
       sizePolicy.setVerticalStretch(1)
       OrderBookWidget_.setSizePolicy(sizePolicy)
       widget.addWidget(OrderBookWidget_, alignment=QtCore.Qt.AlignRight)
-      #widget.setContentsMargins(0, 0, 0, 0)
 
       global qs
       global aqs
@@ -1587,7 +1561,7 @@ class Window(QtWidgets.QMainWindow):
       
       qs[window_id] = Queue.Queue()
       aqs[window_id] = Queue.Queue()
-      dqs[window_id] = Queue.Queue()
+      dqs[window_id] = collections.deque()
       self.dcs[window_id] = dc
 
       DataRunnerTabs[window_id] = DataRunner(self, symbol, window_id, tab_index, timeframe_entered)

@@ -4,9 +4,7 @@ Wavetrend is a trading terminal for Bitcoin and Altcoins
 
 SUPPORTED EXCHANGES
 =====
-BINANCE, BITSTAMP, GEMINI, HITBTC, OKEX, BITMEX, GDAX, KRAKEN, BITTREX
-
-websockets: BINANCE, all others: currently missing
+BINANCE, BITFINEX
 
 HOTKEYS
 =====

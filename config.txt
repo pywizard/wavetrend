@@ -1,4 +1,3 @@
-#exchange can be one of BINANCE, BITSTAMP, GEMINI, HITBTC, OKEX, BITMEX, GDAX, KRAKEN, BITTREX -- websockets: missing
 exchanges = {
     "BITFINEX": {
     "name": "BITFINEX",
