@@ -670,6 +670,7 @@ class ChartRunner(QtCore.QThread):
     current_candle_type = window_configs[self.tab_index].candle_type
     current_trade_type = window_configs[self.tab_index].trade_type
     date = None
+    date2 = None
     force_redraw_chart = False # True means switched from tab
 
     while True:
@@ -687,46 +688,24 @@ class ChartRunner(QtCore.QThread):
           candle_type = window_configs[self.tab_index].candle_type
           trade_type = window_configs[self.tab_index].trade_type
 
-          if first == True:
-            if init == True:
-                date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol, False)
-                time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
-                             elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
-            elif exchange == "BITFINEX" and time.time() > time_close:
-                try:
-                    dqs[self.tab_index].pop()
-                    date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered,
-                                                                             symbol, False)
-                    time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
-                                 elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
-                except IndexError:
-                    # new candle is initially created but we have no data yet
-                    pass
-            elif init == False:
-                #all supported exchanges except bitfinex
+          if init == False and first == True and exchange == "BITFINEX" and time.time() > time_close:
+              date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol, False)
+              time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
+                            elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
+          elif init == False and first == False and exchange == "BITFINEX" and time.time() > time_close:
+              [date2, open2_, high2, low2, close2, vol2, limit2] = [date[-1], open_[-1], high[-1], low[-1], close[-1], vol[-1], limit]
+          elif first == True:
                 date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered,
                                                                          symbol, False)
                 time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
                               elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
-
           else:
             try:
                 chart_result = dqs[self.tab_index].pop()
                 dqs[self.tab_index].clear()
                 [date2, open2_, high2, low2, close2, vol2, limit2] = chart_result
-                [date3, open3_, high3, low3, close3, vol3, limit3] = chart_result
             except IndexError:
-                try:
-                  date2
-                except (NameError, UnboundLocalError) as e:
-                  try:
-                   date3
-                   [date2, open2_, high2, low2, close2, vol2, limit2] = [date3, open3_,
-                                                                                high3, low3, close3,
-                                                                                vol3, limit3]
-                  except (NameError, UnboundLocalError) as e:
-                      [date2, open2_, high2, low2, close2, vol2, limit2] = \
-                          [date[-1], open_[-1], high[-1], low[-1], close[-1], vol[-1], limit]
+                pass
 
           if first == True:
             self.FIGURE_ADD_SUBPLOT.emit(self.tab_index, 111, None)
@@ -736,12 +715,11 @@ class ChartRunner(QtCore.QThread):
             for i in range(0, len(date)):
                 prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
 
-            dates2 = [x[0] for x in prices]
-                        
             ax.xaxis.set_tick_params(labelsize=9)
             ax.yaxis.set_tick_params(labelsize=9)
           else:
-            prices[-1] = [date2num(date2), open2_, high2, low2, close2, vol2, date2]
+            if date2 != None:
+                prices[-1] = [date2num(date2), open2_, high2, low2, close2, vol2, date2]
 
           hotkeys_pressed = current_candle_type != candle_type or current_trade_type != trade_type
           if hotkeys_pressed == True:
@@ -1051,8 +1029,6 @@ class ChartRunner(QtCore.QThread):
           pclose[:] = []
           pvol[:] = []
 
-          first = False
-
           do_break = False
           while True:
               if tab_index in destroyed_window_ids:
@@ -1072,10 +1048,11 @@ class ChartRunner(QtCore.QThread):
           if do_break == True:
             break
 
+          first = False
+          init = False
         except:
           print(get_full_stacktrace())
           
-        init = False
 
     self.CHART_DESTROY.emit(self.tab_index)
     
