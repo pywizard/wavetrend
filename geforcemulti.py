@@ -356,10 +356,14 @@ def truncate(f, n):
     return math.floor(f * 10 ** n) / 10 ** n
 
 def get_asset_from_symbol(symbol):
-  return symbol.split("/")[0]
+    for market in markets:
+        if market["symbol"] == symbol:
+            return market["base"]
 
 def get_quote_from_symbol(symbol):
-  return symbol.split("/")[1]
+    for market in markets:
+        if market["symbol"] == symbol:
+            return market["quote"]
 
 def translate_buy_amount_percent(index):
   if index == 0:
@@ -1294,16 +1298,10 @@ class Window(QtWidgets.QMainWindow):
       try:
         percent = .25
         price = get_symbol_price(self.symbol)
-        if self.symbol.endswith("USDT"):
-          asset_balance = float(client.fetch_balance()["USDT"]["free"])
-          amount = truncate((asset_balance / price) * percent, 2)
-        elif self.symbol.endswith("USD"):
-          asset_balance = float(client.fetch_balance()["USD"]["free"])
-          amount = truncate((asset_balance / price) * percent, 2)                  
-        else:
-          asset_balance = float(client.fetch_balance()["BTC"]["free"])
-          amount = truncate((asset_balance / price) * percent, 2)
-        
+        quote = get_quote_from_symbol(self.symbol)
+        asset_balance = float(client.fetch_balance()[quote]["free"])
+        amount = float(client.amount_to_precision(self.symbol, (asset_balance / price) * percent))
+
         book = orderbook(client, self.symbol)
         asks_added = 0
         for ask in book["asks"]:
@@ -1319,8 +1317,8 @@ class Window(QtWidgets.QMainWindow):
       
      if str(key) == "83": # S pressed
       try:
-        asset_balance = truncate(float(client.fetch_balance()[get_asset_from_symbol(self.symbol)]["free"]), 2)
-        amount = truncate(asset_balance * .5, 2)
+        asset_balance = float(client.fetch_balance()[get_asset_from_symbol(self.symbol)]["free"])
+        amount = float(client.amount_to_precision(self.symbol, asset_balance * .5))
         book = orderbook(client, self.symbol)
         bids_added = 0
         for bid in book["bids"]:
@@ -1628,7 +1626,7 @@ class TradeDialog(QtWidgets.QDialog):
     self.toolButton_6.clicked.connect(self.sellmarket_clicked)    
 
   def buylimit_clicked(self, event):
-    amount = truncate(float(self.editAmount.text()), 2)
+    amount = float(client.amount_to_precision(self.symbol, float(self.editAmount.text())))
     price = float(self.editPrice.text())
     
     symbol_price = get_symbol_price(self.symbol)
@@ -1644,7 +1642,7 @@ class TradeDialog(QtWidgets.QDialog):
     self.close()
     
   def selllimit_clicked(self, event):
-    amount = truncate(float(self.editAmount2.text()), 2)
+    amount = float(client.amount_to_precision(self.symbol, float(self.editAmount2.text())))
     price = float(self.editPrice2.text())
 
     symbol_price = get_symbol_price(self.symbol)
