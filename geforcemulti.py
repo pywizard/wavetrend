@@ -2069,7 +2069,7 @@ class OrderBookWidget(QtWidgets.QWidget):
             trade_time = trade[0]
             trade_price = trade[1]
             trade_quantity = trade[2]
-            trade_buy_maker = trade[3]
+            trade_buy_maker = not trade[3]
             trade_time_pretty = prettydate.date(datetime.datetime.fromtimestamp(trade_time))
 
             self.tableWidgetTrades.setRowHeight(i, 23)
@@ -2229,7 +2229,7 @@ class OrderBookWidget(QtWidgets.QWidget):
                         trade_time = trade[1] / 1000
                         trade_price = float(trade[3])
                         trade_quantity = float(trade[2])
-                        trade_buy_maker = trade_quantity > 0
+                        trade_buy_maker = trade_quantity < 0
                         if trade_quantity < 0:
                             trade_quantity = trade_quantity * -1
                         self.trades_list.append([trade_time, trade_price, trade_quantity, trade_buy_maker])
@@ -2246,7 +2246,7 @@ class OrderBookWidget(QtWidgets.QWidget):
                     trade_time = trade[1] / 1000
                     trade_price = float(trade[3])
                     trade_quantity = float(trade[2])
-                    trade_buy_maker = trade_quantity > 0
+                    trade_buy_maker = trade_quantity < 0
                     if trade_quantity < 0:
                         trade_quantity = trade_quantity * -1
                     self.trades_list.append([trade_time, trade_price, trade_quantity, trade_buy_maker])
