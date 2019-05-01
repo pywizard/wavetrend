@@ -86,11 +86,10 @@ class indicator_BBANDS():
         in_keltner_channel = False
 
   def in_keltner_now(self, axis, dates, keltner_upper, keltner_lower, lowest_price):
-    index = len(dates) - 1
-    if (self.bb_upper - keltner_upper)[index] < 0 and (keltner_lower - self.bb_lower)[index] < 0:
-      axis.annotate("*", xy=(dates[index], keltner_upper[index]), xycoords="data", fontsize=6, color=white, weight="bold")
-      axis.annotate("*", xy=(dates[index], keltner_lower[index]), xycoords="data", fontsize=6, color=white, weight="bold")
-      axis.annotate("Squeeze", (dates[index], lowest_price), fontsize=6, color=white, weight="bold", ha='center', va='center')
+    if self.bb_upper[-1] - keltner_upper < 0 and keltner_lower - self.bb_lower[-1] < 0:
+      axis.annotate("*", xy=(dates, keltner_upper), xycoords="data", fontsize=6, color=white, weight="bold")
+      axis.annotate("*", xy=(dates, keltner_lower), xycoords="data", fontsize=6, color=white, weight="bold")
+      axis.annotate("Squeeze", (dates, lowest_price), fontsize=6, color=white, weight="bold", ha='center', va='center')
 
 class indicator_KELTNER_CHANNEL():
   def __init__(self):

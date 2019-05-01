@@ -676,6 +676,8 @@ class ChartRunner(QtCore.QThread):
     date = None
     date2 = None
     force_redraw_chart = False # True means switched from tab
+    bband_index = -1
+    keltner_index = -1
 
     while True:
         try:
@@ -747,7 +749,9 @@ class ChartRunner(QtCore.QThread):
 
           if first == True:
             indicators.append(indicator_BBANDS())
+            bband_index = 0
             indicators.append(indicator_KELTNER_CHANNEL())
+            keltner_index = 1
             if current_trade_type == TRADE_TYPE_TRENDING:
               indicators.append(indicator_MACD())
             elif current_trade_type == TRADE_TYPE_OSC:
@@ -958,21 +962,12 @@ class ChartRunner(QtCore.QThread):
               if indicators[i].name == "MACD" or indicators[i].name == "VOLUME":
                 indicators[i].candle_width = candle_width
                 indicators[i].update()
-              elif indicators[i].name == "BBANDS":
-                  for indicator in indicators:
-                      if indicator.name == "KELTNER":
-                          indicators[i].in_keltner(ax, pdate, indicator.keltner_hband, \
-                                                       indicator.keltner_lband, lowest_price)
-                          break
+            indicators[bband_index].in_keltner(ax, pdate, indicators[keltner_index].keltner_hband, \
+                                     indicators[keltner_index].keltner_lband, lowest_price)
           else:
-              for i in range(0, len(indicators)):
-                  if indicators[i].name == "BBANDS":
-                      for indicator in indicators:
-                          if indicator.name == "KELTNER":
-                            indicators[i].in_keltner_now(ax, pdate, indicator.keltner_hband, \
-                                                     indicator.keltner_lband, lowest_price)
-                            break
-                      break
+            index = len(pdate) - 1
+            indicators[bband_index].in_keltner_now(ax, pdate[-1], indicators[keltner_index].keltner_hband[index], \
+                                     indicators[keltner_index].keltner_lband[index], lowest_price)
 
           if first == True:
             scanner_results = self.candlescanner(popen, phigh, plow, pclose)
