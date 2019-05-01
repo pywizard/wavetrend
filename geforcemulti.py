@@ -747,6 +747,7 @@ class ChartRunner(QtCore.QThread):
 
           if first == True:
             indicators.append(indicator_BBANDS())
+            indicators.append(indicator_KELTNER_CHANNEL())
             if current_trade_type == TRADE_TYPE_TRENDING:
               indicators.append(indicator_MACD())
             elif current_trade_type == TRADE_TYPE_OSC:
@@ -957,7 +958,21 @@ class ChartRunner(QtCore.QThread):
               if indicators[i].name == "MACD" or indicators[i].name == "VOLUME":
                 indicators[i].candle_width = candle_width
                 indicators[i].update()
-
+              elif indicators[i].name == "BBANDS":
+                  for indicator in indicators:
+                      if indicator.name == "KELTNER":
+                          indicators[i].in_keltner_now(ax, pdate, indicator.keltner_hband, \
+                                                       indicator.keltner_lband, lowest_price)
+                          break
+          else:
+              for i in range(0, len(indicators)):
+                  if indicators[i].name == "BBANDS":
+                      for indicator in indicators:
+                          if indicator.name == "KELTNER":
+                            indicators[i].in_keltner(ax, pdate, indicator.keltner_hband, \
+                                                     indicator.keltner_lband, lowest_price)
+                            break
+                      break
 
           if first == True:
             scanner_results = self.candlescanner(popen, phigh, plow, pclose)

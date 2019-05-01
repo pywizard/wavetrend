@@ -2,6 +2,7 @@
 import numpy as np
 from colors import *
 import copy
+import pandas as pd
 
 class indicator_DMI:
   def __init__(self):
@@ -67,6 +68,63 @@ class indicator_BBANDS():
     self.bb_middle_[0].set_ydata(self.bb_middle)
     self.bb_lower_[0].set_ydata(self.bb_lower)
   
+  def xaxis_get_start(self):
+    return 0
+
+  def in_keltner(self, axis, dates, keltner_upper, keltner_lower, lowest_price):
+    in_keltner_channel = False
+    for i in range(0, len(self.bb_upper)):
+      if (self.bb_upper - keltner_upper)[i] < 0 and (keltner_lower - self.bb_lower)[i] < 0:
+        axis.annotate("*", xy=(dates[i], keltner_upper[i]), xycoords="data", fontsize=6, color=white, weight="bold")
+        axis.annotate("*", xy=(dates[i], keltner_lower[i]), xycoords="data", fontsize=6, color=white, weight="bold")
+        if in_keltner_channel == False:
+          axis.annotate("Squeeze", (dates[i], lowest_price), fontsize=6, color=white, ha='center', va='center')
+          in_keltner_channel = True
+      else:
+        in_keltner_channel = False
+
+  def in_keltner_now(self, axis, dates, keltner_upper, keltner_lower, lowest_price):
+    index = len(dates) - 1
+    if (self.bb_upper - keltner_upper)[index] < 0 and (keltner_lower - self.bb_lower)[index] < 0:
+      axis.annotate("*", xy=(dates[index], keltner_upper[index]), xycoords="data", fontsize=6, color=white, weight="bold")
+      axis.annotate("*", xy=(dates[index], keltner_lower[index]), xycoords="data", fontsize=6, color=white, weight="bold")
+      axis.annotate("Squeeze", (dates[index], lowest_price), fontsize=6, color=white, ha='center', va='center')
+
+class indicator_KELTNER_CHANNEL():
+  def __init__(self):
+    self.name = "KELTNER"
+    self.overlay_chart = True
+
+  def keltner_channel_hband(self, high, low, close, n):
+    """Keltner channel (KC)
+    Showing a simple moving average line (high) of typical price.
+    """
+    tp = ((4 * high) - (2 * low) + close) / 3.0
+    tp = pd.Series(tp).rolling(n).mean()
+    return tp
+
+  def keltner_channel_lband(self, high, low, close, n):
+    """Keltner channel (KC)
+    Showing a simple moving average line (low) of typical price.
+    """
+    tp = ((-2 * high) + (4 * low) + close) / 3.0
+    tp = pd.Series(tp).rolling(n).mean()
+    return tp
+
+  def generate_values(self, open_, high, low, close, volume):
+    self.keltner_hband = self.keltner_channel_hband(np.array(high), np.array(low), np.array(close), 20)
+    self.keltner_lband = self.keltner_channel_lband(np.array(high), np.array(low), np.array(close), 20)
+
+  def plot_once(self, axis, dates):
+    pass
+    #self.keltner_hband_ = axis.plot(dates, self.keltner_hband, color=blue, lw=.5, antialiased=True)
+    #self.keltner_lband_ = axis.plot(dates, self.keltner_lband, color=blue, lw=.5, antialiased=True)
+
+  def update(self):
+    pass
+    #self.keltner_hband_[0].set_ydata(self.keltner_hband)
+    #self.keltner_lband_[0].set_ydata(self.keltner_lband)
+
   def xaxis_get_start(self):
     return 0
 
