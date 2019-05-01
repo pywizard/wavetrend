@@ -75,7 +75,7 @@ class indicator_BBANDS():
     in_keltner_channel = False
     in_keltner_channel_index = -1
     for i in range(0, len(self.bb_upper)):
-      if (self.bb_upper - keltner_upper)[i] < 0 and (keltner_lower - self.bb_lower)[i] < 0:
+      if (self.bb_upper - keltner_upper)[i] < 0 and (keltner_lower - self.bb_lower)[i] < 0 and i != len(self.bb_upper)-1:
         axis.annotate("*", xy=(dates[i], keltner_upper[i]), xycoords="data", fontsize=6, color=white, weight="bold")
         axis.annotate("*", xy=(dates[i], keltner_lower[i]), xycoords="data", fontsize=6, color=white, weight="bold")
         if in_keltner_channel == False and i - in_keltner_channel_index > 5:

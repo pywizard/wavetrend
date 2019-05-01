@@ -806,6 +806,7 @@ class ChartRunner(QtCore.QThread):
                 new_ax.spines['right'].set_edgecolor(grayscale_light)
                 new_ax.spines['top'].set_edgecolor(grayscale_light)
                 new_ax.spines['bottom'].set_edgecolor(grayscale_light)
+                new_ax.spines['bottom'].set_linewidth(1.05)
                 new_ax.spines['left'].set_linewidth(3)
                 new_ax.xaxis.label.set_color(white)
                 new_ax.yaxis.label.set_color(white)
@@ -964,10 +965,9 @@ class ChartRunner(QtCore.QThread):
                 indicators[i].update()
             indicators[bband_index].in_keltner(ax, pdate, indicators[keltner_index].keltner_hband, \
                                      indicators[keltner_index].keltner_lband, lowest_price)
-          else:
-            index = len(pdate) - 1
-            indicators[bband_index].in_keltner_now(ax, pdate[-1], indicators[keltner_index].keltner_hband[index], \
-                                     indicators[keltner_index].keltner_lband[index], lowest_price)
+          index = len(pdate) - 1
+          indicators[bband_index].in_keltner_now(ax, pdate[-1], indicators[keltner_index].keltner_hband[index], \
+                                                 indicators[keltner_index].keltner_lband[index], lowest_price)
 
           if first == True:
             scanner_results = self.candlescanner(popen, phigh, plow, pclose)
@@ -1858,6 +1858,7 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.orderbook_time_shown = 0
         self.trades_list = []
         self.bfx_chanid_trades = -1
+        self.setWidgetSizePolicy = False
 
         widget = QtWidgets.QHBoxLayout()
         self.tableWidgetBids = QtWidgets.QTableWidget()
@@ -1922,6 +1923,8 @@ class OrderBookWidget(QtWidgets.QWidget):
 
     @QtCore.pyqtSlot(list, list)
     def on_DISPLAY_ORDERBOOK(self, bids_, asks_):
+        self.textlenForWidget = 0
+
         font = QtGui.QFont()
         font.setPointSize(9)
         if is_darwin == True:
@@ -1961,6 +1964,14 @@ class OrderBookWidget(QtWidgets.QWidget):
             amount = str(client.amount_to_precision(self.symbol, bid[1]))
             sum = sum + bid[1]
             sum_str = str(client.amount_to_precision(self.symbol, sum))
+
+            if self.setWidgetSizePolicy == False:
+                if len(price) >= 10:
+                    sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
+                    sizePolicy.setHorizontalStretch(3)
+                    sizePolicy.setVerticalStretch(1)
+                    self.parent.dcs[self.winid].setSizePolicy(sizePolicy)
+                    self.setWidgetSizePolicy = True
 
             columnItem = QtWidgets.QTableWidgetItem(price)
             columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
