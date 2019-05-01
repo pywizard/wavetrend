@@ -961,7 +961,7 @@ class ChartRunner(QtCore.QThread):
               elif indicators[i].name == "BBANDS":
                   for indicator in indicators:
                       if indicator.name == "KELTNER":
-                          indicators[i].in_keltner_now(ax, pdate, indicator.keltner_hband, \
+                          indicators[i].in_keltner(ax, pdate, indicator.keltner_hband, \
                                                        indicator.keltner_lband, lowest_price)
                           break
           else:
@@ -969,7 +969,7 @@ class ChartRunner(QtCore.QThread):
                   if indicators[i].name == "BBANDS":
                       for indicator in indicators:
                           if indicator.name == "KELTNER":
-                            indicators[i].in_keltner(ax, pdate, indicator.keltner_hband, \
+                            indicators[i].in_keltner_now(ax, pdate, indicator.keltner_hband, \
                                                      indicator.keltner_lband, lowest_price)
                             break
                       break

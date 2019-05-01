@@ -73,13 +73,15 @@ class indicator_BBANDS():
 
   def in_keltner(self, axis, dates, keltner_upper, keltner_lower, lowest_price):
     in_keltner_channel = False
+    in_keltner_channel_index = -1
     for i in range(0, len(self.bb_upper)):
       if (self.bb_upper - keltner_upper)[i] < 0 and (keltner_lower - self.bb_lower)[i] < 0:
         axis.annotate("*", xy=(dates[i], keltner_upper[i]), xycoords="data", fontsize=6, color=white, weight="bold")
         axis.annotate("*", xy=(dates[i], keltner_lower[i]), xycoords="data", fontsize=6, color=white, weight="bold")
-        if in_keltner_channel == False:
-          axis.annotate("Squeeze", (dates[i], lowest_price), fontsize=6, color=white, ha='center', va='center')
+        if in_keltner_channel == False and i - in_keltner_channel_index > 5:
+          axis.annotate("Squeeze", (dates[i], lowest_price), fontsize=6, color=white, weight="bold", ha='center', va='center')
           in_keltner_channel = True
+          in_keltner_channel_index = i
       else:
         in_keltner_channel = False
 
@@ -88,7 +90,7 @@ class indicator_BBANDS():
     if (self.bb_upper - keltner_upper)[index] < 0 and (keltner_lower - self.bb_lower)[index] < 0:
       axis.annotate("*", xy=(dates[index], keltner_upper[index]), xycoords="data", fontsize=6, color=white, weight="bold")
       axis.annotate("*", xy=(dates[index], keltner_lower[index]), xycoords="data", fontsize=6, color=white, weight="bold")
-      axis.annotate("Squeeze", (dates[index], lowest_price), fontsize=6, color=white, ha='center', va='center')
+      axis.annotate("Squeeze", (dates[index], lowest_price), fontsize=6, color=white, weight="bold", ha='center', va='center')
 
 class indicator_KELTNER_CHANNEL():
   def __init__(self):
