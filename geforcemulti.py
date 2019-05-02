@@ -886,13 +886,14 @@ class ChartRunner(QtCore.QThread):
             xl = ax.get_xlim()
             ax.set_xlim(date[start_x], xl[1])
 
+          if prices[-1][2] > highest_price:
+              highest_price = prices[-1][2]
+          if prices[-1][3] < lowest_price:
+              lowest_price = prices[-1][3]
 
-          if prices[-1][4] > highest_price:
-              highest_price = prices[-1][4]
-          if prices[-1][4] < lowest_price:
-              lowest_price = prices[-1][4]
-          #ax.yaxis.set_major_locator(matplotlib_ticker.MultipleLocator((highest_price-lowest_price)/20))
-          ax.set_ylim((lowest_price - lowest_price*0.0015, highest_price + highest_price*0.0015))
+          tick_values = ax.yaxis.get_major_locator().tick_values(lowest_price, highest_price)
+          ylim_offset = (tick_values[1] - tick_values[0]) / 6
+          ax.set_ylim((lowest_price - ylim_offset, highest_price + ylim_offset))
 
           ticker = prices[-1][4]
           ticker_formatted = str(client.price_to_precision(symbol, ticker))
