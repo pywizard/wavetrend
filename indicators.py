@@ -55,7 +55,10 @@ class indicator_BBANDS():
     self.overlay_chart = True
   
   def generate_values(self, open_, high, low, close, volume):
-    self.bb_upper, self.bb_middle, self.bb_lower = talib.BBANDS(np.array(close), timeperiod=20)    
+    self.bb_upper, self.bb_middle, self.bb_lower = talib.BBANDS(np.array(close) * 10000, timeperiod=20)
+    self.bb_upper = self.bb_upper / 10000
+    self.bb_middle = self.bb_middle / 10000
+    self.bb_lower = self.bb_lower / 10000
     
   def plot_once(self, axis, dates):
     self.bb_upper_ = axis.plot(dates, self.bb_upper, color=greenish, lw=.5, antialiased=True)
@@ -75,7 +78,7 @@ class indicator_BBANDS():
     in_keltner_channel = False
     in_keltner_channel_index = -1
     for i in range(0, len(self.bb_upper)):
-      if (self.bb_upper - keltner_upper)[i] < 0 and (keltner_lower - self.bb_lower)[i] < 0 and i != len(self.bb_upper)-1:
+      if i != len(dates)-1 and self.bb_upper[i] - keltner_upper[i] < 0 and keltner_lower[i] - self.bb_lower[i] < 0:
         axis.annotate("*", xy=(dates[i], keltner_upper[i]), xycoords="data", fontsize=6, color=white, weight="bold")
         axis.annotate("*", xy=(dates[i], keltner_lower[i]), xycoords="data", fontsize=6, color=white, weight="bold")
         if in_keltner_channel == False and i - in_keltner_channel_index > 5:

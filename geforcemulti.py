@@ -678,11 +678,14 @@ class ChartRunner(QtCore.QThread):
     force_redraw_chart = False # True means switched from tab
     bband_index = -1
     keltner_index = -1
+    squeeze_now_shown = False
 
     while True:
         try:
           while True:
               if init == True:
+                  self.FIGURE_CLEAR.emit(self.tab_index)
+                  aqs[self.tab_index].get()
                   update_time = time.time()
                   break
               if time.time() - update_time < 1:
@@ -699,8 +702,6 @@ class ChartRunner(QtCore.QThread):
               time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
                             elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
               date2 = None
-              if time.time() > time_close:
-                  time.sleep(1)
           elif first == True:
                 date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered,
                                                                          symbol, False)
@@ -958,16 +959,21 @@ class ChartRunner(QtCore.QThread):
           if init == True:
             xl = ax.get_xlim()
             candle_width = ((dbox.x0 - xl[0]) / limit) * 0.8
+
           if first == True:
             for i in range(0, len(indicators)):
               if indicators[i].name == "MACD" or indicators[i].name == "VOLUME":
                 indicators[i].candle_width = candle_width
                 indicators[i].update()
             indicators[bband_index].in_keltner(ax, pdate, indicators[keltner_index].keltner_hband, \
-                                     indicators[keltner_index].keltner_lband, lowest_price)
-          index = len(pdate) - 1
-          indicators[bband_index].in_keltner_now(ax, pdate[-1], indicators[keltner_index].keltner_hband[index], \
-                                                 indicators[keltner_index].keltner_lband[index], lowest_price)
+                                               indicators[keltner_index].keltner_lband, lowest_price)
+            squeeze_now_shown = False
+          else:
+            if squeeze_now_shown == False:
+                index = len(pdate) - 1
+                indicators[bband_index].in_keltner_now(ax, pdate[-1], indicators[keltner_index].keltner_hband[index], \
+                                                       indicators[keltner_index].keltner_lband[index], lowest_price)
+                squeeze_now_shown = True
 
           if first == True:
             scanner_results = self.candlescanner(popen, phigh, plow, pclose)
@@ -1132,7 +1138,7 @@ class ChartRunner(QtCore.QThread):
           break
         except:
           print(get_full_stacktrace())
-          time.sleep(1)
+          time.sleep(3)
           continue
 
       for candle in candles:
@@ -1262,7 +1268,10 @@ class Window(QtWidgets.QMainWindow):
         self.OrderbookWidget.append(OrderBookWidget_)
         dc = MplCanvas(self.tabWidget.widget(0), symbol=symbol)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
-        sizePolicy.setHorizontalStretch(4)
+        if is_darwin and exchange == "BINANCE":
+            sizePolicy.setHorizontalStretch(3)
+        else:
+            sizePolicy.setHorizontalStretch(4)
         sizePolicy.setVerticalStretch(1)
         dc.setSizePolicy(sizePolicy)
         widget.addWidget(dc)
@@ -1532,7 +1541,10 @@ class Window(QtWidgets.QMainWindow):
       self.OrderbookWidget.append(OrderBookWidget_)
       dc = MplCanvas(self.tabWidget.widget(0), symbol=symbol)
       sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
-      sizePolicy.setHorizontalStretch(4)
+      if is_darwin and exchange == "BINANCE":
+          sizePolicy.setHorizontalStretch(3)
+      else:
+          sizePolicy.setHorizontalStretch(4)
       sizePolicy.setVerticalStretch(1)
       dc.setSizePolicy(sizePolicy)
       widget.addWidget(dc)
@@ -1923,8 +1935,6 @@ class OrderBookWidget(QtWidgets.QWidget):
 
     @QtCore.pyqtSlot(list, list)
     def on_DISPLAY_ORDERBOOK(self, bids_, asks_):
-        self.textlenForWidget = 0
-
         font = QtGui.QFont()
         font.setPointSize(9)
         if is_darwin == True:
@@ -1966,7 +1976,7 @@ class OrderBookWidget(QtWidgets.QWidget):
             sum_str = str(client.amount_to_precision(self.symbol, sum))
 
             if self.setWidgetSizePolicy == False:
-                if len(price) >= 10:
+                if len(price) >= 9:
                     sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
                     sizePolicy.setHorizontalStretch(3)
                     sizePolicy.setVerticalStretch(1)
@@ -2071,11 +2081,6 @@ class OrderBookWidget(QtWidgets.QWidget):
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetAsks.setItem(i, 2, columnItem)
             i = i + 1
-
-        if len(bids_) > len(asks_):
-            multiplier = len(bids_)
-        else:
-            multiplier = len(asks_)
 
     @QtCore.pyqtSlot(list)
     def on_DISPLAY_TRADES(self, trades_list):
