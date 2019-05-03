@@ -21,7 +21,7 @@ class indicator_DMI:
     self.plus_di = axis.plot(self.dates, self.plus_di_values, color=blue, lw=.7, label="+DI=" + str(int(self.plus_di_values[-1])))
     self.minus_di = axis.plot(self.dates, self.minus_di_values, color=orange, lw=.7, label="-DI=" + str(int(self.minus_di_values[-1])))
     self.adx = axis.plot(self.dates, self.adx_values, color=red, lw=.7, label="ADX=" + str(int(self.adx_values[-1])))
-    self.legend = axis.legend(loc="upper left", facecolor=darkish, edgecolor=darkish, fontsize="small")
+    self.legend = axis.legend(loc="upper left", facecolor=darkish, edgecolor=darkish, fontsize=8)
     for text in self.legend.get_texts():
       text.set_color("white")
   
@@ -144,7 +144,7 @@ class indicator_RSI():
     self.rsi_ = axis.plot(dates, self.rsi, color=white, lw=.7, antialiased=True, label=self.name)
     axis.axhline(70, color=white, lw=.5, linestyle="--")
     axis.axhline(30, color=white, lw=.5, linestyle="--")
-    self.legend = axis.legend(loc="upper left", facecolor=darkish, edgecolor=darkish, fontsize="small")
+    self.legend = axis.legend(loc="upper left", facecolor=darkish, edgecolor=darkish, fontsize=8)
     for text in self.legend.get_texts():
       text.set_color("white")
       text.set_text("RSI=" + str(int(self.rsi[-1])))
@@ -172,7 +172,7 @@ class indicator_MACD():
     self.dates = copy.deepcopy(dates)
     self.macd = axis.plot(dates, self.macd_values, color=blue, lw=.7, antialiased=True, label="MACD")
     self.signal = axis.plot(dates, self.signal_values, color=red, lw=.7, antialiased=True, label="Signal")
-    self.legend = axis.legend(loc="upper left", facecolor=darkish, edgecolor=darkish, fontsize="small")
+    self.legend = axis.legend(loc="upper left", facecolor=darkish, edgecolor=darkish, fontsize=8)
     for text in self.legend.get_texts():
       text.set_color("white")
   
@@ -213,7 +213,7 @@ class indicator_STOCH():
     axis.axhline(20, color=white, lw=.5, linestyle="--")    
     self.slowk = axis.plot(dates, self.slowk_values, color=blue, lw=.7, antialiased=True, label="SLOW K")
     self.slowd = axis.plot(dates, self.slowd_values, color=red, lw=.7, antialiased=True, label="SLOW D")
-    self.legend = axis.legend(loc="upper left", facecolor=darkish, edgecolor=darkish, fontsize="small")
+    self.legend = axis.legend(loc="upper left", facecolor=darkish, edgecolor=darkish, fontsize=8)
     for text in self.legend.get_texts():
       text.set_color("white")
   

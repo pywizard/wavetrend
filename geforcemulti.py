@@ -1,4 +1,6 @@
 import os
+import sys
+import platform
 #macos: run openblas single threaded
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -8,20 +10,13 @@ import matplotlib
 import matplotlib.style
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-import matplotlib.ticker as matplotlib_ticker
 from matplotlib.dates import date2num
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 import ctypes
 from matplotlib.transforms import Bbox
-from matplotlib import cbook
 from matplotlib.backends.backend_agg import FigureCanvasAgg
-from matplotlib.backends.backend_qt5 import (
-    QtCore, QtGui, QtWidgets, _BackendQT5, FigureCanvasQT, FigureManagerQT,
-    NavigationToolbar2QT, backend_version)
-from matplotlib.backends.qt_compat import QT_API
-import sys
+from matplotlib.backends.backend_qt5 import FigureCanvasQT
 import time
 import datetime
 from PyQt5 import QtGui, QtWidgets, QtCore, uic
@@ -39,7 +34,6 @@ import functools
 import exchanges
 import weakref
 import numpy
-import platform
 import prettydate
 import collections
 
@@ -337,7 +331,6 @@ def get_symbol_price(symbol):
   return float(sym["last"])
 
 def get_full_stacktrace():
-    import traceback, sys
     exc = sys.exc_info()[0]
     stack = traceback.extract_stack()[:-1]  # last one would be full_stack()
     if not exc is None:  # i.e. if an exception is present
@@ -724,8 +717,8 @@ class ChartRunner(QtCore.QThread):
             for i in range(0, len(date)):
                 prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
 
-            ax.xaxis.set_tick_params(labelsize=9)
-            ax.yaxis.set_tick_params(labelsize=9)
+            ax.xaxis.set_tick_params(labelsize=7)
+            ax.yaxis.set_tick_params(labelsize=7)
           else:
             if date2 != None:
                 prices[-1] = [date2num(date2), open2_, high2, low2, close2, vol2, date2]
@@ -801,8 +794,8 @@ class ChartRunner(QtCore.QThread):
                     new_ax.grid(True)
                 new_ax.yaxis.tick_left()
                 new_ax.yaxis.set_label_position("left")
-                new_ax.xaxis.set_tick_params(labelsize=9)
-                new_ax.yaxis.set_tick_params(labelsize=9)                
+                new_ax.xaxis.set_tick_params(labelsize=7)
+                new_ax.yaxis.set_tick_params(labelsize=7)
                 new_ax.spines['left'].set_edgecolor(grayscale_dark)
                 new_ax.spines['right'].set_edgecolor(grayscale_light)
                 new_ax.spines['top'].set_edgecolor(grayscale_light)
@@ -930,7 +923,7 @@ class ChartRunner(QtCore.QThread):
                 tag_title = tag_title + " " * (len(tag_title)-len(time_to_next_candle)-1) + time_to_next_candle
 
             price_line = ax.axhline(ticker_for_line, color=line_color, linestyle="dotted", lw=.9)
-            annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker_for_line, tag_title, fontsize=8, weight="bold", color=white, backgroundcolor=color, family="monospace")
+            annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker_for_line, tag_title, fontsize=7, weight="bold", color=white, backgroundcolor=color, family="monospace")
 
             self.CANVAS_GET_SIZE.emit(self.tab_index, annotation)
             tbox = aqs[tab_index].get()
@@ -1041,7 +1034,7 @@ class ChartRunner(QtCore.QThread):
               t.label1On = t.label2On = False
             
             ax.plot(1,1, label=symbol + ", " + timeframe_entered + ", " + exchange, marker = '',ls ='')
-            legend = ax.legend(frameon=False,loc="upper left", fontsize="medium")
+            legend = ax.legend(frameon=False,loc="upper left", fontsize=9)
             for text in legend.get_texts():
               text.set_color(grayscale_lighter)
 
@@ -1268,18 +1261,11 @@ class Window(QtWidgets.QMainWindow):
         OrderBookWidget_.DISPLAY_TRADES.connect(OrderBookWidget_.on_DISPLAY_TRADES, QtCore.Qt.BlockingQueuedConnection)
         self.OrderbookWidget.append(OrderBookWidget_)
         dc = MplCanvas(self.tabWidget.widget(0), symbol=symbol)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
-        if is_darwin and exchange == "BINANCE":
-            sizePolicy.setHorizontalStretch(3)
-        else:
-            sizePolicy.setHorizontalStretch(4)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
+        sizePolicy.setHorizontalStretch(1)
         sizePolicy.setVerticalStretch(1)
         dc.setSizePolicy(sizePolicy)
         widget.addWidget(dc)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
-        sizePolicy.setHorizontalStretch(1)
-        sizePolicy.setVerticalStretch(1)
-        OrderBookWidget_.setSizePolicy(sizePolicy)
         widget.addWidget(OrderBookWidget_, alignment=QtCore.Qt.AlignRight)
 
         self.dcs = {}
@@ -1542,17 +1528,10 @@ class Window(QtWidgets.QMainWindow):
       self.OrderbookWidget.append(OrderBookWidget_)
       dc = MplCanvas(self.tabWidget.widget(0), symbol=symbol)
       sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
-      if is_darwin and exchange == "BINANCE":
-          sizePolicy.setHorizontalStretch(3)
-      else:
-          sizePolicy.setHorizontalStretch(4)
+      sizePolicy.setHorizontalStretch(1)
       sizePolicy.setVerticalStretch(1)
       dc.setSizePolicy(sizePolicy)
       widget.addWidget(dc)
-      sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
-      sizePolicy.setHorizontalStretch(1)
-      sizePolicy.setVerticalStretch(1)
-      OrderBookWidget_.setSizePolicy(sizePolicy)
       widget.addWidget(OrderBookWidget_, alignment=QtCore.Qt.AlignRight)
 
       global qs
@@ -1825,6 +1804,13 @@ class Dialog(QtWidgets.QDialog):
                 self.tableWidget.item(rowPosition, 2).setForeground(QtGui.QColor(0,255,0))
                 self.tableWidget.item(rowPosition, 3).setForeground(QtGui.QColor(0,255,0))
 
+        #close opened splash screen
+        if platform.system() == "Windows":
+            import win32gui
+            window_handle = win32gui.FindWindow("WavetrendSplash", None)
+            if window_handle != 0:
+                win32gui.EndDialog(window_handle, 0)
+
     def accept(self):
       selectionModel = self.tableWidget.selectionModel()
       if selectionModel.hasSelection():
@@ -1871,14 +1857,14 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.orderbook_time_shown = 0
         self.trades_list = []
         self.bfx_chanid_trades = -1
-        self.setWidgetSizePolicy = False
+
+        self.font = self.getMonospaceFont()
+        self.font.setPointSize(8)
+        if is_darwin == True:
+            self.font.setPointSize(12)
 
         widget = QtWidgets.QHBoxLayout()
         self.tableWidgetBids = QtWidgets.QTableWidget()
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
-        sizePolicy.setHorizontalStretch(1)
-        sizePolicy.setVerticalStretch(2)
-        self.tableWidgetBids.setSizePolicy(sizePolicy)
         self.tableWidgetBids.setColumnCount(3)
         self.tableWidgetBids.verticalHeader().setVisible(False)
         self.tableWidgetBids.horizontalHeader().setStyleSheet("QHeaderView::section{border: 0px; border-bottom: 0px;}")
@@ -1886,16 +1872,17 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.tableWidgetBids.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.tableWidgetBids.setHorizontalHeaderLabels(["Price", "Qty", "Sum"])
         self.tableWidgetBids.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.tableWidgetBids.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.tableWidgetBids.verticalScrollBar().setEnabled(False)
+        self.tableWidgetBids.horizontalScrollBar().setEnabled(False)
+        self.tableWidgetBids.horizontalHeader().setFont(self.font)
+        self.tableWidgetBids.setStyleSheet("QTableWidget::item { margin-left: 5px; margin-right: 5px; }")
         header = self.tableWidgetBids.horizontalHeader()
-        header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
-        header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
-        header.setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)
-        widget.addWidget(self.tableWidgetBids, 1)
+        header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
+        widget.addWidget(self.tableWidgetBids)
         self.tableWidgetAsks = QtWidgets.QTableWidget()
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
-        sizePolicy.setHorizontalStretch(1)
-        sizePolicy.setVerticalStretch(2)
-        self.tableWidgetAsks.setSizePolicy(sizePolicy)
         self.tableWidgetAsks.setColumnCount(3)
         self.tableWidgetAsks.verticalHeader().setVisible(False)
         self.tableWidgetAsks.horizontalHeader().setStyleSheet("QHeaderView::section{border: 0px; border-bottom: 0px}")
@@ -1903,17 +1890,22 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.tableWidgetAsks.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.tableWidgetAsks.setHorizontalHeaderLabels(["Price", "Qty", "Sum"])
         self.tableWidgetAsks.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.tableWidgetAsks.verticalScrollBar().setEnabled(False)
+        self.tableWidgetAsks.horizontalScrollBar().setEnabled(False)
+        self.tableWidgetAsks.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.tableWidgetAsks.horizontalHeader().setFont(self.font)
+        self.tableWidgetAsks.setStyleSheet("QTableWidget::item { margin-left: 5px; margin-right: 5px; }")
         header = self.tableWidgetAsks.horizontalHeader()
-        header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
-        header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
-        header.setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)
-        widget.addWidget(self.tableWidgetAsks, 1)
+        header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
+        widget.addWidget(self.tableWidgetAsks)
 
         widget_verticalLayout = QtWidgets.QVBoxLayout(self)
-        widget_verticalLayout.addLayout(widget, 1)
+        widget_verticalLayout.addLayout(widget)
         self.tableWidgetTrades = QtWidgets.QTableWidget()
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
-        sizePolicy.setHorizontalStretch(1)
+        sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         self.tableWidgetTrades.setSizePolicy(sizePolicy)
         self.tableWidgetTrades.setColumnCount(3)
@@ -1921,26 +1913,48 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.tableWidgetTrades.horizontalHeader().setStyleSheet("QHeaderView::section{border: 0px; border-bottom: 0px;}")
         self.tableWidgetTrades.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.tableWidgetTrades.setHorizontalHeaderLabels(["Time", "Price", "Quantity"])
+        self.tableWidgetTrades.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.tableWidgetTrades.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.tableWidgetTrades.verticalScrollBar().setEnabled(False)
+        self.tableWidgetTrades.horizontalScrollBar().setEnabled(False)
+        self.tableWidgetTrades.horizontalHeader().setFont(self.font)
         header = self.tableWidgetTrades.horizontalHeader()
         header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
         header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)
         widget_verticalLayout.addWidget(self.tableWidgetTrades)
         self.tableWidgetTrades.setMinimumHeight(self.height()*0.4)
+        self.orderbookWidthAdjusted = False
+        self.tableWidgetBids.hide()
+        self.tableWidgetAsks.hide()
+        self.tableWidgetTrades.hide()
 
         self.init_orderbook_widget()
 
     def resizeEvent(self, event):
         self.tableWidgetTrades.setMinimumHeight(self.height()*0.4)
 
+    def isFixedPitch(self, font):
+        fontInfo = QtGui.QFontInfo(font)
+        return fontInfo.fixedPitch()
+
+    def getMonospaceFont(self):
+        font = QtGui.QFont("monospace")
+        if self.isFixedPitch(font):
+            return font
+        font.setStyleHint(QtGui.QFont.Monospace)
+        if self.isFixedPitch(font):
+            return font
+        font.setStyleHint(QtGui.QFont.TypeWriter)
+        if self.isFixedPitch(font):
+            return font
+        font.setFamily("courier")
+        if self.isFixedPitch(font):
+            return font
+        return font
+
     @QtCore.pyqtSlot(list, list)
     def on_DISPLAY_ORDERBOOK(self, bids_, asks_):
-        font = QtGui.QFont()
-        font.setPointSize(9)
-        if is_darwin == True:
-            font.setPointSize(10)
-
         self.tableWidgetBids.setRowCount(len(bids_))
         highest_amount = 0
         for bid in bids_:
@@ -1976,14 +1990,6 @@ class OrderBookWidget(QtWidgets.QWidget):
             sum = sum + bid[1]
             sum_str = str(client.amount_to_precision(self.symbol, sum))
 
-            if self.setWidgetSizePolicy == False:
-                if len(price) >= 9:
-                    sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
-                    sizePolicy.setHorizontalStretch(3)
-                    sizePolicy.setVerticalStretch(1)
-                    self.parent.dcs[self.winid].setSizePolicy(sizePolicy)
-                    self.setWidgetSizePolicy = True
-
             columnItem = QtWidgets.QTableWidgetItem(price)
             columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
 
@@ -1996,7 +2002,7 @@ class OrderBookWidget(QtWidgets.QWidget):
             else:
                 columnItem.setBackground(QtGui.QColor(33, 47, 60))
             columnItem.setForeground(QtGui.QColor(208, 211, 212))
-            columnItem.setFont(font)
+            columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetBids.setItem(i, 0, columnItem)
             columnItem = QtWidgets.QTableWidgetItem(amount)
@@ -2010,7 +2016,7 @@ class OrderBookWidget(QtWidgets.QWidget):
             else:
                 columnItem.setBackground(QtGui.QColor(33, 47, 60))
             columnItem.setForeground(QtGui.QColor(208, 211, 212))
-            columnItem.setFont(font)
+            columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetBids.setItem(i, 1, columnItem)
             columnItem = QtWidgets.QTableWidgetItem(sum_str)
@@ -2024,7 +2030,7 @@ class OrderBookWidget(QtWidgets.QWidget):
             else:
                 columnItem.setBackground(QtGui.QColor(33, 47, 60))
             columnItem.setForeground(QtGui.QColor(208, 211, 212))
-            columnItem.setFont(font)
+            columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetBids.setItem(i, 2, columnItem)
             i = i + 1
@@ -2034,6 +2040,7 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.tableWidgetAsks.setRowCount(len(asks_))
         for ask in asks_:
             self.tableWidgetAsks.setRowHeight(i, 23)
+            self.tableWidgetBids.setRowHeight(i, 23)
             price = str(client.price_to_precision(self.symbol, ask[0]))
             amount = str(client.amount_to_precision(self.symbol, ask[1]))
             sum = sum + ask[1]
@@ -2050,7 +2057,7 @@ class OrderBookWidget(QtWidgets.QWidget):
             else:
                 columnItem.setBackground(QtGui.QColor(33, 47, 60))
             columnItem.setForeground(QtGui.QColor(208, 211, 212))
-            columnItem.setFont(font)
+            columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetAsks.setItem(i, 0, columnItem)
             columnItem = QtWidgets.QTableWidgetItem(amount)
@@ -2064,7 +2071,7 @@ class OrderBookWidget(QtWidgets.QWidget):
             else:
                 columnItem.setBackground(QtGui.QColor(33, 47, 60))
             columnItem.setForeground(QtGui.QColor(208, 211, 212))
-            columnItem.setFont(font)
+            columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetAsks.setItem(i, 1, columnItem)
             columnItem = QtWidgets.QTableWidgetItem(sum_str)
@@ -2078,18 +2085,32 @@ class OrderBookWidget(QtWidgets.QWidget):
             else:
                 columnItem.setBackground(QtGui.QColor(33, 47, 60))
             columnItem.setForeground(QtGui.QColor(208, 211, 212))
-            columnItem.setFont(font)
+            columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetAsks.setItem(i, 2, columnItem)
             i = i + 1
 
+        if self.orderbookWidthAdjusted == False and len(bids_) > 0 and len(bids_[0]) > 0:
+            self.tableWidgetBids.setSizeAdjustPolicy(QtWidgets.QAbstractScrollArea.AdjustToContentsOnFirstShow)
+            self.tableWidgetAsks.setSizeAdjustPolicy(QtWidgets.QAbstractScrollArea.AdjustToContentsOnFirstShow)
+            self.tableWidgetBids.show()
+            self.tableWidgetAsks.show()
+            self.tableWidgetTrades.show()
+            self.setMinimumWidth(self.width())
+            self.setMaximumWidth(self.width())
+            header = self.tableWidgetBids.horizontalHeader()
+            header.setSectionResizeMode(0, QtWidgets.QHeaderView.Fixed)
+            header.setSectionResizeMode(1, QtWidgets.QHeaderView.Fixed)
+            header.setSectionResizeMode(2, QtWidgets.QHeaderView.Fixed)
+            header = self.tableWidgetAsks.horizontalHeader()
+            header.setSectionResizeMode(0, QtWidgets.QHeaderView.Fixed)
+            header.setSectionResizeMode(1, QtWidgets.QHeaderView.Fixed)
+            header.setSectionResizeMode(2, QtWidgets.QHeaderView.Fixed)
+            self.orderbookWidthAdjusted = True
+
     @QtCore.pyqtSlot(list)
     def on_DISPLAY_TRADES(self, trades_list):
         self.tableWidgetTrades.setRowCount(len(self.trades_list))
-        font = QtGui.QFont()
-        font.setPointSize(9)
-        if is_darwin == True:
-            font.setPointSize(10)
 
         i = 0
         for trade in reversed(trades_list):
@@ -2110,7 +2131,7 @@ class OrderBookWidget(QtWidgets.QWidget):
             else:
                 columnItem.setBackground(QtGui.QColor(146, 43, 33))
             columnItem.setForeground(QtGui.QColor(208, 211, 212))
-            columnItem.setFont(font)
+            columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetTrades.setItem(i, 0, columnItem)
 
@@ -2121,7 +2142,7 @@ class OrderBookWidget(QtWidgets.QWidget):
             else:
                 columnItem.setBackground(QtGui.QColor(146, 43, 33))
             columnItem.setForeground(QtGui.QColor(208, 211, 212))
-            columnItem.setFont(font)
+            columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetTrades.setItem(i, 1, columnItem)
 
@@ -2132,7 +2153,7 @@ class OrderBookWidget(QtWidgets.QWidget):
             else:
                 columnItem.setBackground(QtGui.QColor(146, 43, 33))
             columnItem.setForeground(QtGui.QColor(208, 211, 212))
-            columnItem.setFont(font)
+            columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetTrades.setItem(i, 2, columnItem)
             i = i + 1
