@@ -544,7 +544,6 @@ class ChartRunner(QtCore.QThread):
   FIGURE_CLEAR = QtCore.pyqtSignal(str)
   FIGURE_ADD_AXES = QtCore.pyqtSignal(str, list, object)
   CANVAS_GET_SIZE = QtCore.pyqtSignal(str, object)
-  FIGURE_TIGHT_LAYOUT = QtCore.pyqtSignal(str)
   CANVAS_DRAW = QtCore.pyqtSignal(str)
   CHART_DESTROY = QtCore.pyqtSignal(str)
 
@@ -996,9 +995,19 @@ class ChartRunner(QtCore.QThread):
             ax.grid(True)
 
           if init == True:
-            ax.set_position([0.04,0.04,0.9,0.93])
-            self.FIGURE_TIGHT_LAYOUT.emit(self.tab_index)
-            aqs[tab_index].get()
+            dpi_scale_trans = self.parent.dcs[self.tab_index].fig.dpi_scale_trans
+            position_width = 0.8
+            dc_width = self.parent.dcs[self.tab_index].width()
+            while True:
+                ax.set_position([0.04, 0.04, position_width, 0.93])
+                bbox = annotation.get_window_extent().transformed(dpi_scale_trans.inverted())
+                width = bbox.x1 + bbox.width/2
+                width *= 100
+                if width < dc_width:
+                    position_width += 0.005
+                else:
+                    break
+
             ax_bbox = ax.get_position()
 
           if first == True:
@@ -1267,6 +1276,7 @@ class Window(QtWidgets.QMainWindow):
         dc.setSizePolicy(sizePolicy)
         widget.addWidget(dc)
         widget.addWidget(OrderBookWidget_, alignment=QtCore.Qt.AlignRight)
+        widget.setSpacing(0)
 
         self.dcs = {}
         self.dcs[window_id] = dc
@@ -1285,7 +1295,6 @@ class Window(QtWidgets.QMainWindow):
         self.chart_runner_thread.FIGURE_CLEAR.connect(self.on_FIGURE_CLEAR)
         self.chart_runner_thread.FIGURE_ADD_AXES.connect(self.on_FIGURE_ADD_AXES)
         self.chart_runner_thread.CANVAS_GET_SIZE.connect(self.on_CANVAS_GET_SIZE)
-        self.chart_runner_thread.FIGURE_TIGHT_LAYOUT.connect(self.on_FIGURE_TIGHT_LAYOUT)
         self.chart_runner_thread.CANVAS_DRAW.connect(self.on_CANVAS_DRAW)
         self.chart_runner_thread.CHART_DESTROY.connect(self.on_CHART_DESTROY)
         self.chart_runner_thread.start()
@@ -1408,12 +1417,6 @@ class Window(QtWidgets.QMainWindow):
     def on_CANVAS_GET_SIZE(self, winid, annotation):
         global aqs
         aqs[winid].put(annotation.get_window_extent(self.dcs[winid].renderer))
-
-    @QtCore.pyqtSlot(str)
-    def on_FIGURE_TIGHT_LAYOUT(self, winid):
-        global aqs
-        self.dcs[winid].fig.tight_layout()
-        aqs[winid].put(0)
 
     @QtCore.pyqtSlot(str)
     def on_CANVAS_DRAW(self, winid):
@@ -1552,7 +1555,6 @@ class Window(QtWidgets.QMainWindow):
       self.chart_runner_thread.FIGURE_CLEAR.connect(self.on_FIGURE_CLEAR)
       self.chart_runner_thread.FIGURE_ADD_AXES.connect(self.on_FIGURE_ADD_AXES)
       self.chart_runner_thread.CANVAS_GET_SIZE.connect(self.on_CANVAS_GET_SIZE)
-      self.chart_runner_thread.FIGURE_TIGHT_LAYOUT.connect(self.on_FIGURE_TIGHT_LAYOUT)
       self.chart_runner_thread.CANVAS_DRAW.connect(self.on_CANVAS_DRAW)
       self.chart_runner_thread.CHART_DESTROY.connect(self.on_CHART_DESTROY)
       self.chart_runner_thread.start()
@@ -1858,10 +1860,10 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.trades_list = []
         self.bfx_chanid_trades = -1
 
-        self.font = self.getMonospaceFont()
-        self.font.setPointSize(8)
+        self.font = QtGui.QFont()
+        self.font.setPointSize(10)
         if is_darwin == True:
-            self.font.setPointSize(12)
+            self.font.setPointSize(11)
 
         widget = QtWidgets.QHBoxLayout()
         self.tableWidgetBids = QtWidgets.QTableWidget()
@@ -1933,25 +1935,6 @@ class OrderBookWidget(QtWidgets.QWidget):
 
     def resizeEvent(self, event):
         self.tableWidgetTrades.setMinimumHeight(self.height()*0.4)
-
-    def isFixedPitch(self, font):
-        fontInfo = QtGui.QFontInfo(font)
-        return fontInfo.fixedPitch()
-
-    def getMonospaceFont(self):
-        font = QtGui.QFont("monospace")
-        if self.isFixedPitch(font):
-            return font
-        font.setStyleHint(QtGui.QFont.Monospace)
-        if self.isFixedPitch(font):
-            return font
-        font.setStyleHint(QtGui.QFont.TypeWriter)
-        if self.isFixedPitch(font):
-            return font
-        font.setFamily("courier")
-        if self.isFixedPitch(font):
-            return font
-        return font
 
     @QtCore.pyqtSlot(list, list)
     def on_DISPLAY_ORDERBOOK(self, bids_, asks_):
