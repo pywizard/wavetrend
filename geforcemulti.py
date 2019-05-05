@@ -2,8 +2,10 @@ import os
 import sys
 import platform
 #macos: run openblas single threaded
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["OMP_NUM_THREADS"] = "1"
+is_darwin = platform.system() == "Darwin"
+if is_darwin == True:
+    os.environ["OPENBLAS_NUM_THREADS"] = "1"
+    os.environ["OMP_NUM_THREADS"] = "1"
 import warnings
 warnings.filterwarnings("ignore")
 import matplotlib
@@ -174,8 +176,6 @@ if "BTC/USDT" in ticker:
   is_usdt = True
 
 matplotlib.rcParams['font.family'] = 'monospace'
-
-is_darwin = platform.system() == "Darwin"
 
 class abstract():
   pass
@@ -1753,9 +1753,9 @@ class Dialog(QtWidgets.QDialog):
         self.setFixedSize(555, 575)
         self.tableWidget.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
         
-        self.comboBox.addItem("1h")
+        self.comboBox.addItem("1d")
         for key, value in client.timeframes.items():
-          if key == "1h" or key == "1w" or key == "1M" or key not in days_table.keys():
+          if key == "1d" or key == "1w" or key == "1M" or key not in days_table.keys():
             continue
           self.comboBox.addItem(key)
         

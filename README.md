@@ -9,9 +9,9 @@ BINANCE, BITFINEX
 HOTKEYS
 =====
 
-B key -- BUY 25% DISCLAIMER
+B key -- BUY 25%
 
-S key -- SELL 50% DISCLAIMER
+S key -- SELL 50%
 
 H key -- CONFIGURE HEIKIN ASHI CANDLES
 
@@ -51,6 +51,16 @@ RUNNING
 =====
 python geforcemulti.py
 
+Windows users can use the EXE build inside
+releasebuilds\: unzip the file and run wavetrend.exe
+
 SUPPORTED OPERATING SYSTEMS
 =====
 Linux, Windows, macOS
+
+EXCHANGE FEES
+=====
+EXCHANGE BITFINEX FEES: https://www.bitfinex.com/fees
+BINANCE FEES: https://www.binance.com/en/fee/schedule
+
+
