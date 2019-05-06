@@ -1963,8 +1963,6 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.tableWidgetBids.setHorizontalHeaderLabels(["Price", "Qty", "Sum"])
         self.tableWidgetBids.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.tableWidgetBids.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.tableWidgetBids.verticalScrollBar().setEnabled(False)
-        self.tableWidgetBids.horizontalScrollBar().setEnabled(False)
         self.tableWidgetBids.horizontalHeader().setFont(self.font)
         self.tableWidgetBids.setStyleSheet("QTableWidget::item { margin-left: 5px; margin-right: 5px; }")
         header = self.tableWidgetBids.horizontalHeader()
@@ -1980,8 +1978,6 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.tableWidgetAsks.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.tableWidgetAsks.setHorizontalHeaderLabels(["Price", "Qty", "Sum"])
         self.tableWidgetAsks.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.tableWidgetAsks.verticalScrollBar().setEnabled(False)
-        self.tableWidgetAsks.horizontalScrollBar().setEnabled(False)
         self.tableWidgetAsks.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.tableWidgetAsks.horizontalHeader().setFont(self.font)
         self.tableWidgetAsks.setStyleSheet("QTableWidget::item { margin-left: 5px; margin-right: 5px; }")
@@ -2005,8 +2001,6 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.tableWidgetTrades.setHorizontalHeaderLabels(["Time", "Price", "Quantity"])
         self.tableWidgetTrades.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.tableWidgetTrades.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.tableWidgetTrades.verticalScrollBar().setEnabled(False)
-        self.tableWidgetTrades.horizontalScrollBar().setEnabled(False)
         self.tableWidgetTrades.horizontalHeader().setFont(self.font)
         header = self.tableWidgetTrades.horizontalHeader()
         header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
@@ -2020,6 +2014,11 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.tableWidgetTrades.hide()
 
         self.init_orderbook_widget()
+
+    def kraken_prettify_value(self, value):
+        if value.find(".") > -1 and len(value.split(".")[1]) > 3:
+            value = "%.3f" % float(value)
+        return value
 
     def resizeEvent(self, event):
         self.tableWidgetTrades.setMinimumHeight(self.height()*0.4)
@@ -2060,6 +2059,9 @@ class OrderBookWidget(QtWidgets.QWidget):
             amount = str(client.amount_to_precision(self.symbol, bid[1]))
             sum = sum + bid[1]
             sum_str = str(client.amount_to_precision(self.symbol, sum))
+            if exchange == "KRAKEN":
+                amount = self.kraken_prettify_value(amount)
+                sum_str = self.kraken_prettify_value(sum_str)
 
             columnItem = QtWidgets.QTableWidgetItem(price)
             columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
@@ -2116,6 +2118,9 @@ class OrderBookWidget(QtWidgets.QWidget):
             amount = str(client.amount_to_precision(self.symbol, ask[1]))
             sum = sum + ask[1]
             sum_str = str(client.amount_to_precision(self.symbol, sum))
+            if exchange == "KRAKEN":
+                amount = self.kraken_prettify_value(amount)
+                sum_str = self.kraken_prettify_value(sum_str)
 
             columnItem = QtWidgets.QTableWidgetItem(price)
             columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
