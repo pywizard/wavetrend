@@ -10,4 +10,9 @@ exchanges = {
     "api_secret": "HX4DYkInjP9k5ECFSXVRDajAUB0jD27DPsQIB8tmvRWg6nNQoUvOVwgtkPEw9O9l",
     "active": False
     },
+    "KRAKEN": {
+    "api_key": "sBe1HQBVMUDSG0hn7Noe58Tu+HzqTDTBmDEns+ySQLaMUsaDFrICC+71",
+    "api_secret": "OqGk5Ru50eAHyUCoHuBvG5fMfxGGzhWGv5UlFcPLb4wV2JpdNxJg22O+VCROjm4sNH2I+M4Sx3HVNV9i5K/zbg==",
+    "active": False
+    }
  }

@@ -5,3 +5,4 @@ pandas
 ccxt
 ta-lib==0.4.17
 python-binance==0.7.1
+kraken-wsclient-py

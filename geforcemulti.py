@@ -165,6 +165,12 @@ elif exchange == "BINANCE":
    'enableRateLimit': True,
    'options': {'adjustForTimeDifference': True}
   })
+elif exchange == "KRAKEN":
+    client = ccxt.kraken({
+        'apiKey': api_key,
+        'secret': api_secret,
+        'enableRateLimit': True
+    })
 else:
   print("Please configure a valid Exchange.")
   sys.exit(1)
@@ -394,8 +400,13 @@ destroyed_window_ids = {}
 
 DataRunnerTabs = {}
 
-days_table = {"1m": 0.17, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, "2h": 20, "3h": 30, "4h": 40, "6h": 60, "12h": 120, "1d": 240, "1D": 240}
-elapsed_table = {"1m": 60, "5m": 60*5, "15m": 60*15, "30m": 60*30, "1h": 60*60, "2h": 60*60*2, "3h": 60*60*3, "4h": 60*60*4, "6h": 60*60*6, "12h": 60*60*12, "1d": 60*60*24, "1D": 60*60*24}
+days_table = {"1m": 0.17, "3m": .5, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, \
+              "2h": 20, "3h": 30, "4h": 40, "6h": 60, "8h": 80, "12h": 120, \
+              "1d": 240, "1D": 240, "3d": 3*240, "3D": 3*240}
+elapsed_table = {"1m": 60, "3m": 60*3, "5m": 60*5, "15m": 60*15, "30m": 60*30, \
+                 "1h": 60*60, "2h": 60*60*2, "3h": 60*60*3, "4h": 60*60*4, \
+                 "6h": 60*60*6, "8h": 60*60*8, "12h": 60*60*12, "1d": 60*60*24, "1D": 60*60*24, \
+                 "3d": 60*60*24*3, "3D": 60*60*24*3}
 
 from operator import itemgetter
 
@@ -422,18 +433,23 @@ class DataRunner:
     self.tab_index = tab_index
     self.parent = parent
     self.timeframe_entered = timeframe_entered
-    self.bfx_chanid = -1
-    self.bfx_chanid_ticker = -1
+    self.chanid = -1
+    self.chanid_ticker = -1
 
     if exchange == "BITFINEX":
+        self.last_result = []
         self.exchange_obj = exchanges.Bitfinex(markets, api_key, api_secret)
         self.exchange_obj.start_ticker_websocket(self.symbol, self.process_message_ticker)
         self.websocket_ticker_alive_time = time.time()
         if timeframe_entered == "1d":
             self.timeframe_entered = "1D"
-        self.last_result = []
     elif exchange == "BINANCE":
         self.exchange_obj = exchanges.Binance(markets, api_key, api_secret)
+    elif exchange == "KRAKEN":
+        self.last_result = []
+        self.exchange_obj = exchanges.Kraken(markets)
+        self.exchange_obj.start_ticker_websocket(self.symbol, self.process_message_ticker)
+        self.websocket_ticker_alive_time = time.time()
     self.exchange_obj.start_candlestick_websocket(self.symbol, self.timeframe_entered, self.process_message)
 
     self.kill_websocket_watch_thread = False
@@ -443,13 +459,13 @@ class DataRunner:
     self.websocket_watch_thread.start()
 
   def restart_websocket(self):
-      self.bfx_chanid = -1
+      self.chanid = -1
       self.exchange_obj.stop_candlestick_websocket()
       self.exchange_obj.start_candlestick_websocket(self.symbol, self.timeframe_entered, self.process_message)
       self.websocket_alive_time = time.time()
 
   def restart_ticker_websocket(self):
-      self.bfx_chanid_ticker = -1
+      self.chanid_ticker = -1
       self.exchange_obj.stop_ticker_websocket()
       self.exchange_obj.start_ticker_websocket(self.symbol, self.process_message_ticker)
       self.websocket_ticker_alive_time = time.time()
@@ -460,40 +476,97 @@ class DataRunner:
             break
         if time.time() - self.websocket_alive_time > 60:
            self.restart_websocket()
-        if exchange == "BITFINEX":
+        if exchange == "BITFINEX" or exchange == "KRAKEN":
             if time.time() - self.websocket_ticker_alive_time > 60:
                self.restart_ticker_websocket()
         time.sleep(0.1)
 
   def process_message_ticker(self, msg):
-      if exchange != "BITFINEX":
-          return
-
-      if isinstance(msg, dict) and "chanId" in msg:
-          self.bfx_chanid_ticker = msg["chanId"]
-          return
-      elif self.bfx_chanid_ticker != -1  and isinstance(msg, list) and msg[0] == self.bfx_chanid_ticker:
-          self.websocket_ticker_alive_time = time.time()
-          if not isinstance(msg[1], list):
+      if exchange == "KRAKEN":
+          if isinstance(msg, dict) and "channelID" in msg:
+              self.chanid_ticker = msg["channelID"]
               return
+          elif self.chanid_ticker != -1  and isinstance(msg, list) and msg[0] == self.chanid_ticker:
+              self.websocket_ticker_alive_time = time.time()
+              if not isinstance(msg[1], dict):
+                  return
+              if 'c' not in msg[1].keys():
+                  return
 
-          if len(self.last_result) != 0:
-            result = copy.copy(self.last_result)
-            last_price = float(msg[1][6])
-            if last_price > result[2]: #high
-                result[2] = last_price
-            if last_price < result[3]: #low
-                result[3] = last_price
-            result[4] = last_price # close
+              if len(self.last_result) != 0:
+                result = copy.copy(self.last_result)
+                high_price = float(msg[1]['h'][0])
+                low_price = float(msg[1]['l'][0])
+                close_price = float(msg[1]['c'][0])
 
-            dqs[self.window_id].append(result)
+                last_price = close_price
+                if last_price > result[2]: #high
+                    result[2] = high_price
+                if last_price < result[3]: #low
+                    result[3] = low_price
+                result[4] = close_price # close
+
+                dqs[self.window_id].append(result)
+                return
+
+      elif exchange == "BITFINEX":
+          if isinstance(msg, dict) and "chanId" in msg:
+              self.chanid_ticker = msg["chanId"]
+              return
+          elif self.chanid_ticker != -1  and isinstance(msg, list) and msg[0] == self.chanid_ticker:
+              self.websocket_ticker_alive_time = time.time()
+              if not isinstance(msg[1], list):
+                  return
+
+              if len(self.last_result) != 0:
+                result = copy.copy(self.last_result)
+                last_price = float(msg[1][6])
+                if last_price > result[2]: #high
+                    result[2] = last_price
+                if last_price < result[3]: #low
+                    result[3] = last_price
+                result[4] = last_price # close
+
+                dqs[self.window_id].append(result)
+                return
 
   def process_message(self, msg):
-    if exchange == "BITFINEX":
-        if isinstance(msg, dict) and "chanId" in msg:
-            self.bfx_chanid = msg["chanId"]
+    if exchange == "KRAKEN":
+        if isinstance(msg, dict) and "channelID" in msg:
+            self.chanid = msg["channelID"]
             return
-        elif  self.bfx_chanid != -1  and isinstance(msg, list) and msg[0] == self.bfx_chanid:
+        elif self.chanid != -1 and isinstance(msg, list) and msg[0] == self.chanid:
+            self.websocket_alive_time = time.time()
+            candle_time = time.time() // elapsed_table[self.timeframe_entered] * elapsed_table[self.timeframe_entered]
+            candle = None
+
+            if isinstance(msg[1], list) and len(msg[1]) > 0 and isinstance(msg[1][0], list) and len(msg[1][0]) > 0:
+                candle = msg[1][0]
+            elif isinstance(msg[1], list) and len(msg[1]) > 0:
+                candle = msg[1]
+            else:
+                return
+
+            if int(float(candle[1]) - elapsed_table[self.timeframe_entered]) != candle_time:
+                return
+
+            dt = datetime.datetime.fromtimestamp(float(candle[1]) - elapsed_table[self.timeframe_entered])
+            open_ = float(candle[2])
+            high = float(candle[3])
+            low = float(candle[4])
+            close = float(candle[5])
+            volume = float(candle[7])
+
+            result = [dt, open_, high, low, close, volume, 1]
+            self.last_result = copy.copy(result)
+
+            dqs[self.window_id].append(result)
+            return
+    elif exchange == "BITFINEX":
+        if isinstance(msg, dict) and "chanId" in msg:
+            self.chanid = msg["chanId"]
+            return
+        elif  self.chanid != -1  and isinstance(msg, list) and msg[0] == self.chanid:
             self.websocket_alive_time = time.time()
             candle_time = time.time() // elapsed_table[self.timeframe_entered] * elapsed_table[self.timeframe_entered]
             candle = None
@@ -690,13 +763,13 @@ class ChartRunner(QtCore.QThread):
           trade_type = window_configs[self.tab_index].trade_type
 
           if init == False and first == True and exchange == "BITFINEX" and time.time() > time_close:
-              date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol, False)
+              date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol)
               time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
                             elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
               date2 = None
           elif first == True:
                 date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered,
-                                                                         symbol, False)
+                                                                         symbol)
                 time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
                               elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
                 date2 = None
@@ -1081,70 +1154,73 @@ class ChartRunner(QtCore.QThread):
 
     self.CHART_DESTROY.emit(self.tab_index)
     
-  def getData(self, timeframe_entered, days_entered, currency_entered, few_candles):
-      if few_candles == False:
-        limit = 0
-        if timeframe_entered == "15m":
-            limit = int(days_entered * 4 * 24)
+  def getData(self, timeframe_entered, days_entered, currency_entered):
+    limit = 0
+    if timeframe_entered == "15m":
+        limit = int(days_entered * 4 * 24)
 
-        if timeframe_entered == "1m":
-            limit = int(days_entered * 60 * 24)
+    if timeframe_entered == "1m":
+        limit = int(days_entered * 60 * 24)
 
-        if timeframe_entered == "5m":
-            limit = int(days_entered * 12 * 24)
+    if timeframe_entered == "3m":
+        limit = int(days_entered * 20 * 24)
 
-        if timeframe_entered == "30m":
-            limit = int(days_entered * 2 * 24)
+    if timeframe_entered == "5m":
+        limit = int(days_entered * 12 * 24)
 
-        if timeframe_entered == "1h":
-            limit = int(days_entered * 24)
+    if timeframe_entered == "30m":
+        limit = int(days_entered * 2 * 24)
 
-        if timeframe_entered == "2h":
-            limit = int(days_entered * (24/2))
+    if timeframe_entered == "1h":
+        limit = int(days_entered * 24)
 
-        if timeframe_entered == "3h":
-            limit = int(days_entered * (24/3))
+    if timeframe_entered == "2h":
+        limit = int(days_entered * (24/2))
 
-        if timeframe_entered == "4h":
-            limit = int(days_entered * (24/4))
+    if timeframe_entered == "3h":
+        limit = int(days_entered * (24/3))
 
-        if timeframe_entered == "6h":
-            limit = int(days_entered * (24/6))
+    if timeframe_entered == "4h":
+        limit = int(days_entered * (24/4))
 
-        if timeframe_entered == "12h":
-            limit = int(days_entered * (24/12))
+    if timeframe_entered == "6h":
+        limit = int(days_entered * (24/6))
 
-        if timeframe_entered == "1d":
-            limit = int(days_entered)
+    if timeframe_entered == "8h":
+        limit = int(days_entered * (24/8))
 
-        if timeframe_entered == "3d":
-            limit = int(days_entered / 3)
+    if timeframe_entered == "12h":
+        limit = int(days_entered * (24/12))
 
-        if timeframe_entered == "1w":
-            limit = int(days_entered / 7)
+    if timeframe_entered == "1d":
+        limit = int(days_entered)
 
-        if timeframe_entered == "1M":
-            limit = int(days_entered / 31)
-      else:
-        limit = 10
+    if timeframe_entered == "3d":
+        limit = int(days_entered / 3)
 
-      dt = []
-      open_ = []
-      high = []
-      low = []
-      close = []
-      volume = []
-      
-      while True:
+    dt = []
+    open_ = []
+    high = []
+    low = []
+    close = []
+    volume = []
+
+    while True:
         try:
-          candles = client.fetch_ohlcv(currency_entered, timeframe_entered, limit=limit)
+          if exchange == "KRAKEN":
+            candles = client.fetch_ohlcv(currency_entered, timeframe_entered)
+          else:
+            candles = client.fetch_ohlcv(currency_entered, timeframe_entered, limit=limit)
           break
         except:
           print(get_full_stacktrace())
           time.sleep(3)
           continue
 
-      for candle in candles:
+    if exchange == "KRAKEN":
+        candles = candles[len(candles)-limit:]
+
+    for candle in candles:
         dt.append(datetime.datetime.fromtimestamp(int(candle[0]) / 1000))
         open_.append(float(candle[1]))
         high.append(float(candle[2]))
@@ -1152,7 +1228,7 @@ class ChartRunner(QtCore.QThread):
         close.append(float(candle[4]))
         volume.append(float(candle[5]))
 
-      return dt, open_, high, low, close, volume, limit
+    return dt, open_, high, low, close, volume, limit
 
 
 class UpdateUsdBalanceRunner(QtCore.QThread):
@@ -1452,7 +1528,7 @@ class Window(QtWidgets.QMainWindow):
         DataRunnerTabs[winid].kill_websocket_watch_thread = True
         DataRunnerTabs[winid].websocket_watch_thread.join()
         DataRunnerTabs[winid].exchange_obj.stop_candlestick_websocket()
-        if exchange == "BITFINEX":
+        if exchange == "BITFINEX" or exchange == "KRAKEN":
             DataRunnerTabs[winid].exchange_obj.stop_ticker_websocket()
         del DataRunnerTabs[winid].exchange_obj
         del DataRunnerTabs[winid]
@@ -1755,7 +1831,7 @@ class Dialog(QtWidgets.QDialog):
         
         self.comboBox.addItem("1d")
         for key, value in client.timeframes.items():
-          if key == "1d" or key == "1w" or key == "1M" or key not in days_table.keys():
+          if key == "1d" or key not in days_table.keys():
             continue
           self.comboBox.addItem(key)
         
@@ -1781,16 +1857,20 @@ class Dialog(QtWidgets.QDialog):
         coins = sorted(coins_, key=itemgetter("volumeFloat"), reverse=True)
         
         self.tableWidget.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
-        
+
+        hasChange = False
+        hasPercentage = False
         for coin in coins:
           if coin["symbol"].endswith("BTC") or coin["symbol"].endswith("USDT") or coin["symbol"].endswith("USD"):
             rowPosition = self.tableWidget.rowCount() - 1
             self.tableWidget.insertRow(rowPosition)
             self.tableWidget.setItem(rowPosition, 0, QtWidgets.QTableWidgetItem(coin["symbol"]))
-            if "change" in coin and coin["change"]:
+            if "change" in coin and coin["change"] is not None:
               self.tableWidget.setItem(rowPosition, 1, QtWidgets.QTableWidgetItem(str("%.08f" % coin["change"])))
-            if "percentage" in coin and coin["percentage"]:
+              hasChange = True
+            if "percentage" in coin and coin["percentage"] is not None:
               self.tableWidget.setItem(rowPosition, 2, QtWidgets.QTableWidgetItem(str("%.02f" % coin["percentage"])))
+              hasPercentage = True
             else:
               self.tableWidget.setItem(rowPosition, 2, QtWidgets.QTableWidgetItem(""))
             self.tableWidget.setItem(rowPosition, 3, QtWidgets.QTableWidgetItem(str(coin["volumeFloat"])))
@@ -1805,6 +1885,14 @@ class Dialog(QtWidgets.QDialog):
                 self.tableWidget.item(rowPosition, 1).setForeground(QtGui.QColor(0,255,0))
                 self.tableWidget.item(rowPosition, 2).setForeground(QtGui.QColor(0,255,0))
                 self.tableWidget.item(rowPosition, 3).setForeground(QtGui.QColor(0,255,0))
+
+        if hasChange == False and hasPercentage == False:
+            self.tableWidget.removeColumn(1)
+            self.tableWidget.removeColumn(1)
+        elif hasChange == False:
+            self.tableWidget.removeColumn(1)
+        elif hasPercentage == False:
+            self.tableWidget.removeColumn(2)
 
         #close opened splash screen
         if platform.system() == "Windows":
@@ -1852,13 +1940,13 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.websocket_watch_thread = threading.Thread(target=self.websocket_watch)
         self.websocket_watch_thread.daemon = True
         self.websocket_watch_thread.start()
-        self.bfx_chanid = -1
-        self.bfx_orderbook = {}
-        self.bfx_orderbook["bids"] = {}
-        self.bfx_orderbook["asks"] = {}
+        self.wss_chanid = -1
+        self.wss_orderbook = {}
+        self.wss_orderbook["bids"] = {}
+        self.wss_orderbook["asks"] = {}
         self.orderbook_time_shown = 0
         self.trades_list = []
-        self.bfx_chanid_trades = -1
+        self.wss_chanid_trades = -1
 
         self.font = QtGui.QFont()
         self.font.setPointSize(10)
@@ -2161,44 +2249,60 @@ class OrderBookWidget(QtWidgets.QWidget):
             time.sleep(0.1)
 
     def process_message(self, msg):
-        if exchange == "BITFINEX":
-            if isinstance(msg, dict) and "chanId" in msg:
+        if exchange == "KRAKEN":
+            if isinstance(msg, dict) and "channelID" in msg:
                 self.websocket_alive_time = time.time()
-                self.bfx_orderbook = {}
-                self.bfx_orderbook["bids"] = {}
-                self.bfx_orderbook["asks"] = {}
-                self.bfx_chanid = msg["chanId"]
+                self.wss_orderbook = {}
+                self.wss_orderbook["bids"] = {}
+                self.wss_orderbook["asks"] = {}
+                self.wss_chanid = msg["channelID"]
                 return
-            elif self.bfx_chanid != -1 and isinstance(msg, list) and msg[0] == self.bfx_chanid:
+            elif self.wss_chanid != -1 and isinstance(msg, list) and msg[0] == self.wss_chanid:
                 self.websocket_alive_time = time.time()
 
-                if isinstance(msg[1], list) and len(msg[1]) > 0 and isinstance(msg[1][0], list) and len(msg[1][0]) > 0:
-                    #create in memory orderbook
-                    for order in msg[1]:
+                if isinstance(msg, list) and isinstance(msg[1], dict) and "as" in msg[1].keys() and "a" not in msg[1].keys() \
+                        and isinstance(msg[1]["as"], list) and len(msg[1]["as"]) > 0:
+                    # create in memory orderbook
+                    for order in msg[1]["bs"]:
                         price = float(order[0])
-                        count = int(order[1])
-                        amount = float(order[2])
-                        if amount > 0:
-                            self.bfx_orderbook["bids"][price] = [count, amount]
-                        else:
-                            self.bfx_orderbook["asks"][price] = [count, amount * -1]
-                elif isinstance(msg[1], list) and len(msg[1]) > 0:
-                    #update in memory orderbook
-                    order = msg[1]
-                    price = float(order[0])
-                    count = int(order[1])
-                    amount = float(order[2])
+                        volume = float(order[1])
+                        self.wss_orderbook["bids"][price] = volume
+                    for order in msg[1]["as"]:
+                        price = float(order[0])
+                        volume = float(order[1])
+                        self.wss_orderbook["asks"][price] = volume
 
-                    if count == 0:
-                        if amount == 1:
-                            del self.bfx_orderbook["bids"][price]
-                        elif amount == -1:
-                            del self.bfx_orderbook["asks"][price]
-                    elif count > 0:
-                        if amount > 0:
-                            self.bfx_orderbook["bids"][price] = [count, amount]
-                        elif amount < 0:
-                            self.bfx_orderbook["asks"][price] = [count, amount * -1]
+                elif isinstance(msg, list) and isinstance(msg[1], dict) and "a" in msg[1] or "b" in msg[1]:
+                    # update in memory orderbook
+                    bids = []
+                    asks = []
+
+                    if "a" in msg[1].keys():
+                        asks = msg[1]["a"]
+                    elif "b" in msg[1].keys():
+                        bids = msg[1]["b"]
+
+                    if len(msg) > 2:
+                        if "a" in msg[2].keys():
+                            asks = msg[2]["a"]
+                        elif "b" in msg[2].keys():
+                            bids = msg[2]["b"]
+
+                    for order in bids:
+                        price = float(order[0])
+                        volume = float(order[1])
+                        if volume != 0:
+                            self.wss_orderbook["bids"][price] = volume
+                        else:
+                            del self.wss_orderbook["bids"][price]
+                    for order in asks:
+                        price = float(order[0])
+                        volume = float(order[1])
+                        if volume != 0:
+                            self.wss_orderbook["asks"][price] = volume
+                        else:
+                            del self.wss_orderbook["asks"][price]
+
                 else:
                     return
 
@@ -2214,10 +2318,73 @@ class OrderBookWidget(QtWidgets.QWidget):
 
             bids = []
             asks = []
-            for order in sorted(self.bfx_orderbook["bids"], reverse=True):
-                bids.append([order, self.bfx_orderbook["bids"][order][1]])
-            for order in sorted(self.bfx_orderbook["asks"]):
-                asks.append([order, self.bfx_orderbook["asks"][order][1]])
+            for order in sorted(self.wss_orderbook["bids"], reverse=True):
+                bids.append([order, self.wss_orderbook["bids"][order]])
+            for order in sorted(self.wss_orderbook["asks"]):
+                asks.append([order, self.wss_orderbook["asks"][order]])
+
+            self.DISPLAY_ORDERBOOK.emit(bids, asks)
+            self.orderbook_time_shown = time.time()
+            return
+
+        elif exchange == "BITFINEX":
+            if isinstance(msg, dict) and "chanId" in msg:
+                self.websocket_alive_time = time.time()
+                self.wss_orderbook = {}
+                self.wss_orderbook["bids"] = {}
+                self.wss_orderbook["asks"] = {}
+                self.wss_chanid = msg["chanId"]
+                return
+            elif self.wss_chanid != -1 and isinstance(msg, list) and msg[0] == self.wss_chanid:
+                self.websocket_alive_time = time.time()
+
+                if isinstance(msg[1], list) and len(msg[1]) > 0 and isinstance(msg[1][0], list) and len(msg[1][0]) > 0:
+                    #create in memory orderbook
+                    for order in msg[1]:
+                        price = float(order[0])
+                        count = int(order[1])
+                        amount = float(order[2])
+                        if amount > 0:
+                            self.wss_orderbook["bids"][price] = [count, amount]
+                        else:
+                            self.wss_orderbook["asks"][price] = [count, amount * -1]
+                elif isinstance(msg[1], list) and len(msg[1]) > 0:
+                    #update in memory orderbook
+                    order = msg[1]
+                    price = float(order[0])
+                    count = int(order[1])
+                    amount = float(order[2])
+
+                    if count == 0:
+                        if amount == 1:
+                            del self.wss_orderbook["bids"][price]
+                        elif amount == -1:
+                            del self.wss_orderbook["asks"][price]
+                    elif count > 0:
+                        if amount > 0:
+                            self.wss_orderbook["bids"][price] = [count, amount]
+                        elif amount < 0:
+                            self.wss_orderbook["asks"][price] = [count, amount * -1]
+                else:
+                    return
+
+            for tab_index in window_ids:
+                if self.winid == window_ids[tab_index]:
+                    break
+
+            if self.parent.tabWidget.currentIndex() != tab_index:
+                return
+
+            if self.orderbook_time_shown != 0 and time.time() - self.orderbook_time_shown < 1:
+                return
+
+            bids = []
+            asks = []
+
+            for order in sorted(self.wss_orderbook["bids"], reverse=True):
+                bids.append([order, self.wss_orderbook["bids"][order][1]])
+            for order in sorted(self.wss_orderbook["asks"]):
+                asks.append([order, self.wss_orderbook["asks"][order][1]])
 
             self.DISPLAY_ORDERBOOK.emit(bids, asks)
             self.orderbook_time_shown = time.time()
@@ -2237,8 +2404,6 @@ class OrderBookWidget(QtWidgets.QWidget):
 
                 bids_ = msg.get_bids()[:25]
                 asks_ = msg.get_asks()[:25]
-                #bids_ = [[float(bid[0]), float(bid[1])] for bid in msg["bids"]]
-                #asks_ = [[float(ask[0]), float(ask[1])] for ask in msg["asks"]]
                 self.DISPLAY_ORDERBOOK.emit(bids_, asks_)
                 self.orderbook_time_shown = time.time()
                 return
@@ -2247,12 +2412,36 @@ class OrderBookWidget(QtWidgets.QWidget):
                 return
 
     def process_message_trades(self, msg):
-        if exchange == "BITFINEX":
+        if exchange == "KRAKEN":
+            if isinstance(msg, dict) and "channelID" in msg:
+                self.websocket_alive_time = time.time()
+                self.wss_chanid_trades = msg["channelID"]
+                return
+            elif self.wss_chanid_trades != -1 and isinstance(msg, list) and msg[0] == self.wss_chanid_trades:
+                self.websocket_alive_time_trades = time.time()
+
+                if isinstance(msg[1], list) and len(msg[1]) > 0 and isinstance(msg[1][0], list) and len(msg[1][0]) > 0:
+                    for trade in reversed(msg[1]):
+                        trade_time = int(float(trade[2]))
+                        trade_price = float(trade[0])
+                        trade_quantity = float(trade[1])
+                        trade_buy_maker = trade[3] == "s"
+                        self.trades_list.append([trade_time, trade_price, trade_quantity, trade_buy_maker])
+
+                    for tab_index in window_ids:
+                        if self.winid == window_ids[tab_index]:
+                            break
+                    if self.parent.tabWidget.currentIndex() != tab_index:
+                        return
+
+                    self.DISPLAY_TRADES.emit(self.trades_list)
+                    return
+        elif exchange == "BITFINEX":
             if isinstance(msg, dict) and "chanId" in msg:
                 self.websocket_alive_time = time.time()
-                self.bfx_chanid_trades = msg["chanId"]
+                self.wss_chanid_trades = msg["chanId"]
                 return
-            elif self.bfx_chanid_trades != -1 and isinstance(msg, list) and msg[0] == self.bfx_chanid_trades:
+            elif self.wss_chanid_trades != -1 and isinstance(msg, list) and msg[0] == self.wss_chanid_trades:
                 self.websocket_alive_time_trades = time.time()
 
                 if isinstance(msg[1], list) and len(msg[1]) > 0 and isinstance(msg[1][0], list) and len(msg[1][0]) > 0:
@@ -2326,6 +2515,8 @@ class OrderBookWidget(QtWidgets.QWidget):
             self.exchange_obj = exchanges.Bitfinex(markets, api_key, api_secret)
         elif exchange == "BINANCE":
             self.exchange_obj = exchanges.Binance(markets, api_key, api_secret)
+        elif exchange == "KRAKEN":
+            self.exchange_obj = exchanges.Kraken(markets)
         self.exchange_obj.start_depth_websocket(self.symbol, self.process_message)
         self.exchange_obj.start_trades_websocket(self.symbol, self.process_message_trades)
 

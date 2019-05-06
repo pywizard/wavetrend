@@ -60,7 +60,7 @@ Linux, Windows, macOS
 
 EXCHANGE FEES
 =====
-EXCHANGE BITFINEX FEES: https://www.bitfinex.com/fees
+BITFINEX FEES: https://www.bitfinex.com/fees
 BINANCE FEES: https://www.binance.com/en/fee/schedule
-
+KRAKEN FEES: https://www.kraken.com/features/fee-schedule
 

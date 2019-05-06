@@ -2,6 +2,8 @@ from bitfinex import WssClient
 from binance.client import Client
 from binance.websockets import BinanceSocketManager
 from binance.depthcache import DepthCacheManager
+from kraken_wsclient_py import kraken_wsclient_py as KrakenClient
+
 import threading
 import time
 
@@ -44,9 +46,6 @@ class Bitfinex:
 
     def stop_ticker_websocket(self):
         self.manager_ticker.close()
-
-    def stop_candlestick_websocket(self):
-        self.manager_candlestick.close()
 
     def start_depth_websocket(self, symbol, callback):
         self.symbol = self.get_exchange_symbol(symbol)
@@ -116,3 +115,64 @@ class Binance:
 
     def stop_trades_websocket(self):
         self.manager.stop_socket(self.connection_key_trades)
+
+class Kraken:
+    def __init__(self, markets):
+        self.markets = markets
+        self.manager_candlestick = KrakenClient.WssClient()
+        self.manager_depth = KrakenClient.WssClient()
+        self.manager_ticker = KrakenClient.WssClient()
+        self.manager_trades = KrakenClient.WssClient()
+        self.started_candlestick = False
+        self.started_depth = False
+        self.started_ticker = False
+        self.started_trades = False
+
+    def get_exchange_symbol(self, symbol):
+        for market in self.markets:
+            if market["symbol"] == symbol:
+                symbol = market["id"]
+        return symbol
+
+    def start_candlestick_websocket(self, symbol, interval, callback):
+        interval_table = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "2h": 2 * 60,
+                         "3h": 3 * 60, "4h": 4 * 60, "6h": 6 * 60, "12h": 12 * 60,
+                         "1d": 24 * 60, "1D": 24 * 60, "1w": 24 * 60 * 30}
+        subscription = {'name': 'ohlc', 'interval': interval_table[interval]}
+        self.manager_candlestick.subscribe_public(subscription=subscription, pair=[symbol], callback=callback)
+        if self.started_candlestick == False:
+            self.manager_candlestick.start()
+            self.started_candlestick = True
+
+    def stop_candlestick_websocket(self):
+        self.manager_candlestick.close()
+
+    def start_ticker_websocket(self, symbol, callback):
+        subscription = {'name': 'ticker'}
+        self.manager_ticker.subscribe_public(subscription=subscription, pair=[symbol], callback=callback)
+        if self.started_ticker == False:
+            self.manager_ticker.start()
+            self.started_ticker = True
+
+    def stop_ticker_websocket(self):
+        self.manager_ticker.close()
+
+    def start_depth_websocket(self, symbol, callback):
+        subscription = {'name': 'book', 'depth': 25}
+        self.manager_depth.subscribe_public(subscription=subscription, pair=[symbol], callback=callback)
+        if self.started_depth == False:
+            self.manager_depth.start()
+            self.started_depth = True
+
+    def stop_depth_websocket(self):
+        self.manager_depth.close()
+
+    def start_trades_websocket(self, symbol, callback):
+        subscription = {'name': 'trade'}
+        self.manager_trades.subscribe_public(subscription=subscription, pair=[symbol], callback=callback)
+        if self.started_trades == False:
+            self.manager_trades.start()
+            self.started_trades = True
+
+    def stop_trades_websocket(self):
+        self.manager_trades.close()
