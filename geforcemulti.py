@@ -286,7 +286,6 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
                   if rx < annotation_x + rect.get_width()*15:
                      returns = returns + 1
               text.set_text(" " + "\n\n" * returns + scanner_result[2])
-              print(scanner_result[2])
 
               annotations.append(rx)
 
