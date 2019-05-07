@@ -15,7 +15,7 @@
   </property>
   <property name="windowIcon">
    <iconset>
-    <normaloff>logotop.png</normaloff>joker.gif</iconset>
+    <normaloff>logotop.png</normaloff>logotop.png</iconset>
   </property>
   <widget class="QDialogButtonBox" name="buttonBox">
    <property name="geometry">
@@ -37,9 +37,9 @@
    <property name="geometry">
     <rect>
      <x>25</x>
-     <y>20</y>
+     <y>70</y>
      <width>500</width>
-     <height>471</height>
+     <height>421</height>
     </rect>
    </property>
    <attribute name="verticalHeaderShowSortIndicator" stdset="0">
@@ -79,6 +79,29 @@
      <width>71</width>
      <height>22</height>
     </rect>
+   </property>
+  </widget>
+  <widget class="QComboBox" name="exchangeCombobox">
+   <property name="geometry">
+    <rect>
+     <x>30</x>
+     <y>40</y>
+     <width>121</width>
+     <height>22</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label">
+   <property name="geometry">
+    <rect>
+     <x>30</x>
+     <y>20</y>
+     <width>111</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Select Exchange:</string>
    </property>
   </widget>
  </widget>

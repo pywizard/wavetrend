@@ -38,6 +38,7 @@ import weakref
 import numpy
 import prettydate
 import collections
+from exchange_accounts import ExchangeAccounts
 
 #FIX: squash memory leak for redraws
 class MyTransformNode(object):
@@ -141,45 +142,22 @@ exchanges_ = config["exchanges"].copy()
 active_count = 0
 exchange = ""
 for exchange_name in exchanges_:
-    if exchanges_[exchange_name]["active"] == True:
-        exchange = exchange_name
-        api_key = config["exchanges"][exchange_name]["api_key"]
-        api_secret = config["exchanges"][exchange_name]["api_secret"]
-        active_count = active_count + 1
+    active_count = active_count + 1
 
-if active_count > 1 or active_count == 0:
+if active_count == 0:
     print("Please configure a valid Exchange.")
-    print("One exchange must be configured active.")
+    print("Many Exchanges can be configured.")
     sys.exit(1)
 
-if exchange == "BITFINEX":
-  client = ccxt.bitfinex2({
-   'apiKey': api_key,
-   'secret': api_secret,
-   'enableRateLimit': True
-  })
-elif exchange == "BINANCE":
-   client = ccxt.binance({
-   'apiKey': api_key,
-   'secret': api_secret,
-   'enableRateLimit': True,
-   'options': {'adjustForTimeDifference': True}
-  })
-elif exchange == "KRAKEN":
-    client = ccxt.kraken({
-        'apiKey': api_key,
-        'secret': api_secret,
-        'enableRateLimit': True
-    })
-else:
-  print("Please configure a valid Exchange.")
-  sys.exit(1)
+exchanges_list = []
 
-markets = client.fetch_markets()
-ticker = client.fetch_tickers()
-is_usdt = False
-if "BTC/USDT" in ticker:
-  is_usdt = True
+for exchange_name in exchanges_:
+    api_key = config["exchanges"][exchange_name]["api_key"]
+    api_secret = config["exchanges"][exchange_name]["api_secret"]
+    exchanges_list.append([exchange_name, api_key, api_secret])
+
+accounts = ExchangeAccounts(exchanges_list)
+accounts.initialize()
 
 matplotlib.rcParams['font.family'] = 'monospace'
 
@@ -332,10 +310,6 @@ def get_window_id():
 
 window_configs = {}
 
-def get_symbol_price(symbol):
-  sym = client.fetch_ticker(symbol)
-  return float(sym["last"])
-
 def get_full_stacktrace():
     exc = sys.exc_info()[0]
     stack = traceback.extract_stack()[:-1]  # last one would be full_stack()
@@ -353,16 +327,6 @@ def get_full_stacktrace():
 
 def truncate(f, n):
     return math.floor(f * 10 ** n) / 10 ** n
-
-def get_asset_from_symbol(symbol):
-    for market in markets:
-        if market["symbol"] == symbol:
-            return market["base"]
-
-def get_quote_from_symbol(symbol):
-    for market in markets:
-        if market["symbol"] == symbol:
-            return market["quote"]
 
 def translate_buy_amount_percent(index):
   if index == 0:
@@ -426,28 +390,32 @@ class MplCanvas(FigureCanvas):
 main_shown = False
 
 class DataRunner:
-  def __init__(self, parent, symbol, window_id, tab_index, timeframe_entered):
-    global markets
+  def __init__(self, parent, exchange, symbol, window_id, tab_index, timeframe_entered):
     self.symbol = symbol
     self.window_id = window_id
     self.tab_index = tab_index
     self.parent = parent
+    self.exchange = exchange
     self.timeframe_entered = timeframe_entered
     self.chanid = -1
     self.chanid_ticker = -1
 
-    if exchange == "BITFINEX":
+    if self.exchange == accounts.EXCHANGE_BITFINEX:
         self.last_result = []
-        self.exchange_obj = exchanges.Bitfinex(markets, api_key, api_secret)
+        self.exchange_obj = exchanges.Bitfinex(accounts.exchanges[accounts.EXCHANGE_BITFINEX]["markets"], \
+                                               accounts.exchanges[accounts.EXCHANGE_BITFINEX]["api_key"], \
+                                               accounts.exchanges[accounts.EXCHANGE_BITFINEX]["api_secret"])
         self.exchange_obj.start_ticker_websocket(self.symbol, self.process_message_ticker)
         self.websocket_ticker_alive_time = time.time()
         if timeframe_entered == "1d":
             self.timeframe_entered = "1D"
-    elif exchange == "BINANCE":
-        self.exchange_obj = exchanges.Binance(markets, api_key, api_secret)
-    elif exchange == "KRAKEN":
+    elif self.exchange == accounts.EXCHANGE_BINANCE:
+        self.exchange_obj = exchanges.Binance(accounts.exchanges[accounts.EXCHANGE_BINANCE]["markets"], \
+                                              accounts.exchanges[accounts.EXCHANGE_BITFINEX]["api_key"], \
+                                              accounts.exchanges[accounts.EXCHANGE_BITFINEX]["api_secret"])
+    elif self.exchange == accounts.EXCHANGE_KRAKEN:
         self.last_result = []
-        self.exchange_obj = exchanges.Kraken(markets)
+        self.exchange_obj = exchanges.Kraken(accounts.exchanges[accounts.EXCHANGE_KRAKEN]["markets"])
         self.exchange_obj.start_ticker_websocket(self.symbol, self.process_message_ticker)
         self.websocket_ticker_alive_time = time.time()
     self.exchange_obj.start_candlestick_websocket(self.symbol, self.timeframe_entered, self.process_message)
@@ -476,13 +444,13 @@ class DataRunner:
             break
         if time.time() - self.websocket_alive_time > 60:
            self.restart_websocket()
-        if exchange == "BITFINEX" or exchange == "KRAKEN":
+        if self.exchange == accounts.EXCHANGE_BITFINEX or self.exchange == accounts.EXCHANGE_KRAKEN:
             if time.time() - self.websocket_ticker_alive_time > 60:
                self.restart_ticker_websocket()
         time.sleep(0.1)
 
   def process_message_ticker(self, msg):
-      if exchange == "KRAKEN":
+      if self.exchange == accounts.EXCHANGE_KRAKEN:
           if isinstance(msg, dict) and "channelID" in msg:
               self.chanid_ticker = msg["channelID"]
               return
@@ -509,7 +477,7 @@ class DataRunner:
                 dqs[self.window_id].append(result)
                 return
 
-      elif exchange == "BITFINEX":
+      elif self.exchange == accounts.EXCHANGE_BITFINEX:
           if isinstance(msg, dict) and "chanId" in msg:
               self.chanid_ticker = msg["chanId"]
               return
@@ -531,7 +499,7 @@ class DataRunner:
                 return
 
   def process_message(self, msg):
-    if exchange == "KRAKEN":
+    if self.exchange == accounts.EXCHANGE_KRAKEN:
         if isinstance(msg, dict) and "channelID" in msg:
             self.chanid = msg["channelID"]
             return
@@ -562,7 +530,7 @@ class DataRunner:
 
             dqs[self.window_id].append(result)
             return
-    elif exchange == "BITFINEX":
+    elif self.exchange == accounts.EXCHANGE_BITFINEX:
         if isinstance(msg, dict) and "chanId" in msg:
             self.chanid = msg["chanId"]
             return
@@ -594,7 +562,7 @@ class DataRunner:
 
             dqs[self.window_id].append(result)
 
-    elif exchange == "BINANCE":
+    elif self.exchange == accounts.EXCHANGE_BINANCE:
         if "e" in msg and msg["e"] == "error":
             self.restart_websocket()
             return
@@ -620,9 +588,10 @@ class ChartRunner(QtCore.QThread):
   CANVAS_DRAW = QtCore.pyqtSignal(str)
   CHART_DESTROY = QtCore.pyqtSignal(str)
 
-  def __init__(self, parent, symbol, tab_index, timeframe_entered):
+  def __init__(self, parent, exchange, symbol, tab_index, timeframe_entered):
     super(ChartRunner, self).__init__(parent)
     self.parent = parent
+    self.exchange = exchange
     self.symbol = symbol
     self.tab_index = tab_index
     self.timeframe_entered = timeframe_entered
@@ -722,10 +691,7 @@ class ChartRunner(QtCore.QThread):
     symbol = self.symbol
     tab_index = self.tab_index
 
-    to_sell = 0
-
     init = True
-    prev_trade_time = 0
     first = True
     last_line1 = None
     last_line2 = None
@@ -762,7 +728,7 @@ class ChartRunner(QtCore.QThread):
           candle_type = window_configs[self.tab_index].candle_type
           trade_type = window_configs[self.tab_index].trade_type
 
-          if init == False and first == True and exchange == "BITFINEX" and time.time() > time_close:
+          if init == False and first == True and self.exchange == accounts.EXCHANGE_BITFINEX and time.time() > time_close:
               date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol)
               time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
                             elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
@@ -961,7 +927,7 @@ class ChartRunner(QtCore.QThread):
           ax.set_ylim((lowest_price - ylim_offset, highest_price + ylim_offset))
 
           ticker = prices[-1][4]
-          ticker_formatted = str(client.price_to_precision(symbol, ticker))
+          ticker_formatted = str(accounts.client(self.exchange).price_to_precision(symbol, ticker))
           ticker_for_line = prices[-1][4]
           
           if "e-" in str(ticker) or "e+" in str(ticker):
@@ -990,7 +956,7 @@ class ChartRunner(QtCore.QThread):
 
             tag_title = symbol + " " + ticker_formatted
 
-            if not (exchange == "BITFINEX" and time.time() > time_close): # bitfinex not waiting for new candle data
+            if not (self.exchange == accounts.EXCHANGE_BITFINEX and time.time() > time_close): # bitfinex not waiting for new candle data
                 tag_title = tag_title + "\n"
                 tag_title = tag_title + " " * (len(tag_title)-len(time_to_next_candle)-1) + time_to_next_candle
 
@@ -1011,7 +977,7 @@ class ChartRunner(QtCore.QThread):
                 line_color = red
 
             tag_title = symbol + " " + ticker_formatted
-            if not (exchange == "BITFINEX" and time.time() > time_close):
+            if not (self.exchange == accounts.EXCHANGE_BITFINEX and time.time() > time_close):
                 tag_title = tag_title + "\n"
                 tag_title = tag_title + " " * (len(tag_title)-len(time_to_next_candle)-1) + time_to_next_candle
 
@@ -1207,17 +1173,17 @@ class ChartRunner(QtCore.QThread):
 
     while True:
         try:
-          if exchange == "KRAKEN":
-            candles = client.fetch_ohlcv(currency_entered, timeframe_entered)
+          if self.exchange == accounts.EXCHANGE_KRAKEN:
+            candles = accounts.client(self.exchange).fetch_ohlcv(currency_entered, timeframe_entered)
           else:
-            candles = client.fetch_ohlcv(currency_entered, timeframe_entered, limit=limit)
+            candles = accounts.client(self.exchange).fetch_ohlcv(currency_entered, timeframe_entered, limit=limit)
           break
         except:
           print(get_full_stacktrace())
           time.sleep(3)
           continue
 
-    if exchange == "KRAKEN":
+    if self.exchange == accounts.EXCHANGE_KRAKEN:
         candles = candles[len(candles)-limit:]
 
     for candle in candles:
@@ -1234,16 +1200,18 @@ class ChartRunner(QtCore.QThread):
 class UpdateUsdBalanceRunner(QtCore.QThread):
   data_ready = QtCore.pyqtSignal()
   
-  def __init__(self, parent):
+  def __init__(self, parent, exchange):
     super(UpdateUsdBalanceRunner, self).__init__(parent)
-    
+    self.parent = parent
+    self.exchange = exchange
+
   def run(self):
     global qslocal
 
     time.sleep(5)
     while True:
       try:
-        ticker = client.fetch_tickers()
+        ticker = accounts.fetch_tickers(self.exchange)
 
         self.usdt_symbols = []
         self.btc_symbols = []
@@ -1255,15 +1223,15 @@ class UpdateUsdBalanceRunner(QtCore.QThread):
           if symbol.endswith("BTC"):
             self.btc_symbols.append(symbol)
 
-        balances = client.fetch_balance()
+        balances = accounts.client(self.exchange).fetch_balance()
         usdt_balance = 0
         
-        if "BTC/USDT" in ticker:
-          btcusd_symbol = "BTC/USDT"
-        else:
+        if "BTC/USD" in ticker:
           btcusd_symbol = "BTC/USD"
+        else:
+          btcusd_symbol = "BTC/USDT"
         
-        btc_price = get_symbol_price(btcusd_symbol)
+        btc_price = float(ticker[btcusd_symbol]["last"])
         for balance_symbol, balance in balances.items():
           if "total" not in balance:
             continue
@@ -1304,18 +1272,19 @@ class Window(QtWidgets.QMainWindow):
     global tab_widgets
     global config
     global window_ids
-    def __init__(self, symbol, timeframe_entered):
+    def __init__(self, exchange, symbol, timeframe_entered):
         global selected_symbol
         global DataRunnerTabs
         QtWidgets.QMainWindow.__init__(self)
         resolution = QtWidgets.QDesktopWidget().screenGeometry()
         uic.loadUi('mainwindowqt.ui', self)
-        self.setWindowTitle("WAVETREND - " + exchange)
+        self.setWindowTitle("WAVETREND " + exchange)
         self.setGeometry(0, 0, int(resolution.width()/1.1), int(resolution.height()/1.2))
         self.move((resolution.width() / 2) - (self.frameSize().width() / 2),
                   (resolution.height() / 2) - (self.frameSize().height() / 2))         
         self.toolButton.clicked.connect(self.add_coin_clicked)
         self.toolButton_2.clicked.connect(self.trade_coin_clicked)
+        self.exchange = exchange
         self.tab_widgets = []
         self.tab_widgets.append(self.tabWidget.widget(0))
         self.tabWidget.currentChanged.connect(self.tabOnChange)
@@ -1341,7 +1310,7 @@ class Window(QtWidgets.QMainWindow):
 
         widget = QtWidgets.QHBoxLayout(self.tabWidget.widget(0))
         self.OrderbookWidget = []
-        OrderBookWidget_ = OrderBookWidget(self, symbol, window_id)
+        OrderBookWidget_ = OrderBookWidget(self, self.exchange, symbol, window_id)
         OrderBookWidget_.DISPLAY_ORDERBOOK.connect(OrderBookWidget_.on_DISPLAY_ORDERBOOK, QtCore.Qt.BlockingQueuedConnection)
         OrderBookWidget_.DISPLAY_TRADES.connect(OrderBookWidget_.on_DISPLAY_TRADES, QtCore.Qt.BlockingQueuedConnection)
         self.OrderbookWidget.append(OrderBookWidget_)
@@ -1364,9 +1333,9 @@ class Window(QtWidgets.QMainWindow):
         aqs[window_id] = Queue.Queue()
         dqs[window_id] = collections.deque()
 
-        DataRunnerTabs[window_id] = DataRunner(self, symbol, window_id, 0, timeframe_entered)
+        DataRunnerTabs[window_id] = DataRunner(self, self.exchange, symbol, window_id, 0, timeframe_entered)
 
-        self.chart_runner_thread = ChartRunner(self, symbol, window_id, timeframe_entered)
+        self.chart_runner_thread = ChartRunner(self, self.exchange, symbol, window_id, timeframe_entered)
         self.chart_runner_thread.FIGURE_ADD_SUBPLOT.connect(self.on_FIGURE_ADD_SUBPLOT)
         self.chart_runner_thread.FIGURE_CLEAR.connect(self.on_FIGURE_CLEAR)
         self.chart_runner_thread.FIGURE_ADD_AXES.connect(self.on_FIGURE_ADD_AXES)
@@ -1375,7 +1344,7 @@ class Window(QtWidgets.QMainWindow):
         self.chart_runner_thread.CHART_DESTROY.connect(self.on_CHART_DESTROY)
         self.chart_runner_thread.start()
         
-        self.updateusdbalance_runner_thread = UpdateUsdBalanceRunner(self)
+        self.updateusdbalance_runner_thread = UpdateUsdBalanceRunner(self, self.exchange)
         self.updateusdbalance_runner_thread.data_ready.connect(self.queue_handle)
         self.updateusdbalance_runner_thread.start()
 
@@ -1383,24 +1352,24 @@ class Window(QtWidgets.QMainWindow):
      global window_configs
       
      key = event.key()
-       
+
      self.symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[0]
      if str(key) == "66": # B pressed
       try:
         percent = .25
-        price = get_symbol_price(self.symbol)
-        quote = get_quote_from_symbol(self.symbol)
-        asset_balance = float(client.fetch_balance()[quote]["free"])
-        amount = float(client.amount_to_precision(self.symbol, (asset_balance / price) * percent))
+        price = accounts.get_symbol_price(self.exchange, self.symbol)
+        quote = accounts.get_quote_from_symbol(self.exchange, self.symbol)
+        asset_balance = float(accounts.client(self.exchange).fetch_balance()[quote]["free"])
+        amount = float(accounts.client(self.exchange).amount_to_precision(self.symbol, (asset_balance / price) * percent))
 
-        book = orderbook(client, self.symbol)
+        book = accounts.get_orderbook(self.exchange, self.symbol)
         asks_added = 0
         for ask in book["asks"]:
           asks_added = asks_added + ask[1]
           if asks_added > amount:
             price = ask[0]
             print(str(amount) + " " + str(price))
-            client.create_limit_buy_order(self.symbol, amount, price)
+            accounts.client(self.exchange).create_limit_buy_order(self.symbol, amount, price)
             return
       except:
         print(get_full_stacktrace())
@@ -1408,16 +1377,16 @@ class Window(QtWidgets.QMainWindow):
       
      if str(key) == "83": # S pressed
       try:
-        asset_balance = float(client.fetch_balance()[get_asset_from_symbol(self.symbol)]["free"])
-        amount = float(client.amount_to_precision(self.symbol, asset_balance * .5))
-        book = orderbook(client, self.symbol)
+        asset_balance = float(accounts.client(self.exchange).fetch_balance()[accounts.get_asset_from_symbol(self.exchange, self.symbol)]["free"])
+        amount = float(accounts.client(self.exchange).amount_to_precision(self.symbol, asset_balance * .5))
+        book = accounts.get_orderbook(self.exchange, self.symbol)
         bids_added = 0
         for bid in book["bids"]:
           bids_added = bids_added + bid[1]
           if bids_added > amount:
             price = bid[0]
             print(str(amount) + " " + str(price))
-            client.create_limit_sell_order(self.symbol, amount, price)
+            accounts.client(self.exchange).create_limit_sell_order(self.symbol, amount, price)
             return       
       except:
         print(get_full_stacktrace())
@@ -1528,7 +1497,7 @@ class Window(QtWidgets.QMainWindow):
         DataRunnerTabs[winid].kill_websocket_watch_thread = True
         DataRunnerTabs[winid].websocket_watch_thread.join()
         DataRunnerTabs[winid].exchange_obj.stop_candlestick_websocket()
-        if exchange == "BITFINEX" or exchange == "KRAKEN":
+        if self.exchange == accounts.EXCHANGE_BITFINEX or self.exchange == accounts.EXCHANGE_KRAKEN:
             DataRunnerTabs[winid].exchange_obj.stop_ticker_websocket()
         del DataRunnerTabs[winid].exchange_obj
         del DataRunnerTabs[winid]
@@ -1567,6 +1536,8 @@ class Window(QtWidgets.QMainWindow):
     
     def tabOnChange(self, event):
       global tab_current_index
+      self.exchange = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[2]
+      self.setWindowTitle("WAVETREND " + self.exchange)
       if self.tabWidget.currentIndex() in window_ids:
         tab_current_index = window_ids[self.tabWidget.currentIndex()]
         self.OrderbookWidget[self.tabWidget.currentIndex()].update_trades_display()
@@ -1575,12 +1546,13 @@ class Window(QtWidgets.QMainWindow):
       global destroyed_window_ids
       destroyed_window_ids[window_id] = "DESTROYED"
 
-    def addTab(self, symbol, timeframe_entered):
+    def addTab(self, symbol, timeframe_entered, selected_exchange):
       global tab_current_index
       global DataRunnerTabs
 
+      self.exchange = selected_exchange
       self.tab_widgets.append(QtWidgets.QWidget())
-      tab_index = self.tabWidget.addTab(self.tab_widgets[-1], symbol + " " + timeframe_entered)
+      tab_index = self.tabWidget.addTab(self.tab_widgets[-1], symbol + " " + timeframe_entered + " " + self.exchange)
       self.tabWidget.setCurrentWidget(self.tab_widgets[-1])
       main.tabWidget.setTabIcon(tab_index, QtGui.QIcon("coin.ico"))
       widget = QtWidgets.QHBoxLayout(self.tabWidget.widget(tab_index))
@@ -1601,7 +1573,7 @@ class Window(QtWidgets.QMainWindow):
       menuButton.setMenu(tabBarMenu)      
       self.tabBar.setTabButton(tab_index, QtWidgets.QTabBar.RightSide, menuButton)
 
-      OrderBookWidget_ = OrderBookWidget(self, symbol, window_id)
+      OrderBookWidget_ = OrderBookWidget(self, self.exchange, symbol, window_id)
       OrderBookWidget_.DISPLAY_ORDERBOOK.connect(OrderBookWidget_.on_DISPLAY_ORDERBOOK)
       OrderBookWidget_.DISPLAY_TRADES.connect(OrderBookWidget_.on_DISPLAY_TRADES, QtCore.Qt.BlockingQueuedConnection)
       self.OrderbookWidget.append(OrderBookWidget_)
@@ -1622,11 +1594,11 @@ class Window(QtWidgets.QMainWindow):
       dqs[window_id] = collections.deque()
       self.dcs[window_id] = dc
 
-      DataRunnerTabs[window_id] = DataRunner(self, symbol, window_id, tab_index, timeframe_entered)
+      DataRunnerTabs[window_id] = DataRunner(self, self.exchange, symbol, window_id, tab_index, timeframe_entered)
 
       tab_current_index = window_id
 
-      self.chart_runner_thread = ChartRunner(self, symbol, window_id, timeframe_entered)
+      self.chart_runner_thread = ChartRunner(self, self.exchange, symbol, window_id, timeframe_entered)
       self.chart_runner_thread.FIGURE_ADD_SUBPLOT.connect(self.on_FIGURE_ADD_SUBPLOT)
       self.chart_runner_thread.FIGURE_CLEAR.connect(self.on_FIGURE_CLEAR)
       self.chart_runner_thread.FIGURE_ADD_AXES.connect(self.on_FIGURE_ADD_AXES)
@@ -1641,23 +1613,24 @@ class Window(QtWidgets.QMainWindow):
       dialog.show()
 
     def trade_coin_clicked(self, event):
-      self.trade_dialog = TradeDialog(self)
+      self.trade_dialog = TradeDialog(self, self.exchange)
       self.trade_dialog.show()
       
 class TradeDialog(QtWidgets.QDialog):
-  def __init__(self, parent):
+  def __init__(self, parent, exchange):
     self.parent = parent
+    self.exchange = exchange
     QtWidgets.QDialog.__init__(self)
     uic.loadUi('trade.ui', self)
     self.setFixedSize(713, 385)
     self.symbol = str(self.parent.tabWidget.tabText(self.parent.tabWidget.currentIndex())).split(" ")[0]
     symbol = self.symbol
-    self.trade_coin_price = get_symbol_price(symbol)
+    self.trade_coin_price = accounts.fetch_tickers(self.exchange)[symbol]["last"]
     trade_coin_price_str = "%.06f" % self.trade_coin_price
     self.setWindowTitle("Trade " + symbol)
-    asset = get_asset_from_symbol(symbol)
-    quote = get_quote_from_symbol(symbol)
-    balance = client.fetch_balance()
+    asset = accounts.get_asset_from_symbol(self.exchange, symbol)
+    quote = accounts.get_quote_from_symbol(self.exchange, symbol)
+    balance = accounts.client(self.exchange).fetch_balance()
     if quote not in balance:
         balance[quote] = {}
         balance[quote]["free"] = 0
@@ -1706,15 +1679,15 @@ class TradeDialog(QtWidgets.QDialog):
     self.toolButton_6.clicked.connect(self.sellmarket_clicked)    
 
   def buylimit_clicked(self, event):
-    amount = float(client.amount_to_precision(self.symbol, float(self.editAmount.text())))
+    amount = float(accounts.client(self.exchange).amount_to_precision(self.symbol, float(self.editAmount.text())))
     price = float(self.editPrice.text())
     
-    symbol_price = get_symbol_price(self.symbol)
+    symbol_price = accounts.get_symbol_price(self.exchange, self.symbol)
     if price > symbol_price:
       return
     
     try:
-      client.create_limit_buy_order(self.symbol, amount, price)
+      accounts.client(self.exchange).create_limit_buy_order(self.symbol, amount, price)
     except:
       print(get_full_stacktrace())
       return
@@ -1722,15 +1695,15 @@ class TradeDialog(QtWidgets.QDialog):
     self.close()
     
   def selllimit_clicked(self, event):
-    amount = float(client.amount_to_precision(self.symbol, float(self.editAmount2.text())))
+    amount = float(accounts.client(self.exchange).amount_to_precision(self.symbol, float(self.editAmount2.text())))
     price = float(self.editPrice2.text())
 
-    symbol_price = get_symbol_price(self.symbol)
+    symbol_price = accounts.get_symbol_price(self.exchange, self.symbol)
     if price < symbol_price:
       return    
     
     try:
-      client.create_limit_sell_order(self.symbol, amount, price)
+      accounts.client(self.exchange).create_limit_sell_order(self.symbol, amount, price)
     except:
       print(get_full_stacktrace())
       return
@@ -1741,7 +1714,7 @@ class TradeDialog(QtWidgets.QDialog):
     amount = truncate(float(self.editAmount_4.text()), 2)
 
     try:
-      client.create_market_buy_order(self.symbol, amount)
+      accounts.client(self.exchange).create_market_buy_order(self.symbol, amount)
     except:
       print(get_full_stacktrace())
       return
@@ -1752,7 +1725,7 @@ class TradeDialog(QtWidgets.QDialog):
     amount = truncate(float(self.editAmount2_3.text()), 2)
     
     try:
-      client.create_market_sell_order(self.symbol, amount)
+      accounts.client(self.exchange).create_market_sell_order(self.symbol, amount)
     except:
       print(get_full_stacktrace())
       return
@@ -1797,7 +1770,7 @@ class TradeDialog(QtWidgets.QDialog):
       pass
   
   def buyMarketLabelClicked(self, event):
-    price = get_symbol_price(self.symbol)
+    price = accounts.get_symbol_price(self.exchange, self.symbol)
     self.editAmount_4.setText("%.02f" % (self.quote_free_balance / self.trade_coin_price))
     total = (self.quote_free_balance / self.trade_coin_price) * price
     if truncate(self.quote_free_balance / self.trade_coin_price, 2) == 0:
@@ -1806,7 +1779,7 @@ class TradeDialog(QtWidgets.QDialog):
       self.editTotal_3.setText("%.04f" % (total))
   
   def sellMarketLabelClicked(self, event):
-    price = get_symbol_price(self.symbol)
+    price = accounts.get_symbol_price(self.exchange, self.symbol)
     asset_free_balance = truncate(self.asset_free_balance, 2)
     self.editAmount2_3.setText("%.02f" % asset_free_balance)
     self.editTotal2_3.setText("%.04f" % (asset_free_balance * price))
@@ -1827,64 +1800,86 @@ class Dialog(QtWidgets.QDialog):
         QtWidgets.QDialog.__init__(self)
         uic.loadUi('windowqt.ui', self)
         self.setFixedSize(555, 575)
-        self.tableWidget.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
-        
-        self.comboBox.addItem("1d")
-        for key, value in client.timeframes.items():
-          if key == "1d" or key not in days_table.keys():
-            continue
-          self.comboBox.addItem(key)
-        
-        coins = client.fetchTickers()
 
-        if "BTC/USDT" in coins:
-          btcusd_symbol = "BTC/USDT"
+        self.selected_exchange = ""
+        for exchange_name in accounts.exchanges.keys():
+            if self.selected_exchange == "":
+                self.selected_exchange = exchange_name
+            self.exchangeCombobox.addItem(exchange_name)
+        self.exchangeCombobox.currentIndexChanged.connect(self.on_exchange_selected)
+
+        self.updateWidget()
+
+        #close opened splash screen
+        if platform.system() == "Windows":
+            import win32gui
+            window_handle = win32gui.FindWindow("WavetrendSplash", None)
+            if window_handle != 0:
+                win32gui.EndDialog(window_handle, 0)
+
+    def updateWidget(self):
+        self.tableWidget.setColumnCount(4)
+        self.tableWidget.setHorizontalHeaderLabels(["Symbol", "Price Change", "Price Change %", "Volume"])
+        self.comboBox.clear()
+        self.tableWidget.setRowCount(0)
+        self.comboBox.addItem("1d")
+        for key, value in accounts.client(self.selected_exchange).timeframes.items():
+            if key == "1d" or key not in days_table.keys():
+                continue
+            self.comboBox.addItem(key)
+
+        coins = accounts.fetch_tickers(self.selected_exchange)
+
+        if "BTC/USD" in coins:
+            btcusd_symbol = "BTC/USD"
         else:
-          btcusd_symbol = "BTC/USD"
-        
-        btc_price = get_symbol_price(btcusd_symbol)
+            btcusd_symbol = "BTC/USDT"
+
+        btc_price = coins[btcusd_symbol]["last"]
         coins_ = []
         for coin, value in coins.items():
             if coin.endswith("BTC"):
-              coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]) * btc_price)
-              coins_.append(coins[coin])
+                coins[coin]["volumeFloat"] = int(
+                    float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]) * btc_price)
+                coins_.append(coins[coin])
             if coin.endswith("USDT"):
-              coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]))
-              coins_.append(coins[coin])
+                coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]))
+                coins_.append(coins[coin])
             if coin.endswith("USD"):
-              coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]))
-              coins_.append(coins[coin])
+                coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]))
+                coins_.append(coins[coin])
         coins = sorted(coins_, key=itemgetter("volumeFloat"), reverse=True)
-        
+
         self.tableWidget.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
 
         hasChange = False
         hasPercentage = False
         for coin in coins:
-          if coin["symbol"].endswith("BTC") or coin["symbol"].endswith("USDT") or coin["symbol"].endswith("USD"):
-            rowPosition = self.tableWidget.rowCount() - 1
-            self.tableWidget.insertRow(rowPosition)
-            self.tableWidget.setItem(rowPosition, 0, QtWidgets.QTableWidgetItem(coin["symbol"]))
-            if "change" in coin and coin["change"] is not None:
-              self.tableWidget.setItem(rowPosition, 1, QtWidgets.QTableWidgetItem(str("%.08f" % coin["change"])))
-              hasChange = True
-            if "percentage" in coin and coin["percentage"] is not None:
-              self.tableWidget.setItem(rowPosition, 2, QtWidgets.QTableWidgetItem(str("%.02f" % coin["percentage"])))
-              hasPercentage = True
-            else:
-              self.tableWidget.setItem(rowPosition, 2, QtWidgets.QTableWidgetItem(""))
-            self.tableWidget.setItem(rowPosition, 3, QtWidgets.QTableWidgetItem(str(coin["volumeFloat"])))
-            if "change" in coin and coin["change"]:
-              if float(coin["change"]) < 0:
-                self.tableWidget.item(rowPosition, 0).setForeground(QtGui.QColor(255,0,0))
-                self.tableWidget.item(rowPosition, 1).setForeground(QtGui.QColor(255,0,0))
-                self.tableWidget.item(rowPosition, 2).setForeground(QtGui.QColor(255,0,0))
-                self.tableWidget.item(rowPosition, 3).setForeground(QtGui.QColor(255,0,0))
-              else:
-                self.tableWidget.item(rowPosition, 0).setForeground(QtGui.QColor(0,255,0))
-                self.tableWidget.item(rowPosition, 1).setForeground(QtGui.QColor(0,255,0))
-                self.tableWidget.item(rowPosition, 2).setForeground(QtGui.QColor(0,255,0))
-                self.tableWidget.item(rowPosition, 3).setForeground(QtGui.QColor(0,255,0))
+            if coin["symbol"].endswith("BTC") or coin["symbol"].endswith("USDT") or coin["symbol"].endswith("USD"):
+                rowPosition = self.tableWidget.rowCount()
+                self.tableWidget.insertRow(rowPosition)
+                self.tableWidget.setItem(rowPosition, 0, QtWidgets.QTableWidgetItem(coin["symbol"]))
+                if "change" in coin and coin["change"] is not None:
+                    self.tableWidget.setItem(rowPosition, 1, QtWidgets.QTableWidgetItem(str("%.08f" % coin["change"])))
+                    hasChange = True
+                if "percentage" in coin and coin["percentage"] is not None:
+                    self.tableWidget.setItem(rowPosition, 2,
+                                             QtWidgets.QTableWidgetItem(str("%.02f" % coin["percentage"])))
+                    hasPercentage = True
+                else:
+                    self.tableWidget.setItem(rowPosition, 2, QtWidgets.QTableWidgetItem(""))
+                self.tableWidget.setItem(rowPosition, 3, QtWidgets.QTableWidgetItem(str(coin["volumeFloat"])))
+                if "change" in coin and coin["change"]:
+                    if float(coin["change"]) < 0:
+                        self.tableWidget.item(rowPosition, 0).setForeground(QtGui.QColor(255, 0, 0))
+                        self.tableWidget.item(rowPosition, 1).setForeground(QtGui.QColor(255, 0, 0))
+                        self.tableWidget.item(rowPosition, 2).setForeground(QtGui.QColor(255, 0, 0))
+                        self.tableWidget.item(rowPosition, 3).setForeground(QtGui.QColor(255, 0, 0))
+                    else:
+                        self.tableWidget.item(rowPosition, 0).setForeground(QtGui.QColor(0, 255, 0))
+                        self.tableWidget.item(rowPosition, 1).setForeground(QtGui.QColor(0, 255, 0))
+                        self.tableWidget.item(rowPosition, 2).setForeground(QtGui.QColor(0, 255, 0))
+                        self.tableWidget.item(rowPosition, 3).setForeground(QtGui.QColor(0, 255, 0))
 
         if hasChange == False and hasPercentage == False:
             self.tableWidget.removeColumn(1)
@@ -1894,12 +1889,12 @@ class Dialog(QtWidgets.QDialog):
         elif hasPercentage == False:
             self.tableWidget.removeColumn(2)
 
-        #close opened splash screen
-        if platform.system() == "Windows":
-            import win32gui
-            window_handle = win32gui.FindWindow("WavetrendSplash", None)
-            if window_handle != 0:
-                win32gui.EndDialog(window_handle, 0)
+        self.tableWidget.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
+
+    def on_exchange_selected(self):
+        if self.exchangeCombobox.currentText() != self.selected_exchange:
+            self.selected_exchange = self.exchangeCombobox.currentText()
+            self.updateWidget()
 
     def accept(self):
       selectionModel = self.tableWidget.selectionModel()
@@ -1913,24 +1908,22 @@ class Dialog(QtWidgets.QDialog):
         global main_shown
 
         if not main_shown:
-          main = Window(symbol, timeframe_entered)
-          main.tabWidget.setTabText(0, symbol + " " + timeframe_entered)
+          main = Window(self.selected_exchange, symbol, timeframe_entered)
+          main.tabWidget.setTabText(0, symbol + " " + timeframe_entered + " " + self.selected_exchange)
           main.tabWidget.setTabIcon(0, QtGui.QIcon("coin.ico"))
           main.show()
           main_shown = True
         else:
-          main.addTab(symbol, timeframe_entered)
-
-def orderbook(exchange, symbol):
-  return exchange.fetch_order_book(symbol)
+          main.addTab(symbol, timeframe_entered, self.selected_exchange)
 
 class OrderBookWidget(QtWidgets.QWidget):
     DISPLAY_ORDERBOOK = QtCore.pyqtSignal(list, list)
     DISPLAY_TRADES = QtCore.pyqtSignal(list)
 
-    def __init__(self, parent, symbol, winid):
+    def __init__(self, parent, exchange, symbol, winid):
         super(OrderBookWidget,self).__init__(parent)
         self.parent = parent
+        self.exchange = exchange
         self.winid = winid
         self.symbol = symbol
 
@@ -2055,11 +2048,11 @@ class OrderBookWidget(QtWidgets.QWidget):
         sum = 0
         for bid in bids_:
             self.tableWidgetBids.setRowHeight(i, 23)
-            price = str(client.price_to_precision(self.symbol, bid[0]))
-            amount = str(client.amount_to_precision(self.symbol, bid[1]))
+            price = str(accounts.client(self.exchange).price_to_precision(self.symbol, bid[0]))
+            amount = str(accounts.client(self.exchange).amount_to_precision(self.symbol, bid[1]))
             sum = sum + bid[1]
-            sum_str = str(client.amount_to_precision(self.symbol, sum))
-            if exchange == "KRAKEN":
+            sum_str = str(accounts.client(self.exchange).amount_to_precision(self.symbol, sum))
+            if self.exchange == accounts.EXCHANGE_KRAKEN:
                 amount = self.kraken_prettify_value(amount)
                 sum_str = self.kraken_prettify_value(sum_str)
 
@@ -2114,11 +2107,11 @@ class OrderBookWidget(QtWidgets.QWidget):
         for ask in asks_:
             self.tableWidgetAsks.setRowHeight(i, 23)
             self.tableWidgetBids.setRowHeight(i, 23)
-            price = str(client.price_to_precision(self.symbol, ask[0]))
-            amount = str(client.amount_to_precision(self.symbol, ask[1]))
+            price = str(accounts.client(self.exchange).price_to_precision(self.symbol, ask[0]))
+            amount = str(accounts.client(self.exchange).amount_to_precision(self.symbol, ask[1]))
             sum = sum + ask[1]
-            sum_str = str(client.amount_to_precision(self.symbol, sum))
-            if exchange == "KRAKEN":
+            sum_str = str(accounts.client(self.exchange).amount_to_precision(self.symbol, sum))
+            if self.exchange == accounts.EXCHANGE_KRAKEN:
                 amount = self.kraken_prettify_value(amount)
                 sum_str = self.kraken_prettify_value(sum_str)
 
@@ -2197,8 +2190,8 @@ class OrderBookWidget(QtWidgets.QWidget):
             trade_time_pretty = prettydate.date(datetime.datetime.fromtimestamp(trade_time))
 
             self.tableWidgetTrades.setRowHeight(i, 23)
-            trade_price = str(client.price_to_precision(self.symbol, trade_price))
-            trade_quantity = str(client.amount_to_precision(self.symbol, trade_quantity))
+            trade_price = str(accounts.client(self.exchange).price_to_precision(self.symbol, trade_price))
+            trade_quantity = str(accounts.client(self.exchange).amount_to_precision(self.symbol, trade_quantity))
 
             columnItem = QtWidgets.QTableWidgetItem(str(trade_time_pretty))
             columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
@@ -2254,7 +2247,7 @@ class OrderBookWidget(QtWidgets.QWidget):
             time.sleep(0.1)
 
     def process_message(self, msg):
-        if exchange == "KRAKEN":
+        if self.exchange == accounts.EXCHANGE_KRAKEN:
             if isinstance(msg, dict) and "channelID" in msg:
                 self.websocket_alive_time = time.time()
                 self.wss_orderbook = {}
@@ -2332,7 +2325,7 @@ class OrderBookWidget(QtWidgets.QWidget):
             self.orderbook_time_shown = time.time()
             return
 
-        elif exchange == "BITFINEX":
+        elif self.exchange == accounts.EXCHANGE_BITFINEX:
             if isinstance(msg, dict) and "chanId" in msg:
                 self.websocket_alive_time = time.time()
                 self.wss_orderbook = {}
@@ -2395,7 +2388,7 @@ class OrderBookWidget(QtWidgets.QWidget):
             self.orderbook_time_shown = time.time()
             return
 
-        elif exchange == "BINANCE":
+        elif self.exchange == accounts.EXCHANGE_BINANCE:
             #msg is a python-binance depth cache instance
             if msg is not None:
                 self.websocket_alive_time = time.time()
@@ -2417,7 +2410,7 @@ class OrderBookWidget(QtWidgets.QWidget):
                 return
 
     def process_message_trades(self, msg):
-        if exchange == "KRAKEN":
+        if self.exchange == accounts.EXCHANGE_KRAKEN:
             if isinstance(msg, dict) and "channelID" in msg:
                 self.websocket_alive_time = time.time()
                 self.wss_chanid_trades = msg["channelID"]
@@ -2441,7 +2434,7 @@ class OrderBookWidget(QtWidgets.QWidget):
 
                     self.DISPLAY_TRADES.emit(self.trades_list)
                     return
-        elif exchange == "BITFINEX":
+        elif self.exchange == accounts.EXCHANGE_BITFINEX:
             if isinstance(msg, dict) and "chanId" in msg:
                 self.websocket_alive_time = time.time()
                 self.wss_chanid_trades = msg["chanId"]
@@ -2487,7 +2480,7 @@ class OrderBookWidget(QtWidgets.QWidget):
                     self.DISPLAY_TRADES.emit(self.trades_list)
                     return
 
-        elif exchange == "BINANCE":
+        elif self.exchange == accounts.EXCHANGE_BINANCE:
             if isinstance(msg, dict) and "T" in msg:
                 self.websocket_alive_time_trades = time.time()
                 trade_time = msg["T"] / 1000
@@ -2512,16 +2505,19 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.on_DISPLAY_TRADES(self.trades_list)
 
     def init_orderbook_widget(self):
-        global markets
         newfont = QtGui.QFont("Courier New")
         self.setFont(newfont)
         self.setStyleSheet("QLabel { background-color : #131D27; color : #C6C7C8; }")
-        if exchange == "BITFINEX":
-            self.exchange_obj = exchanges.Bitfinex(markets, api_key, api_secret)
-        elif exchange == "BINANCE":
-            self.exchange_obj = exchanges.Binance(markets, api_key, api_secret)
-        elif exchange == "KRAKEN":
-            self.exchange_obj = exchanges.Kraken(markets)
+        if self.exchange == accounts.EXCHANGE_BITFINEX:
+            self.exchange_obj = exchanges.Bitfinex(accounts.exchanges[accounts.EXCHANGE_BITFINEX]["markets"], \
+                                                   accounts.exchanges[accounts.EXCHANGE_BITFINEX]["api_key"], \
+                                                   accounts.exchanges[accounts.EXCHANGE_BITFINEX]["api_secret"])
+        elif self.exchange == accounts.EXCHANGE_BINANCE:
+            self.exchange_obj = exchanges.Binance(accounts.exchanges[accounts.EXCHANGE_BINANCE]["markets"], \
+                                                  accounts.exchanges[accounts.EXCHANGE_BINANCE]["api_key"], \
+                                                  accounts.exchanges[accounts.EXCHANGE_BINANCE]["api_secret"])
+        elif self.exchange == accounts.EXCHANGE_KRAKEN:
+            self.exchange_obj = exchanges.Kraken(accounts.exchanges[accounts.EXCHANGE_KRAKEN]["markets"])
         self.exchange_obj.start_depth_websocket(self.symbol, self.process_message)
         self.exchange_obj.start_trades_websocket(self.symbol, self.process_message_trades)
 
