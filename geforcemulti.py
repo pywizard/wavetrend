@@ -185,11 +185,13 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
 
     i = 0
     for q in quotes:
-        annotate = False
-        for scanner_result in scanner_results:
-            if scanner_result[0] == i:
-                annotate = True
-                break
+        if first == True:
+            annotate = False
+            scanner_result = []
+            for scanner_result in scanner_results:
+                if scanner_result[0] == i:
+                    annotate = True
+                    break
         i = i + 1
 
         t, open, high, low, close = q[:5]
@@ -261,7 +263,7 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
           ax.add_line(vline2)
           ax.add_patch(rect)
 
-          if annotate == True:
+          if annotate == True and len(scanner_result) != 0:
               rect.set_facecolor(orange)
               rect.set_edgecolor(orange)
               vline1.set_color(orange)
@@ -284,6 +286,7 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
                   if rx < annotation_x + rect.get_width()*15:
                      returns = returns + 1
               text.set_text(" " + "\n\n" * returns + scanner_result[2])
+              print(scanner_result[2])
 
               annotations.append(rx)
 
@@ -463,16 +466,14 @@ class DataRunner:
 
               if len(self.last_result) != 0:
                 result = copy.copy(self.last_result)
-                high_price = float(msg[1]['h'][0])
-                low_price = float(msg[1]['l'][0])
                 close_price = float(msg[1]['c'][0])
 
                 last_price = close_price
                 if last_price > result[2]: #high
-                    result[2] = high_price
+                    result[2] = last_price
                 if last_price < result[3]: #low
-                    result[3] = low_price
-                result[4] = close_price # close
+                    result[3] = last_price
+                result[4] = last_price # close
 
                 dqs[self.window_id].append(result)
                 return
@@ -728,14 +729,13 @@ class ChartRunner(QtCore.QThread):
           candle_type = window_configs[self.tab_index].candle_type
           trade_type = window_configs[self.tab_index].trade_type
 
-          if init == False and first == True and self.exchange == accounts.EXCHANGE_BITFINEX and time.time() > time_close:
+          if init == False and first == True and time.time() > time_close:
               date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol)
               time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
                             elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
               date2 = None
           elif first == True:
-                date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered,
-                                                                         symbol)
+                date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol)
                 time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
                               elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
                 date2 = None
@@ -751,9 +751,9 @@ class ChartRunner(QtCore.QThread):
             self.FIGURE_ADD_SUBPLOT.emit(self.tab_index, 111, None)
             ax = aqs[self.tab_index].get()
 
-            prices[:] = []
+            prices.clear()
             for i in range(0, len(date)):
-                prices.append((date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]))
+                prices.append([date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]])
 
             ax.xaxis.set_tick_params(labelsize=7)
             ax.yaxis.set_tick_params(labelsize=7)
@@ -772,11 +772,12 @@ class ChartRunner(QtCore.QThread):
             last_line1 = None
             last_line2 = None
             last_rect = None
-            indicators[:] = []
-            indicator_axes[:] = []
+            indicators.clear()
+            indicator_axes.clear()
             current_candle_type = candle_type
             current_trade_type = trade_type
             force_redraw_chart = False
+            chart_result = [date, close, close, close, close, 0, 1]
             continue
 
           if first == True:
@@ -877,9 +878,9 @@ class ChartRunner(QtCore.QThread):
                   low_list[i]   = min(low_list[i], open_list[i], close_list[i])
               
               prices2 = []
-              prices2[:] = []
+              prices2.clear()
               for i in range(0, len(date)):
-                  prices2.append((date2num(date[i]), open_list[i], high_list[i], low_list[i], close_list[i], volume_list[i], date[i]))
+                  prices2.append([date2num(date[i]), open_list[i], high_list[i], low_list[i], close_list[i], volume_list[i], date[i]])
             else:
               open_list[-1]    = popen[-1]
               close_list[-1]   = pclose[-1]
@@ -891,7 +892,7 @@ class ChartRunner(QtCore.QThread):
               open_list[-1]  = (open_list[-2] + close_list[-2])/2
               high_list[-1]  = max(high_list[-1], open_list[-1], close_list[-1])
               low_list[-1]   = min(low_list[-1], open_list[-1], close_list[-1])
-              prices2[-1] = (date2num(date[-1]), open_list[-1], high_list[-1], low_list[-1], close_list[-1], volume_list[-1], date[-1])
+              prices2[-1] = [date2num(date[-1]), open_list[-1], high_list[-1], low_list[-1], close_list[-1], volume_list[-1], date[-1]]
             ###
 
           if start_x != 0:
@@ -956,7 +957,7 @@ class ChartRunner(QtCore.QThread):
 
             tag_title = symbol + " " + ticker_formatted
 
-            if not (self.exchange == accounts.EXCHANGE_BITFINEX and time.time() > time_close): # bitfinex not waiting for new candle data
+            if time.time() <= time_close and not (hours == 0 and minutes == 0 and seconds == 0):
                 tag_title = tag_title + "\n"
                 tag_title = tag_title + " " * (len(tag_title)-len(time_to_next_candle)-1) + time_to_next_candle
 
@@ -977,7 +978,7 @@ class ChartRunner(QtCore.QThread):
                 line_color = red
 
             tag_title = symbol + " " + ticker_formatted
-            if not (self.exchange == accounts.EXCHANGE_BITFINEX and time.time() > time_close):
+            if time.time() <= time_close and not (hours == 0 and minutes == 0 and seconds == 0):
                 tag_title = tag_title + "\n"
                 tag_title = tag_title + " " * (len(tag_title)-len(time_to_next_candle)-1) + time_to_next_candle
 
@@ -1007,8 +1008,10 @@ class ChartRunner(QtCore.QThread):
                                                        indicators[keltner_index].keltner_lband[index], lowest_price)
                 squeeze_now_shown = True
 
-          if first == True:
+          if first == True and self.timeframe_entered in ["12h","1d","1D","3d","3D"]:
             scanner_results = self.candlescanner(popen, phigh, plow, pclose)
+          elif self.timeframe_entered not in ["12h","1d","1D","3d","3D"]:
+            scanner_results = []
           if current_candle_type == CANDLE_TYPE_CANDLESTICK:
             last_line1, last_line2, last_rect = _candlestick(ax, prices, first, last_line1, last_line2, last_rect, candle_width, scanner_results, highest_price)
           elif current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:        
@@ -1086,12 +1089,12 @@ class ChartRunner(QtCore.QThread):
             for text in legend.get_texts():
               text.set_color(grayscale_lighter)
 
-          pdate[:] = []
-          popen[:] = []
-          phigh[:] = []
-          plow[:] = []
-          pclose[:] = []
-          pvol[:] = []
+          pdate.clear()
+          popen.clear()
+          phigh.clear()
+          plow.clear()
+          pclose.clear()
+          pvol.clear()
 
           do_break = False
           while True:
@@ -1208,6 +1211,7 @@ class UpdateUsdBalanceRunner(QtCore.QThread):
 
   def run(self):
     global qs_local
+    global destroyed_window_ids
 
     time.sleep(5)
     while True:
@@ -1547,6 +1551,8 @@ class Window(QtWidgets.QMainWindow):
       global exchange_balances
 
       index = self.tabWidget.currentIndex()
+      if index == -1:
+          return
       tab_index = window_ids[index]
       if tab_index in qs_local and len(qs_local[tab_index]) > 0:
         [exchange, message] = qs_local[tab_index].pop()
@@ -1575,9 +1581,9 @@ class Window(QtWidgets.QMainWindow):
 
     def tabOnChange(self, event):
       global tab_current_index
-      self.exchange = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[2]
-      self.setWindowTitle("WAVETREND " + self.exchange)
       if self.tabWidget.currentIndex() in window_ids:
+        self.exchange = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[2]
+        self.setWindowTitle("WAVETREND " + self.exchange)
         tab_current_index = window_ids[self.tabWidget.currentIndex()]
         self.OrderbookWidget[self.tabWidget.currentIndex()].update_trades_display()
         self.update_usd_balance()
@@ -2472,7 +2478,7 @@ class OrderBookWidget(QtWidgets.QWidget):
                 self.websocket_alive_time_trades = time.time()
 
                 if isinstance(msg[1], list) and len(msg[1]) > 0 and isinstance(msg[1][0], list) and len(msg[1][0]) > 0:
-                    for trade in reversed(msg[1]):
+                    for trade in msg[1]:
                         trade_time = int(float(trade[2]))
                         trade_price = float(trade[0])
                         trade_quantity = float(trade[1])
