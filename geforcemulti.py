@@ -2371,10 +2371,10 @@ class OrderBookWidget(QtWidgets.QWidget):
             asks = []
             for order in sorted(self.wss_orderbook["bids"], reverse=True):
                 bids.append([order, self.wss_orderbook["bids"][order]])
-            for order in sorted(self.wss_orderbook["asks"]):
+            for order in sorted(self.wss_orderbook["asks"], reverse=True):
                 asks.append([order, self.wss_orderbook["asks"][order]])
 
-            self.DISPLAY_ORDERBOOK.emit(bids, asks)
+            self.DISPLAY_ORDERBOOK.emit(bids[:25], asks[:25])
             self.orderbook_time_shown = time.time()
             return
 
