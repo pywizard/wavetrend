@@ -1083,7 +1083,7 @@ class ChartRunner(QtCore.QThread):
               t.tick1On = t.tick2On = False
               t.label1On = t.label2On = False
             
-            ax.plot(1,1, label=symbol + ", " + timeframe_entered + ", " + exchange, marker = '',ls ='')
+            ax.plot(1,1, label=symbol + ", " + timeframe_entered, marker = '',ls ='')
             legend = ax.legend(frameon=False,loc="upper left", fontsize=9)
             for text in legend.get_texts():
               text.set_color(grayscale_lighter)
