@@ -133,39 +133,13 @@ class FigureCanvas(FigureCanvasAgg, FigureCanvasQT):
         painter.end()
 
 matplotlib.backends.backend_qt5agg.FigureCanvasQTAgg = FigureCanvas
-
-config = {}
-exec(open("config.txt").read(), config)
-
-exchanges_ = config["exchanges"].copy()
-
-active_count = 0
-exchange = ""
-for exchange_name in exchanges_:
-    active_count = active_count + 1
-
-if active_count == 0:
-    print("Please configure a valid Exchange.")
-    print("Many Exchanges can be configured.")
-    sys.exit(1)
-
-exchanges_list = []
-
-for exchange_name in exchanges_:
-    api_key = config["exchanges"][exchange_name]["api_key"]
-    api_secret = config["exchanges"][exchange_name]["api_secret"]
-    exchanges_list.append([exchange_name, api_key, api_secret])
-
-accounts = ExchangeAccounts(exchanges_list)
-accounts.initialize()
-
 matplotlib.rcParams['font.family'] = 'monospace'
 
 class abstract():
   pass
 
 def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, \
-                 scanner_results, highest_price, width=0.2, colorup='white', colordown='black', alpha=1.0):
+                 scanner_results, highest_price):
 
     width = candle_width
     line_width = 0.9
@@ -588,13 +562,15 @@ class ChartRunner(QtCore.QThread):
   CANVAS_DRAW = QtCore.pyqtSignal(str)
   CHART_DESTROY = QtCore.pyqtSignal(str, str)
 
-  def __init__(self, parent, exchange, symbol, tab_index, timeframe_entered):
+  def __init__(self, parent, exchange, symbol, tab_index, timeframe_entered, OrderbookWidget):
     super(ChartRunner, self).__init__(parent)
     self.parent = parent
     self.exchange = exchange
     self.symbol = symbol
     self.tab_index = tab_index
     self.timeframe_entered = timeframe_entered
+    self.OrderbookWidget = OrderbookWidget
+    self.widthAdjusted = False
 
   def candlescanner(self, open_, high, low, close):
       patterns = [[talib.CDL2CROWS, "Two Crows", "Bearish market reversal signal STRONG"],
@@ -711,12 +687,20 @@ class ChartRunner(QtCore.QThread):
     keltner_index = -1
     squeeze_now_shown = False
 
+    time.sleep(0.5)
+
     while True:
         try:
           while True:
               if init == True:
                   self.FIGURE_CLEAR.emit(self.tab_index)
                   aqs[self.tab_index].get()
+                  while True:
+                      if self.OrderbookWidget.orderbookWidthAdjusted == False:
+                          time.sleep(0.05)
+                          continue
+                      else:
+                          break
                   update_time = time.time()
                   break
               if force_redraw_chart == True:
@@ -1032,23 +1016,25 @@ class ChartRunner(QtCore.QThread):
             ax.grid(alpha=.25)
             ax.grid(True)
 
-          if init == True:
+          adjustView = False
+          if self.widthAdjusted == False:
             dpi_scale_trans = self.parent.dcs[self.tab_index].fig.dpi_scale_trans
             position_width = 0.8
             dc_width = self.parent.dcs[self.tab_index].width()
             while True:
                 ax.set_position([0.04, 0.04, position_width, 0.93])
                 bbox = annotation.get_window_extent().transformed(dpi_scale_trans.inverted())
-                width = bbox.x1 + bbox.width/2
+                width = bbox.x1 + bbox.width / 3
                 width *= 100
                 if width < dc_width:
                     position_width += 0.005
                 else:
                     break
+            self.widthAdjusted = True
+            adjustView = True
 
+          if first == True or adjustView == True:
             ax_bbox = ax.get_position()
-
-          if first == True:
             axis_num = 0
             axis_height = None
             for axis in indicator_axes:
@@ -1309,9 +1295,6 @@ class Window(QtWidgets.QMainWindow):
         resolution = QtWidgets.QDesktopWidget().screenGeometry()
         uic.loadUi('mainwindowqt.ui', self)
         self.setWindowTitle("WAVETREND " + exchange)
-        self.setGeometry(0, 0, int(resolution.width()/1.1), int(resolution.height()/1.2))
-        self.move((resolution.width() / 2) - (self.frameSize().width() / 2),
-                  (resolution.height() / 2) - (self.frameSize().height() / 2))         
         self.toolButton.clicked.connect(self.add_coin_clicked)
         self.toolButton_2.clicked.connect(self.trade_coin_clicked)
         self.exchange = exchange
@@ -1371,7 +1354,7 @@ class Window(QtWidgets.QMainWindow):
 
         DataRunnerTabs[window_id] = DataRunner(self, self.exchange, symbol, window_id, 0, timeframe_entered)
 
-        self.chart_runner_thread = ChartRunner(self, self.exchange, symbol, window_id, timeframe_entered)
+        self.chart_runner_thread = ChartRunner(self, self.exchange, symbol, window_id, timeframe_entered, OrderBookWidget_)
         self.chart_runner_thread.FIGURE_ADD_SUBPLOT.connect(self.on_FIGURE_ADD_SUBPLOT)
         self.chart_runner_thread.FIGURE_CLEAR.connect(self.on_FIGURE_CLEAR)
         self.chart_runner_thread.FIGURE_ADD_AXES.connect(self.on_FIGURE_ADD_AXES)
@@ -1643,6 +1626,7 @@ class Window(QtWidgets.QMainWindow):
       global DataRunnerTabs
 
       self.exchange = selected_exchange
+      self.setWindowTitle("WAVETREND " + self.exchange)
       self.tab_widgets.append(QtWidgets.QWidget())
       tab_index = self.tabWidget.addTab(self.tab_widgets[-1], symbol + " " + timeframe_entered + " " + self.exchange)
       self.tabWidget.setCurrentWidget(self.tab_widgets[-1])
@@ -1693,7 +1677,7 @@ class Window(QtWidgets.QMainWindow):
 
       tab_current_index = window_id
 
-      self.chart_runner_thread = ChartRunner(self, self.exchange, symbol, window_id, timeframe_entered)
+      self.chart_runner_thread = ChartRunner(self, self.exchange, symbol, window_id, timeframe_entered, OrderBookWidget_)
       self.chart_runner_thread.FIGURE_ADD_SUBPLOT.connect(self.on_FIGURE_ADD_SUBPLOT)
       self.chart_runner_thread.FIGURE_CLEAR.connect(self.on_FIGURE_CLEAR)
       self.chart_runner_thread.FIGURE_ADD_AXES.connect(self.on_FIGURE_ADD_AXES)
@@ -2014,7 +1998,7 @@ class Dialog(QtWidgets.QDialog):
           main = Window(self.selected_exchange, symbol, timeframe_entered)
           main.tabWidget.setTabText(0, symbol + " " + timeframe_entered + " " + self.selected_exchange)
           main.tabWidget.setTabIcon(0, QtGui.QIcon("coin.ico"))
-          main.show()
+          main.showMaximized()
           main_shown = True
         else:
           main.addTab(symbol, timeframe_entered, self.selected_exchange)
@@ -2624,10 +2608,76 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.exchange_obj.start_depth_websocket(self.symbol, self.process_message)
         self.exchange_obj.start_trades_websocket(self.symbol, self.process_message_trades)
 
+def closeSplashScreen():
+    # close opened splash screen
+    if platform.system() == "Windows":
+        import win32gui
+
+        window_handle = win32gui.FindWindow("WavetrendSplash", None)
+        if window_handle != 0:
+            win32gui.EndDialog(window_handle, 0)
+
+def showQtMessageMissingExchanges():
+    closeSplashScreen()
+    msg = QtWidgets.QMessageBox()
+    msg.setIcon(QtWidgets.QMessageBox.Information)
+    msg.setText("Please configure valid exchanges.")
+    msg.setInformativeText("Edit the config.txt file and add your exchanges api keys.")
+    msg.setWindowTitle("Missing exchanges")
+    msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+    msg.exec_()
+
+def showQtMessageMissingExchangesConfig():
+    closeSplashScreen()
+    msg = QtWidgets.QMessageBox()
+    msg.setIcon(QtWidgets.QMessageBox.Information)
+    msg.setText("Please configure valid exchanges.")
+    msg.setInformativeText("Edit the config.txt file and add your exchanges api keys.\n" + \
+            "The configuration file config.txt might be corrupted or does not exist.")
+    msg.setWindowTitle("Missing configuration")
+    msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+    msg.exec_()
+
 if __name__ == "__main__":
-  app = QtWidgets.QApplication(sys.argv)
-  with open("style.qss","r") as fh:
-    app.setStyleSheet(fh.read())
-  dialog = Dialog()
-  dialog.show()
-  os._exit(app.exec_())
+    app = QtWidgets.QApplication(sys.argv)
+
+    config = {}
+    try:
+        exec (open("config.txt").read(), config)
+    except:
+        showQtMessageMissingExchangesConfig()
+        sys.exit(1)
+
+    exchanges_ = config["exchanges"].copy()
+
+    active_count = 0
+    exchange = ""
+    for exchange_name in exchanges_:
+        if "api_key" in config["exchanges"][exchange_name] and \
+                "api_secret" in config["exchanges"][exchange_name] \
+                and len(config["exchanges"][exchange_name]["api_key"]) > 5 \
+                and len(config["exchanges"][exchange_name]["api_secret"]) > 5:
+            active_count = active_count + 1
+
+    if active_count == 0:
+        showQtMessageMissingExchanges()
+        sys.exit(1)
+
+    exchanges_list = []
+
+    for exchange_name in exchanges_:
+        if "api_key" in config["exchanges"][exchange_name] and "api_secret" in \
+                config["exchanges"][exchange_name]:
+            api_key = config["exchanges"][exchange_name]["api_key"]
+            api_secret = config["exchanges"][exchange_name]["api_secret"]
+            if len(api_key) > 5 and len(api_secret) > 5:
+                exchanges_list.append([exchange_name, api_key, api_secret])
+
+    accounts = ExchangeAccounts(exchanges_list)
+    accounts.initialize()
+
+    with open("style.qss","r") as fh:
+        app.setStyleSheet(fh.read())
+    dialog = Dialog()
+    dialog.show()
+    os._exit(app.exec_())

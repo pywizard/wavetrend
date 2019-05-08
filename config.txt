@@ -1,15 +1,19 @@
+#**************************
+#Exchange Configuration
+#**************************
+#Enter your api keys and api secrets inside the quotes for each exchange
+#you want to trade with.
 exchanges = {
     "BITFINEX": {
-    "name": "BITFINEX",
-    "api_key": "toTFiy2DQyMlgwEgvqaev28nj2JUpHamDIGh4tL5g6Y",
-    "api_secret": "8GO7tonHru3FBB9qMyJDf4u2ccgzh7pLtDuvUI79eFP",
+    "api_key": "",
+    "api_secret": "",
     },
     "BINANCE": {
-    "api_key": "KgW42pRCZLfnYiEL1Mzj827n0pjRkual0xvfSVKJDV8QOODezvIk9cUbNRtOqwJ2",
-    "api_secret": "HX4DYkInjP9k5ECFSXVRDajAUB0jD27DPsQIB8tmvRWg6nNQoUvOVwgtkPEw9O9l",
+    "api_key": "",
+    "api_secret": "",
     },
     "KRAKEN": {
-    "api_key": "y50IBcw6Ki+4PxUdczBuQheat+H9s3N0yb8fbqRcK0fRorX/VTWQ91i+",
-    "api_secret": "OwvhEPOoF5BCnONsnz8SjGx2pkGecE2ZdrheVq8a1r+dO4cEWQ0e9GIUVGl/08/31FtmNX+4YC2MwKVqshiP0Q==",
+    "api_key": "",
+    "api_secret": "",
     }
  }
