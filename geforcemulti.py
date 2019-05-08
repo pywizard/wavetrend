@@ -728,16 +728,22 @@ class ChartRunner(QtCore.QThread):
           candle_type = window_configs[self.tab_index].candle_type
           trade_type = window_configs[self.tab_index].trade_type
 
-          if init == False and first == True and time.time() > time_close:
-              date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol)
-              time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
-                            elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
-              date2 = None
+          if init == False and first == True and time.time() > time_close and force_redraw_chart == False:
+              try:
+                  dqs[self.tab_index].pop()
+                  dqs[self.tab_index].clear()
+                  date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol)
+                  time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
+                                elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
+                  date2 = None
+              except IndexError:
+                  [date2, open2_, high2, low2, close2, vol2, limit2] = [date, open_, high, low, close, vol, limit]
           elif first == True:
                 date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol)
                 time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
                               elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
                 date2 = None
+                force_redraw_chart = False
           else:
             try:
                 chart_result = dqs[self.tab_index].pop()
@@ -775,8 +781,6 @@ class ChartRunner(QtCore.QThread):
             indicator_axes.clear()
             current_candle_type = candle_type
             current_trade_type = trade_type
-            force_redraw_chart = False
-            chart_result = [date, close, close, close, close, 0, 1]
             continue
 
           if first == True:
@@ -1109,7 +1113,7 @@ class ChartRunner(QtCore.QThread):
                   if time.time() > time_close:
                     force_redraw_chart = True
                   time.sleep(0.1)
-                  update_time = time.time() - 1
+                  update_time = time.time()
 
           if do_break == True:
             break
