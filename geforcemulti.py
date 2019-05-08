@@ -1607,9 +1607,11 @@ class Window(QtWidgets.QMainWindow):
       else:
         self.statusbar.showMessage("")
 
-    def removeTab(self, window_id):
+    def removeTab(self, window_id, selected_exchange):
       global destroyed_window_ids
+      self.exchange = selected_exchange
       destroyed_window_ids[window_id] = "DESTROYED"
+      self.update_usd_balance()
 
     def addTab(self, symbol, timeframe_entered, selected_exchange):
       global tab_current_index
@@ -1631,7 +1633,7 @@ class Window(QtWidgets.QMainWindow):
       tabBarMenu = QtWidgets.QMenu()
       closeAction = QtWidgets.QAction("close", self)
       tabBarMenu.addAction(closeAction)
-      closeAction.triggered.connect(functools.partial(self.removeTab, window_ids[tab_index]))      
+      closeAction.triggered.connect(functools.partial(self.removeTab, window_ids[tab_index], selected_exchange))
       menuButton = QtWidgets.QToolButton(self)
       menuButton.setStyleSheet('border: 0px; padding: 0px;')
       menuButton.setPopupMode(QtWidgets.QToolButton.InstantPopup)
