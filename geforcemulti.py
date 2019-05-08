@@ -1583,14 +1583,20 @@ class Window(QtWidgets.QMainWindow):
         for exchange in exchange_balances.keys():
             for winid in exchange_balances[exchange].keys():
                 if winid == tab_index:
-                    for winid in exchange_balances[exchange].keys():
-                        if exchange_balances[exchange][winid] != "":
-                            message = exchange_balances[exchange][winid]
-                            self.statusbar.showMessage(message)
-                            winid_found = True
-                            break
-                    if winid_found == True:
-                        break
+                    message = exchange_balances[exchange][winid]
+                    if message == "":
+                        for winid_ in exchange_balances[exchange]:
+                            message = exchange_balances[exchange][winid_]
+                            if message != "":
+                                self.statusbar.showMessage(message)
+                                exchange_balances[exchange][winid] = \
+                                    exchange_balances[exchange][winid_]
+                                winid_found = True
+                                break
+                    else:
+                        self.statusbar.showMessage(message)
+                        winid_found = True
+                    break
                 if winid_found == True:
                     break
             if winid_found == True:
@@ -1609,8 +1615,25 @@ class Window(QtWidgets.QMainWindow):
 
     def removeTab(self, window_id, selected_exchange):
       global destroyed_window_ids
+      global exchange_balances
       self.exchange = selected_exchange
       destroyed_window_ids[window_id] = "DESTROYED"
+
+      #remove specific window_id from exchange_balances list
+      exchange_ = ""
+      exchange_balances_copy = copy.deepcopy(exchange_balances)
+      for exchange in exchange_balances_copy:
+          for winid in exchange_balances_copy[exchange]:
+              if winid == window_id:
+                  del exchange_balances[exchange][winid]
+                  exchange_ = exchange
+                  break
+      #remove exchange from exchange_balances list if there
+      #isn't another tab open with the same exchange
+      found = False
+      if exchange_ != "" and len(exchange_balances[exchange_]) == 0:
+          del exchange_balances[exchange_]
+
       self.update_usd_balance()
 
     def addTab(self, symbol, timeframe_entered, selected_exchange):
