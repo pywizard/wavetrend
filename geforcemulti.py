@@ -728,29 +728,36 @@ class ChartRunner(QtCore.QThread):
           candle_type = window_configs[self.tab_index].candle_type
           trade_type = window_configs[self.tab_index].trade_type
 
-          if init == False and first == True and time.time() > time_close and force_redraw_chart == False:
-              try:
-                  dqs[self.tab_index].pop()
-                  dqs[self.tab_index].clear()
-                  date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol)
-                  time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
-                                elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
-                  date2 = None
-              except IndexError:
-                  [date2, open2_, high2, low2, close2, vol2, limit2] = [date, open_, high, low, close, vol, limit]
-          elif first == True:
+          if first == True and force_redraw_chart == False:
                 date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol)
                 time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
                               elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
                 date2 = None
-                force_redraw_chart = False
-          else:
+          elif first == False and force_redraw_chart == False:
             try:
                 chart_result = dqs[self.tab_index].pop()
                 dqs[self.tab_index].clear()
                 [date2, open2_, high2, low2, close2, vol2, limit2] = chart_result
             except IndexError:
                 pass
+          else:
+              hotkeys_pressed = current_candle_type != candle_type or current_trade_type != trade_type
+              if hotkeys_pressed == True:
+                  force_redraw_chart = True
+
+              if first == False and force_redraw_chart == True:
+                self.FIGURE_CLEAR.emit(self.tab_index)
+                aqs[self.tab_index].get()
+                first = True
+                force_redraw_chart = False
+                last_line1 = None
+                last_line2 = None
+                last_rect = None
+                indicators.clear()
+                indicator_axes.clear()
+                current_candle_type = candle_type
+                current_trade_type = trade_type
+                continue
 
           if first == True:
             self.FIGURE_ADD_SUBPLOT.emit(self.tab_index, 111, None)
@@ -765,23 +772,6 @@ class ChartRunner(QtCore.QThread):
           else:
             if date2 != None:
                 prices[-1] = [date2num(date2), open2_, high2, low2, close2, vol2, date2]
-
-          hotkeys_pressed = current_candle_type != candle_type or current_trade_type != trade_type
-          if hotkeys_pressed == True:
-              force_redraw_chart = True
-
-          if first == False and (force_redraw_chart == True or time.time() > time_close):
-            self.FIGURE_CLEAR.emit(self.tab_index)
-            aqs[self.tab_index].get()
-            first = True
-            last_line1 = None
-            last_line2 = None
-            last_rect = None
-            indicators.clear()
-            indicator_axes.clear()
-            current_candle_type = candle_type
-            current_trade_type = trade_type
-            continue
 
           if first == True:
             indicators.append(indicator_BBANDS())
@@ -1099,8 +1089,32 @@ class ChartRunner(QtCore.QThread):
           pclose.clear()
           pvol.clear()
 
-          do_break = False
-          while True:
+          if init == False and time.time() > time_close:
+            do_break = False
+            while True:
+              if tab_index in destroyed_window_ids:
+                  do_break = True
+                  break
+              self.CANVAS_DRAW.emit(self.tab_index)
+              return_value = aqs[tab_index].get()
+              if return_value == 0:
+                  try:
+                      dqs[self.tab_index].pop()
+                      dqs[self.tab_index].clear()
+                      force_redraw_chart = True
+                      update_time = time.time() - 1
+                      break
+                  except IndexError:
+                      time.sleep(0.1)
+                      continue
+              else:
+                  force_redraw_chart = True
+                  time.sleep(0.1)
+                  update_time = time.time() - 1
+
+          else:
+            do_break = False
+            while True:
               if tab_index in destroyed_window_ids:
                   do_break = True
                   break
@@ -1113,7 +1127,7 @@ class ChartRunner(QtCore.QThread):
                   if time.time() > time_close:
                     force_redraw_chart = True
                   time.sleep(0.1)
-                  update_time = time.time()
+                  update_time = time.time() - 1
 
           if do_break == True:
             break
