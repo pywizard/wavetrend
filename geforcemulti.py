@@ -586,7 +586,7 @@ class ChartRunner(QtCore.QThread):
   FIGURE_ADD_AXES = QtCore.pyqtSignal(str, list, object)
   CANVAS_GET_SIZE = QtCore.pyqtSignal(str, object)
   CANVAS_DRAW = QtCore.pyqtSignal(str)
-  CHART_DESTROY = QtCore.pyqtSignal(str)
+  CHART_DESTROY = QtCore.pyqtSignal(str, str)
 
   def __init__(self, parent, exchange, symbol, tab_index, timeframe_entered):
     super(ChartRunner, self).__init__(parent)
@@ -719,7 +719,10 @@ class ChartRunner(QtCore.QThread):
                   aqs[self.tab_index].get()
                   update_time = time.time()
                   break
-              if time.time() - update_time < 1:
+              if force_redraw_chart == True:
+                  update_time = time.time()
+                  break
+              elif time.time() - update_time < 1:
                   time.sleep(0.1)
               else:
                   update_time = time.time()
@@ -1102,7 +1105,6 @@ class ChartRunner(QtCore.QThread):
                       dqs[self.tab_index].pop()
                       dqs[self.tab_index].clear()
                       force_redraw_chart = True
-                      update_time = time.time() - 1
                       break
                   except IndexError:
                       time.sleep(0.1)
@@ -1110,7 +1112,6 @@ class ChartRunner(QtCore.QThread):
               else:
                   force_redraw_chart = True
                   time.sleep(0.1)
-                  update_time = time.time() - 1
 
           else:
             do_break = False
@@ -1138,7 +1139,7 @@ class ChartRunner(QtCore.QThread):
           print(get_full_stacktrace())
           
 
-    self.CHART_DESTROY.emit(self.tab_index)
+    self.CHART_DESTROY.emit(self.tab_index, self.exchange)
     
   def getData(self, timeframe_entered, days_entered, currency_entered):
     limit = 0
@@ -1515,8 +1516,8 @@ class Window(QtWidgets.QMainWindow):
         else:
             aqs[winid].put(1)
 
-    @QtCore.pyqtSlot(str)
-    def on_CHART_DESTROY(self, winid):
+    @QtCore.pyqtSlot(str, str)
+    def on_CHART_DESTROY(self, winid, exchange):
         global aqs
         global window_ids
 
@@ -1535,7 +1536,7 @@ class Window(QtWidgets.QMainWindow):
         DataRunnerTabs[winid].kill_websocket_watch_thread = True
         DataRunnerTabs[winid].websocket_watch_thread.join()
         DataRunnerTabs[winid].exchange_obj.stop_candlestick_websocket()
-        if self.exchange == accounts.EXCHANGE_BITFINEX or self.exchange == accounts.EXCHANGE_KRAKEN:
+        if exchange == accounts.EXCHANGE_BITFINEX or exchange == accounts.EXCHANGE_KRAKEN:
             DataRunnerTabs[winid].exchange_obj.stop_ticker_websocket()
         del DataRunnerTabs[winid].exchange_obj
         del DataRunnerTabs[winid]
@@ -1575,9 +1576,10 @@ class Window(QtWidgets.QMainWindow):
         [exchange, message] = qs_local[tab_index].pop()
         qs_local[tab_index].clear()
         #populate through all windows for the same exchange
-        for winid in exchange_balances[exchange]:
-            exchange_balances[exchange][winid] = message
-        self.statusbar.showMessage(message)
+        if exchange in exchange_balances:
+            for winid in exchange_balances[exchange]:
+                exchange_balances[exchange][winid] = message
+            self.statusbar.showMessage(message)
       else:
         winid_found = False
         for exchange in exchange_balances.keys():
