@@ -1,8 +1,8 @@
 RELEASE BUILDS
 =====
-Wavetrend version 1.2.2, latest release version
+Wavetrend version 1.2.3, latest release version
 Windows Binary Download:
-http://farlight.org/wavetrend-1.2.2.zip
+http://farlight.org/wavetrend-1.2.3.zip
 
 Wavetrend version 1.2.1
 Windows Binary Download:

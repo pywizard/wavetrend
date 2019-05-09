@@ -687,8 +687,6 @@ class ChartRunner(QtCore.QThread):
     keltner_index = -1
     squeeze_now_shown = False
 
-    time.sleep(0.5)
-
     while True:
         try:
           while True:
@@ -1032,9 +1030,9 @@ class ChartRunner(QtCore.QThread):
                     break
             self.widthAdjusted = True
             adjustView = True
+            ax_bbox = ax.get_position()
 
           if first == True or adjustView == True:
-            ax_bbox = ax.get_position()
             axis_num = 0
             axis_height = None
             for axis in indicator_axes:
