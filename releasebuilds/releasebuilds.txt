@@ -1,6 +1,6 @@
 RELEASE BUILDS
 =====
-Wavetrend version 1.2.3, latest release version
+Wavetrend version 1.2.3, latest release including hotkeys.
 Windows Binary Download:
 http://farlight.org/wavetrend-1.2.3.zip
 

@@ -712,6 +712,9 @@ class ChartRunner(QtCore.QThread):
 
           candle_type = window_configs[self.tab_index].candle_type
           trade_type = window_configs[self.tab_index].trade_type
+          hotkeys_pressed = current_candle_type != candle_type or current_trade_type != trade_type
+          if hotkeys_pressed == True:
+              force_redraw_chart = True
 
           if first == True and force_redraw_chart == False:
                 date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol)
@@ -726,10 +729,6 @@ class ChartRunner(QtCore.QThread):
             except IndexError:
                 pass
           else:
-              hotkeys_pressed = current_candle_type != candle_type or current_trade_type != trade_type
-              if hotkeys_pressed == True:
-                  force_redraw_chart = True
-
               if first == False and force_redraw_chart == True:
                 self.FIGURE_CLEAR.emit(self.tab_index)
                 aqs[self.tab_index].get()
