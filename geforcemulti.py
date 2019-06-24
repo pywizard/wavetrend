@@ -2364,7 +2364,7 @@ class OrderBookWidget(QtWidgets.QWidget):
                     elif "b" in msg[1].keys():
                         bids = msg[1]["b"]
 
-                    if len(msg) > 2:
+                    if len(msg) > 2 and isinstance(msg[2], dict) and ("a" in msg[2].keys() or "b" in msg[2].keys()):
                         if "a" in msg[2].keys():
                             asks = msg[2]["a"]
                         elif "b" in msg[2].keys():
@@ -2675,6 +2675,12 @@ if __name__ == "__main__":
 
     with open("style.qss","r") as fh:
         app.setStyleSheet(fh.read())
+
+    if platform.system() == "Linux":
+        new_font = QtGui.QFont()
+        new_font.setPointSize(10)
+        app.setFont(new_font)
+
     dialog = Dialog()
     dialog.show()
     os._exit(app.exec_())
