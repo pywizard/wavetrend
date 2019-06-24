@@ -6,3 +6,4 @@ ccxt==1.18.4
 ta-lib==0.4.17
 python-binance==0.7.1
 kraken-wsclient-py
+bitfinex-v2

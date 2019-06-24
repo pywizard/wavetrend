@@ -334,6 +334,7 @@ CANDLE_TYPE_CANDLESTICK = 0
 CANDLE_TYPE_HEIKIN_ASHI = 1
 TRADE_TYPE_TRENDING = 0
 TRADE_TYPE_OSC = 1
+INTERNAL_TAB_INDEX_NOTFOUND = "NOTFOUND"
 
 tab_current_index = None
 destroyed_window_ids = {}
@@ -1062,11 +1063,12 @@ class ChartRunner(QtCore.QThread):
             for t in ax.xaxis.get_major_ticks():
               t.tick1On = t.tick2On = False
               t.label1On = t.label2On = False
-            
-            ax.plot(1,1, label=symbol + ", " + timeframe_entered, marker = '',ls ='')
-            legend = ax.legend(frameon=False,loc="upper left", fontsize=9)
-            for text in legend.get_texts():
-              text.set_color(grayscale_lighter)
+
+            if first == True:
+                ax.plot(1,1, label=symbol + ", " + timeframe_entered, marker = '',ls ='')
+                legend = ax.legend(frameon=False,loc="upper left", fontsize=9)
+                for text in legend.get_texts():
+                  text.set_color(grayscale_lighter)
 
           pdate.clear()
           popen.clear()
@@ -1309,8 +1311,20 @@ class Window(QtWidgets.QMainWindow):
         
         self.tabBar = self.tabWidget.tabBar()
         tabBarMenu = QtWidgets.QMenu()
+        trendingMarketAction = QtWidgets.QAction("trending", self)
+        oscillatingMarketAction = QtWidgets.QAction("oscillating", self)
+        candlestickChartAction = QtWidgets.QAction("candlestick", self)
+        heikinashiChartAction = QtWidgets.QAction("heikin ashi", self)
         closeAction = QtWidgets.QAction("close", self)
+        tabBarMenu.addAction(trendingMarketAction)
+        tabBarMenu.addAction(oscillatingMarketAction)
+        tabBarMenu.addAction(candlestickChartAction)
+        tabBarMenu.addAction(heikinashiChartAction)
         tabBarMenu.addAction(closeAction)
+        trendingMarketAction.triggered.connect(functools.partial(self.trendingEnabled, window_ids[0]))
+        oscillatingMarketAction.triggered.connect(functools.partial(self.oscillatingEnabled, window_ids[0]))
+        candlestickChartAction.triggered.connect(functools.partial(self.candlestickEnabled, window_ids[0]))
+        heikinashiChartAction.triggered.connect(functools.partial(self.heikinashiEnabled, window_ids[0]))
         closeAction.triggered.connect(functools.partial(self.removeTab, window_ids[0]))
         menuButton = QtWidgets.QToolButton(self)
         menuButton.setStyleSheet('border: 0px; padding: 0px;')
@@ -1486,9 +1500,10 @@ class Window(QtWidgets.QMainWindow):
     def on_CANVAS_DRAW(self, winid):
         global aqs
 
-        for tab_index in window_ids:
-            if winid == window_ids[tab_index]:
-                break
+        tab_index = get_tab_index(winid)
+        if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
+            aqs[winid].put(1)
+            return
 
         if self.tabWidget.currentIndex() == tab_index:
             self.dcs[winid].draw_idle()
@@ -1501,9 +1516,9 @@ class Window(QtWidgets.QMainWindow):
         global aqs
         global window_ids
 
-        for tab_index in window_ids:
-            if winid == window_ids[tab_index]:
-                break
+        tab_index = get_tab_index(winid)
+        if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
+            return
 
         del qs[winid]
         del aqs[winid]
@@ -1595,6 +1610,22 @@ class Window(QtWidgets.QMainWindow):
       else:
         self.statusbar.showMessage("")
 
+    def trendingEnabled(self, window_id):
+        global window_configs
+        window_configs[window_id].trade_type = TRADE_TYPE_TRENDING
+
+    def oscillatingEnabled(self, window_id):
+        global window_configs
+        window_configs[window_id].trade_type = TRADE_TYPE_OSC
+
+    def candlestickEnabled(self, window_id):
+        global window_configs
+        window_configs[window_id].candle_type = CANDLE_TYPE_CANDLESTICK
+
+    def heikinashiEnabled(self, window_id):
+        global window_configs
+        window_configs[window_id].candle_type = CANDLE_TYPE_HEIKIN_ASHI
+
     def removeTab(self, window_id, selected_exchange):
       global destroyed_window_ids
       global exchange_balances
@@ -1637,9 +1668,22 @@ class Window(QtWidgets.QMainWindow):
       window_configs[window_id].trade_type = TRADE_TYPE_TRENDING
       
       tabBarMenu = QtWidgets.QMenu()
+      trendingMarketAction = QtWidgets.QAction("trending", self)
+      oscillatingMarketAction = QtWidgets.QAction("oscillating", self)
+      candlestickChartAction = QtWidgets.QAction("candlestick", self)
+      heikinashiChartAction = QtWidgets.QAction("heikin ashi", self)
       closeAction = QtWidgets.QAction("close", self)
+      tabBarMenu.addAction(trendingMarketAction)
+      tabBarMenu.addAction(oscillatingMarketAction)
+      tabBarMenu.addAction(candlestickChartAction)
+      tabBarMenu.addAction(heikinashiChartAction)
       tabBarMenu.addAction(closeAction)
+      trendingMarketAction.triggered.connect(functools.partial(self.trendingEnabled, window_ids[tab_index]))
+      oscillatingMarketAction.triggered.connect(functools.partial(self.oscillatingEnabled, window_ids[tab_index]))
+      candlestickChartAction.triggered.connect(functools.partial(self.candlestickEnabled, window_ids[tab_index]))
+      heikinashiChartAction.triggered.connect(functools.partial(self.heikinashiEnabled, window_ids[tab_index]))
       closeAction.triggered.connect(functools.partial(self.removeTab, window_ids[tab_index], selected_exchange))
+
       menuButton = QtWidgets.QToolButton(self)
       menuButton.setStyleSheet('border: 0px; padding: 0px;')
       menuButton.setPopupMode(QtWidgets.QToolButton.InstantPopup)
@@ -1699,7 +1743,10 @@ class Window(QtWidgets.QMainWindow):
     def trade_coin_clicked(self, event):
       self.trade_dialog = TradeDialog(self, self.exchange)
       self.trade_dialog.show()
-      
+
+    def resizeEvent(self, event):
+        self.chart_runner_thread.widthAdjusted = False
+
 class TradeDialog(QtWidgets.QDialog):
   def __init__(self, parent, exchange):
     self.parent = parent
@@ -2388,9 +2435,9 @@ class OrderBookWidget(QtWidgets.QWidget):
                 else:
                     return
 
-            for tab_index in window_ids:
-                if self.winid == window_ids[tab_index]:
-                    break
+            tab_index = get_tab_index(self.winid)
+            if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
+                return
 
             if self.parent.tabWidget.currentIndex() != tab_index:
                 return
@@ -2450,9 +2497,9 @@ class OrderBookWidget(QtWidgets.QWidget):
                 else:
                     return
 
-            for tab_index in window_ids:
-                if self.winid == window_ids[tab_index]:
-                    break
+            tab_index = get_tab_index(self.winid)
+            if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
+                return
 
             if self.parent.tabWidget.currentIndex() != tab_index:
                 return
@@ -2476,9 +2523,11 @@ class OrderBookWidget(QtWidgets.QWidget):
             #msg is a python-binance depth cache instance
             if msg is not None:
                 self.websocket_alive_time = time.time()
-                for tab_index in window_ids:
-                    if self.winid == window_ids[tab_index]:
-                        break
+
+                tab_index = get_tab_index(self.winid)
+                if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
+                    return
+
                 if self.parent.tabWidget.currentIndex() != tab_index:
                     return
                 if self.orderbook_time_shown != 0 and time.time() - self.orderbook_time_shown < 1:
@@ -2510,9 +2559,10 @@ class OrderBookWidget(QtWidgets.QWidget):
                         trade_buy_maker = trade[3] == "s"
                         self.trades_list.append([trade_time, trade_price, trade_quantity, trade_buy_maker])
 
-                    for tab_index in window_ids:
-                        if self.winid == window_ids[tab_index]:
-                            break
+                    tab_index = get_tab_index(self.winid)
+                    if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
+                        return
+
                     if self.parent.tabWidget.currentIndex() != tab_index:
                         return
 
@@ -2536,9 +2586,10 @@ class OrderBookWidget(QtWidgets.QWidget):
                             trade_quantity = trade_quantity * -1
                         self.trades_list.append([trade_time, trade_price, trade_quantity, trade_buy_maker])
 
-                    for tab_index in window_ids:
-                        if self.winid == window_ids[tab_index]:
-                            break
+                    tab_index = get_tab_index(self.winid)
+                    if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
+                        return
+
                     if self.parent.tabWidget.currentIndex() != tab_index:
                         return
 
@@ -2555,9 +2606,10 @@ class OrderBookWidget(QtWidgets.QWidget):
                     if len(self.trades_list) > 100:
                         self.trades_list.pop(0)
 
-                    for tab_index in window_ids:
-                        if self.winid == window_ids[tab_index]:
-                            break
+                    tab_index = get_tab_index(self.winid)
+                    if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
+                        return
+
                     if self.parent.tabWidget.currentIndex() != tab_index:
                         return
 
@@ -2576,9 +2628,10 @@ class OrderBookWidget(QtWidgets.QWidget):
                 if len(self.trades_list) > 100:
                     self.trades_list.pop(0)
 
-                for tab_index in window_ids:
-                    if self.winid == window_ids[tab_index]:
-                        break
+                tab_index = get_tab_index(self.winid)
+                if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
+                    return
+
                 if self.parent.tabWidget.currentIndex() != tab_index:
                     return
 
@@ -2634,6 +2687,17 @@ def showQtMessageMissingExchangesConfig():
     msg.setWindowTitle("Missing configuration")
     msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
     msg.exec_()
+
+def get_tab_index(winid):
+    found = False
+    for tab_index in window_ids:
+        if winid == window_ids[tab_index]:
+            found = True
+            break
+    if found == True:
+        return tab_index
+    else:
+        return "NOTFOUND"
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
