@@ -14,13 +14,26 @@ class indicator_DMI:
     self.plus_di_values = talib.PLUS_DI(np.array(high), np.array(low), np.array(close))
     self.minus_di_values = talib.MINUS_DI(np.array(high), np.array(low), np.array(close))
     self.adx_values = talib.ADX(np.array(high), np.array(low), np.array(close))
-    
+
+  def get_adx_trend_str(self, adx_value):
+    adx_str = ""
+    if adx_value <= 25:
+      adx_str = "Absent or Weak Trend"
+    elif adx_value > 25 and adx_value <= 50:
+      adx_str = "Strong Trend"
+    elif adx_value > 50 and adx_value <= 75:
+      adx_str = "Very Strong Trend"
+    elif adx_value > 75:
+      adx_str = "Extremely Strong Trend"
+    return adx_str
+
   def plot_once(self, axis, dates):
     self.axis = axis
     self.dates = dates
     self.plus_di = axis.plot(self.dates, self.plus_di_values, color=blue, lw=.7, label="+DI=" + str(int(self.plus_di_values[-1])))
     self.minus_di = axis.plot(self.dates, self.minus_di_values, color=orange, lw=.7, label="-DI=" + str(int(self.minus_di_values[-1])))
-    self.adx = axis.plot(self.dates, self.adx_values, color=red, lw=.7, label="ADX=" + str(int(self.adx_values[-1])))
+
+    self.adx = axis.plot(self.dates, self.adx_values, color=red, lw=.7, label="ADX=" + str(int(self.adx_values[-1])) + "\n" + self.get_adx_trend_str(int(self.adx_values[-1])))
     self.legend = axis.legend(loc="upper left", facecolor=darkish, edgecolor=darkish, fontsize=8)
     for text in self.legend.get_texts():
       text.set_color("white")
@@ -35,7 +48,7 @@ class indicator_DMI:
       if "-DI" in text.get_text():
         text.set_text("-DI=" + str(int(self.minus_di_values[-1])))
       if "ADX" in text.get_text():
-        text.set_text("ADX=" + str(int(self.adx_values[-1])))
+        text.set_text("ADX=" + str(int(self.adx_values[-1])) + "\n" + self.get_adx_trend_str(int(self.adx_values[-1])))
   
   def xaxis_get_start(self):
     if self.first == True:
