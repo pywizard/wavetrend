@@ -339,6 +339,7 @@ INTERNAL_TAB_INDEX_NOTFOUND = "NOTFOUND"
 tab_current_index = None
 destroyed_window_ids = {}
 
+ChartRunnerTabs = {}
 DataRunnerTabs = {}
 
 days_table = {"1m": 0.17, "3m": .5, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, \
@@ -1289,6 +1290,7 @@ class Window(QtWidgets.QMainWindow):
     global window_ids
     def __init__(self, exchange, symbol, timeframe_entered):
         global selected_symbol
+        global ChartRunnerTabs
         global DataRunnerTabs
         QtWidgets.QMainWindow.__init__(self)
         resolution = QtWidgets.QDesktopWidget().screenGeometry()
@@ -1365,14 +1367,14 @@ class Window(QtWidgets.QMainWindow):
 
         DataRunnerTabs[window_id] = DataRunner(self, self.exchange, symbol, window_id, 0, timeframe_entered)
 
-        self.chart_runner_thread = ChartRunner(self, self.exchange, symbol, window_id, timeframe_entered, OrderBookWidget_)
-        self.chart_runner_thread.FIGURE_ADD_SUBPLOT.connect(self.on_FIGURE_ADD_SUBPLOT)
-        self.chart_runner_thread.FIGURE_CLEAR.connect(self.on_FIGURE_CLEAR)
-        self.chart_runner_thread.FIGURE_ADD_AXES.connect(self.on_FIGURE_ADD_AXES)
-        self.chart_runner_thread.CANVAS_GET_SIZE.connect(self.on_CANVAS_GET_SIZE)
-        self.chart_runner_thread.CANVAS_DRAW.connect(self.on_CANVAS_DRAW)
-        self.chart_runner_thread.CHART_DESTROY.connect(self.on_CHART_DESTROY)
-        self.chart_runner_thread.start()
+        ChartRunnerTabs[window_id] = ChartRunner(self, self.exchange, symbol, window_id, timeframe_entered, OrderBookWidget_)
+        ChartRunnerTabs[window_id].FIGURE_ADD_SUBPLOT.connect(self.on_FIGURE_ADD_SUBPLOT)
+        ChartRunnerTabs[window_id].FIGURE_CLEAR.connect(self.on_FIGURE_CLEAR)
+        ChartRunnerTabs[window_id].FIGURE_ADD_AXES.connect(self.on_FIGURE_ADD_AXES)
+        ChartRunnerTabs[window_id].CANVAS_GET_SIZE.connect(self.on_CANVAS_GET_SIZE)
+        ChartRunnerTabs[window_id].CANVAS_DRAW.connect(self.on_CANVAS_DRAW)
+        ChartRunnerTabs[window_id].CHART_DESTROY.connect(self.on_CHART_DESTROY)
+        ChartRunnerTabs[window_id].start()
 
         self.updateusdbalance_runner_thread = UpdateUsdBalanceRunner(self, self.exchange, window_id)
         self.updateusdbalance_runner_thread.start()
@@ -1651,6 +1653,7 @@ class Window(QtWidgets.QMainWindow):
 
     def addTab(self, symbol, timeframe_entered, selected_exchange):
       global tab_current_index
+      global ChartRunnerTabs
       global DataRunnerTabs
 
       self.exchange = selected_exchange
@@ -1718,14 +1721,14 @@ class Window(QtWidgets.QMainWindow):
 
       tab_current_index = window_id
 
-      self.chart_runner_thread = ChartRunner(self, self.exchange, symbol, window_id, timeframe_entered, OrderBookWidget_)
-      self.chart_runner_thread.FIGURE_ADD_SUBPLOT.connect(self.on_FIGURE_ADD_SUBPLOT)
-      self.chart_runner_thread.FIGURE_CLEAR.connect(self.on_FIGURE_CLEAR)
-      self.chart_runner_thread.FIGURE_ADD_AXES.connect(self.on_FIGURE_ADD_AXES)
-      self.chart_runner_thread.CANVAS_GET_SIZE.connect(self.on_CANVAS_GET_SIZE)
-      self.chart_runner_thread.CANVAS_DRAW.connect(self.on_CANVAS_DRAW)
-      self.chart_runner_thread.CHART_DESTROY.connect(self.on_CHART_DESTROY)
-      self.chart_runner_thread.start()
+      ChartRunnerTabs[window_id] = ChartRunner(self, self.exchange, symbol, window_id, timeframe_entered, OrderBookWidget_)
+      ChartRunnerTabs[window_id].FIGURE_ADD_SUBPLOT.connect(self.on_FIGURE_ADD_SUBPLOT)
+      ChartRunnerTabs[window_id].FIGURE_CLEAR.connect(self.on_FIGURE_CLEAR)
+      ChartRunnerTabs[window_id].FIGURE_ADD_AXES.connect(self.on_FIGURE_ADD_AXES)
+      ChartRunnerTabs[window_id].CANVAS_GET_SIZE.connect(self.on_CANVAS_GET_SIZE)
+      ChartRunnerTabs[window_id].CANVAS_DRAW.connect(self.on_CANVAS_DRAW)
+      ChartRunnerTabs[window_id].CHART_DESTROY.connect(self.on_CHART_DESTROY)
+      ChartRunnerTabs[window_id].start()
 
       if self.exchange not in exchange_balances:
           exchange_balances[self.exchange] = {}
@@ -1745,7 +1748,9 @@ class Window(QtWidgets.QMainWindow):
       self.trade_dialog.show()
 
     def resizeEvent(self, event):
-        self.chart_runner_thread.widthAdjusted = False
+        global ChartRunnerTabs
+        for tab_number in range(0, self.tabWidget.count()):
+            ChartRunnerTabs[window_ids[tab_number]].widthAdjusted = False
         return super(Window, self).resizeEvent(event)
 
 class TradeDialog(QtWidgets.QDialog):
