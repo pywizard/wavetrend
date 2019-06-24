@@ -1746,6 +1746,7 @@ class Window(QtWidgets.QMainWindow):
 
     def resizeEvent(self, event):
         self.chart_runner_thread.widthAdjusted = False
+        return super(Window, self).resizeEvent(event)
 
 class TradeDialog(QtWidgets.QDialog):
   def __init__(self, parent, exchange):
