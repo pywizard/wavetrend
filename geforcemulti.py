@@ -138,9 +138,8 @@ matplotlib.rcParams['font.family'] = 'monospace'
 class abstract():
   pass
 
-def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, \
-                 scanner_results, highest_price):
-
+def _bars(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, \
+                 scanner_results, highest_price, trendbars_enabled, last_trendbar_color, trendbars_display_counter):
     width = candle_width
     line_width = 0.9
     OFFSET = width / 2.0
@@ -148,6 +147,7 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
     lines = []
     patches = []
     annotations = []
+    trendbar_colors = [""] * len(quotes)
 
     colorup = "#134F5C"
     colordown = "#A61C00"
@@ -157,6 +157,52 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
     if first == False:
       quotes = [quotes[-1]]
 
+    if trendbars_enabled == True and trendbars_display_counter % 60 == 0:
+        indicator_color1 = "#00BFFF" # deep sky blue
+        indicator_color1_2 = "#00FFFF"
+        indicator_color2 = "#7F7F28" # yellowish
+        indicator_color2_2 = "#9F7F28"
+        indicator_color3 = "#E87FE8" # violet
+        indicator_color3_2 = "#E87FFF"
+
+        trendbars_period_1 = 8
+        trendbars_period_2 = 34
+
+        high = []
+        low = []
+        close = []
+
+        for q in quotes:
+            t, open, high_, low_, close_ = q[:5]
+            high.append(high_)
+            low.append(low_)
+            close.append(close_)
+
+        cci1 = talib.CCI(np.array(high), np.array(low), np.array(close), timeperiod=trendbars_period_1)
+        cci2 = talib.CCI(np.array(high), np.array(low), np.array(close), timeperiod=trendbars_period_2)
+
+        cci1_ = []
+        cci2_ = []
+        for cci_value in cci1:
+            if np.isnan(cci_value) == True:
+                cci1_.append(0)
+            else:
+                cci1_.append(cci_value)
+        for cci_value in cci2:
+            if np.isnan(cci_value) == True:
+                cci2_.append(0)
+            else:
+                cci2_.append(cci_value)
+
+        for i in range(0, len(cci1_)):
+            if cci1_[i] >= 0 and cci2_[i] >= 0:
+                trendbar_colors[i] = [indicator_color1, indicator_color1_2]
+            elif cci1_[i] >= 0 and cci2_[i] < 0:
+                trendbar_colors[i] = [indicator_color2, indicator_color2_2]
+            else:
+                trendbar_colors[i] = [indicator_color3, indicator_color3_2]
+
+    trendbars_display_counter = trendbars_display_counter + 1
     i = 0
     for q in quotes:
         if first == True:
@@ -171,8 +217,13 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
         t, open, high, low, close = q[:5]
         
         if close >= open:
+            if trendbars_enabled == True and first == True:
+                colorup = trendbar_colors[i-1][0]
+                colorup2 = trendbar_colors[i-1][1]
+
             color = colorup
             color2 = colorup2
+
             lower = open
             higher = close
             height = close - open
@@ -200,8 +251,13 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
                 antialiased=True
             )
         else:
+            if trendbars_enabled == True and first == True:
+                colordown = trendbar_colors[i-1][0]
+                colordown2 = trendbar_colors[i-1][1]
+
             color = colordown
             color2 = colordown2
+
             lower = close
             higher = open
             height = open - close
@@ -266,7 +322,15 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
           last_line1 = vline1
           last_line2 = vline2
           last_rect = rect
+          last_trendbar_color = trendbar_colors[-1]
         else:
+          if trendbars_enabled == True and trendbar_colors[-1] != "":
+              color = trendbar_colors[-1][0]
+              color2 = trendbar_colors[-1][1]
+          elif trendbars_enabled == True:
+              color = last_trendbar_color[0]
+              color2 = last_trendbar_color[1]
+
           last_line1.set_ydata((high, higher))
           last_line2.set_ydata((low, lower))
           last_line1.set_color(color2)
@@ -278,7 +342,7 @@ def _candlestick(ax, quotes, first, last_line1, last_line2, last_rect, candle_wi
 
     ax.autoscale_view()
 
-    return last_line1, last_line2, last_rect
+    return last_line1, last_line2, last_rect, last_trendbar_color, trendbars_display_counter
 
 window_ids = {}
 def get_window_id():
@@ -332,6 +396,8 @@ exchange_balances = {}
 
 CANDLE_TYPE_CANDLESTICK = 0
 CANDLE_TYPE_HEIKIN_ASHI = 1
+BBAND_TYPE_DEFAULT = 0
+BBAND_TYPE_TRENDBARS = 1
 TRADE_TYPE_TRENDING = 0
 TRADE_TYPE_OSC = 1
 INTERNAL_TAB_INDEX_NOTFOUND = "NOTFOUND"
@@ -673,7 +739,9 @@ class ChartRunner(QtCore.QThread):
     first = True
     last_line1 = None
     last_line2 = None
-    last_rect = None    
+    last_rect = None
+    last_trendbar_color = None
+    trendbars_display_counter = 0
     prices = []
     indicators = []
     indicator_axes = []
@@ -682,6 +750,7 @@ class ChartRunner(QtCore.QThread):
     indicator_update_time = 0
     current_candle_type = window_configs[self.tab_index].candle_type
     current_trade_type = window_configs[self.tab_index].trade_type
+    current_bband_type = window_configs[self.tab_index].bband_type
     date = None
     date2 = None
     force_redraw_chart = False # True means switched from tab
@@ -714,8 +783,10 @@ class ChartRunner(QtCore.QThread):
 
           candle_type = window_configs[self.tab_index].candle_type
           trade_type = window_configs[self.tab_index].trade_type
-          hotkeys_pressed = current_candle_type != candle_type or current_trade_type != trade_type
+          bband_type = window_configs[self.tab_index].bband_type
+          hotkeys_pressed = current_candle_type != candle_type or current_trade_type != trade_type or current_bband_type != bband_type
           if hotkeys_pressed == True:
+              trendbars_display_counter = 0
               force_redraw_chart = True
 
           if first == True and force_redraw_chart == False:
@@ -743,6 +814,7 @@ class ChartRunner(QtCore.QThread):
                 indicator_axes.clear()
                 current_candle_type = candle_type
                 current_trade_type = trade_type
+                current_bband_type = bband_type
                 continue
 
           if first == True:
@@ -829,15 +901,15 @@ class ChartRunner(QtCore.QThread):
                 indicator.plot_once(new_ax, pdate)
             else:
               indicator.generate_values(popen, phigh, plow, pclose, pvol)
-              if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or current_trade_type != trade_type:
+              if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or current_trade_type != trade_type or current_bband_type != bband_type:
                 indicator.update()              
             
             xaxis_start = indicator.xaxis_get_start()
             if xaxis_start != 0 and xaxis_start > start_x:
               start_x = xaxis_start
                           
-          if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or current_trade_type != trade_type:
-            indicator_update_time = time.time()     
+          if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or current_trade_type != trade_type or current_bband_type != bband_type:
+            indicator_update_time = time.time()
 
           if current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
             ### Heikin Ashi
@@ -992,9 +1064,13 @@ class ChartRunner(QtCore.QThread):
           elif self.timeframe_entered not in ["12h","1d","1D","3d","3D"]:
             scanner_results = []
           if current_candle_type == CANDLE_TYPE_CANDLESTICK:
-            last_line1, last_line2, last_rect = _candlestick(ax, prices, first, last_line1, last_line2, last_rect, candle_width, scanner_results, highest_price)
+            last_line1, last_line2, last_rect, last_trendbar_color, trendbars_display_counter = \
+                _bars(ax, prices, first, last_line1, last_line2, last_rect, candle_width, scanner_results, highest_price, \
+                      current_bband_type == BBAND_TYPE_TRENDBARS, last_trendbar_color, trendbars_display_counter)
           elif current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:        
-            last_line1, last_line2, last_rect = _candlestick(ax, prices2, first, last_line1, last_line2, last_rect, candle_width, scanner_results, highest_price)
+            last_line1, last_line2, last_rect, last_trendbar_color, trendbars_display_counter = \
+                _bars(ax, prices2, first, last_line1, last_line2, last_rect, candle_width, scanner_results, highest_price, \
+                      current_bband_type == BBAND_TYPE_TRENDBARS, last_trendbar_color, trendbars_display_counter)
           
           if first == True:
             ax.autoscale_view()
@@ -1310,23 +1386,30 @@ class Window(QtWidgets.QMainWindow):
         window_configs[window_id] = abstract()
         window_configs[window_id].candle_type = CANDLE_TYPE_CANDLESTICK
         window_configs[window_id].trade_type = TRADE_TYPE_TRENDING
-        
+        window_configs[window_id].bband_type = BBAND_TYPE_DEFAULT
+
         self.tabBar = self.tabWidget.tabBar()
         tabBarMenu = QtWidgets.QMenu()
         trendingMarketAction = QtWidgets.QAction("trending", self)
         oscillatingMarketAction = QtWidgets.QAction("oscillating", self)
         candlestickChartAction = QtWidgets.QAction("candlestick", self)
         heikinashiChartAction = QtWidgets.QAction("heikin ashi", self)
+        trendbarsChartActionEnable = QtWidgets.QAction("+trendbars", self)
+        trendbarsChartActionDisable = QtWidgets.QAction("-trendbars", self)
         closeAction = QtWidgets.QAction("close", self)
         tabBarMenu.addAction(trendingMarketAction)
         tabBarMenu.addAction(oscillatingMarketAction)
         tabBarMenu.addAction(candlestickChartAction)
         tabBarMenu.addAction(heikinashiChartAction)
+        tabBarMenu.addAction(trendbarsChartActionEnable)
+        tabBarMenu.addAction(trendbarsChartActionDisable)
         tabBarMenu.addAction(closeAction)
         trendingMarketAction.triggered.connect(functools.partial(self.trendingEnabled, window_ids[0]))
         oscillatingMarketAction.triggered.connect(functools.partial(self.oscillatingEnabled, window_ids[0]))
         candlestickChartAction.triggered.connect(functools.partial(self.candlestickEnabled, window_ids[0]))
         heikinashiChartAction.triggered.connect(functools.partial(self.heikinashiEnabled, window_ids[0]))
+        trendbarsChartActionEnable.triggered.connect(functools.partial(self.trendbarsEnabled, window_ids[0]))
+        trendbarsChartActionDisable.triggered.connect(functools.partial(self.trendbarsDisabled, window_ids[0]))
         closeAction.triggered.connect(functools.partial(self.removeTab, window_ids[0]))
         menuButton = QtWidgets.QToolButton(self)
         menuButton.setStyleSheet('border: 0px; padding: 0px;')
@@ -1628,6 +1711,14 @@ class Window(QtWidgets.QMainWindow):
         global window_configs
         window_configs[window_id].candle_type = CANDLE_TYPE_HEIKIN_ASHI
 
+    def trendbarsEnabled(self, window_id):
+        global window_configs
+        window_configs[window_id].bband_type = BBAND_TYPE_TRENDBARS
+
+    def trendbarsDisabled(self, window_id):
+        global window_configs
+        window_configs[window_id].bband_type = BBAND_TYPE_DEFAULT
+
     def removeTab(self, window_id, selected_exchange):
       global destroyed_window_ids
       global exchange_balances
@@ -1669,22 +1760,29 @@ class Window(QtWidgets.QMainWindow):
       window_configs[window_id] = abstract()
       window_configs[window_id].candle_type = CANDLE_TYPE_CANDLESTICK
       window_configs[window_id].trade_type = TRADE_TYPE_TRENDING
-      
+      window_configs[window_id].bband_type = BBAND_TYPE_DEFAULT
+
       tabBarMenu = QtWidgets.QMenu()
       trendingMarketAction = QtWidgets.QAction("trending", self)
       oscillatingMarketAction = QtWidgets.QAction("oscillating", self)
       candlestickChartAction = QtWidgets.QAction("candlestick", self)
       heikinashiChartAction = QtWidgets.QAction("heikin ashi", self)
+      trendbarsChartActionEnable = QtWidgets.QAction("+trendbars", self)
+      trendbarsChartActionDisable = QtWidgets.QAction("-trendbars", self)
       closeAction = QtWidgets.QAction("close", self)
       tabBarMenu.addAction(trendingMarketAction)
       tabBarMenu.addAction(oscillatingMarketAction)
       tabBarMenu.addAction(candlestickChartAction)
       tabBarMenu.addAction(heikinashiChartAction)
+      tabBarMenu.addAction(trendbarsChartActionEnable)
+      tabBarMenu.addAction(trendbarsChartActionDisable)
       tabBarMenu.addAction(closeAction)
       trendingMarketAction.triggered.connect(functools.partial(self.trendingEnabled, window_ids[tab_index]))
       oscillatingMarketAction.triggered.connect(functools.partial(self.oscillatingEnabled, window_ids[tab_index]))
       candlestickChartAction.triggered.connect(functools.partial(self.candlestickEnabled, window_ids[tab_index]))
       heikinashiChartAction.triggered.connect(functools.partial(self.heikinashiEnabled, window_ids[tab_index]))
+      trendbarsChartActionEnable.triggered.connect(functools.partial(self.trendbarsEnabled, window_ids[tab_index]))
+      trendbarsChartActionDisable.triggered.connect(functools.partial(self.trendbarsDisabled, window_ids[tab_index]))
       closeAction.triggered.connect(functools.partial(self.removeTab, window_ids[tab_index], selected_exchange))
 
       menuButton = QtWidgets.QToolButton(self)
