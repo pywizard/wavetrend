@@ -154,10 +154,8 @@ def _bars(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, \
     colorup2 = "#53B987"
     colordown2 = "#EB4D5C"
 
-    if first == False:
-      quotes = [quotes[-1]]
-
-    if trendbars_enabled == True and (first == True or trendbars_display_counter % 60 == 0):
+    trendbars_refresh = trendbars_display_counter % 60 == 0
+    if trendbars_enabled == True and (first == True or trendbars_refresh == True):
         indicator_color1 = "#134F5C"
         indicator_color1_2 = "#53B987"
         indicator_color2 = "#7F7F28" # yellowish
@@ -202,7 +200,9 @@ def _bars(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, \
             else:
                 trendbar_colors[i] = [indicator_color3, indicator_color3_2]
 
-    trendbars_display_counter = trendbars_display_counter + 1
+    if first == False:
+      quotes = [quotes[-1]]
+
     i = 0
     for q in quotes:
         if first == True:
@@ -324,7 +324,7 @@ def _bars(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, \
           last_rect = rect
           last_trendbar_color = trendbar_colors[-1]
         else:
-          if trendbars_enabled == True and trendbar_colors[-1] != "":
+          if trendbars_enabled == True and trendbars_refresh == True:
               color = trendbar_colors[-1][0]
               color2 = trendbar_colors[-1][1]
           elif trendbars_enabled == True:
@@ -340,6 +340,7 @@ def _bars(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, \
           last_rect.set_facecolor(color)
           last_rect.set_edgecolor(color2)
 
+    trendbars_display_counter = trendbars_display_counter + 1
     ax.autoscale_view()
 
     return last_line1, last_line2, last_rect, last_trendbar_color, trendbars_display_counter
