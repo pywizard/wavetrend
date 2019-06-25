@@ -157,13 +157,13 @@ def _bars(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, \
     if first == False:
       quotes = [quotes[-1]]
 
-    if trendbars_enabled == True and trendbars_display_counter % 60 == 0:
+    if trendbars_enabled == True and (first == True or trendbars_display_counter % 60 == 0):
         indicator_color1 = "#00BFFF" # deep sky blue
         indicator_color1_2 = "#00FFFF"
         indicator_color2 = "#7F7F28" # yellowish
         indicator_color2_2 = "#9F7F28"
         indicator_color3 = "#E87FE8" # violet
-        indicator_color3_2 = "#E87FFF"
+        indicator_color3_2 = "#E8E8E8"
 
         trendbars_period_1 = 8
         trendbars_period_2 = 34
