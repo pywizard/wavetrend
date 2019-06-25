@@ -1000,18 +1000,24 @@ class ChartRunner(QtCore.QThread):
             time_to_next_candle = "%02d:%02d:%02d" % (hours, minutes, seconds)
 
           if first == True:
-            color = "#2c681d" # green
             if current_bband_type == BBAND_TYPE_DEFAULT:
+                color = "#2c681d"  # green
                 line_color = green
+                text_color = white
             elif current_bband_type == BBAND_TYPE_TRENDBARS:
-                line_color = "#00BFFF" # deep sky blue
+                color = "#00AEFF" # deep sky blue
+                line_color = "#00BFFF"
+                text_color = black
 
             if prices[-1][4] < prices[-1][1]:
-                color = "#681d1d" # red
                 if current_bband_type == BBAND_TYPE_DEFAULT:
+                    color = "#681d1d"  # red
                     line_color = red
+                    text_color = white
                 elif current_bband_type == BBAND_TYPE_TRENDBARS:
-                    line_color = "#E87FE8" #violet
+                    color = "#E87FE8"  # violet
+                    line_color = "#E87FE8"
+                    text_color = black
 
             tag_title = symbol + " " + ticker_formatted
 
@@ -1020,7 +1026,7 @@ class ChartRunner(QtCore.QThread):
                 tag_title = tag_title + " " * (len(tag_title)-len(time_to_next_candle)-1) + time_to_next_candle
 
             price_line = ax.axhline(ticker_for_line, color=line_color, linestyle="dotted", lw=.9)
-            annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker_for_line, tag_title, fontsize=7, weight="bold", color=white, backgroundcolor=color, family="monospace")
+            annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker_for_line, tag_title, fontsize=7, weight="bold", color=text_color, backgroundcolor=color, family="monospace")
 
             self.CANVAS_GET_SIZE.emit(self.tab_index, annotation)
             tbox = aqs[tab_index].get()
@@ -1029,17 +1035,23 @@ class ChartRunner(QtCore.QThread):
             annotation.set_y(ticker_for_line)
             annotation.set_bbox(dict(facecolor=color, edgecolor=white, lw=.5))
           else:
-            color = "#2c681d" # green
             if current_bband_type == BBAND_TYPE_DEFAULT:
+                color = "#2c681d"  # green
                 line_color = green
+                text_color = white
             elif current_bband_type == BBAND_TYPE_TRENDBARS:
-                line_color = "#00BFFF" # deep sky blue
+                color = "#00AEFF" # deep sky blue
+                line_color = "#00BFFF"
+                text_color = black
             if prices[-1][4] < prices[-1][1]:
-                color = "#681d1d" # red
                 if current_bband_type == BBAND_TYPE_DEFAULT:
+                    color = "#681d1d"  # red
                     line_color = red
+                    text = white
                 elif current_bband_type == BBAND_TYPE_TRENDBARS:
-                    line_color = "#E87FE8" #violet
+                    color = "#E87FE8"  # violet
+                    line_color = "#E87FE8"
+                    text_color = black
 
             tag_title = symbol + " " + ticker_formatted
             if time.time() <= time_close and not (hours == 0 and minutes == 0 and seconds == 0):
@@ -1051,7 +1063,7 @@ class ChartRunner(QtCore.QThread):
             annotation.set_text(tag_title)
             annotation.set_y(ticker_for_line)
             annotation.set_backgroundcolor(color)
-            annotation.set_bbox(dict(facecolor=color, edgecolor=white, lw=.5))
+            annotation.set_bbox(dict(facecolor=color, edgecolor=text_color, lw=.5))
 
           if init == True:
             xl = ax.get_xlim()
