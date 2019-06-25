@@ -63,12 +63,16 @@ class indicator_DMI:
       return 0
 
 class indicator_BBANDS():
-  def __init__(self):
+  def __init__(self, better_bbands):
     self.name="BBANDS"
     self.overlay_chart = True
+    self.better_bbands = better_bbands
   
   def generate_values(self, open_, high, low, close, volume):
-    self.bb_upper, self.bb_middle, self.bb_lower = talib.BBANDS(np.array(close) * 10000, timeperiod=20)
+    if self.better_bbands == False:
+      self.bb_upper, self.bb_middle, self.bb_lower = talib.BBANDS(np.array(close) * 10000, timeperiod=20)
+    else:
+      self.bb_upper, self.bb_middle, self.bb_lower = talib.BBANDS(np.array(close) * 10000, timeperiod=15, nbdevup=2.0, nbdevdn=2.0)
     self.bb_upper = self.bb_upper / 10000
     self.bb_middle = self.bb_middle / 10000
     self.bb_lower = self.bb_lower / 10000

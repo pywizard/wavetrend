@@ -832,7 +832,7 @@ class ChartRunner(QtCore.QThread):
                 prices[-1] = [date2num(date2), open2_, high2, low2, close2, vol2, date2]
 
           if first == True:
-            indicators.append(indicator_BBANDS())
+            indicators.append(indicator_BBANDS(current_bband_type == BBAND_TYPE_TRENDBARS))
             bband_index = 0
             indicators.append(indicator_KELTNER_CHANNEL())
             keltner_index = 1
@@ -1394,8 +1394,8 @@ class Window(QtWidgets.QMainWindow):
         oscillatingMarketAction = QtWidgets.QAction("oscillating", self)
         candlestickChartAction = QtWidgets.QAction("candlestick", self)
         heikinashiChartAction = QtWidgets.QAction("heikin ashi", self)
-        trendbarsChartActionEnable = QtWidgets.QAction("+trendbars", self)
-        trendbarsChartActionDisable = QtWidgets.QAction("-trendbars", self)
+        trendbarsChartActionEnable = QtWidgets.QAction("+better bband", self)
+        trendbarsChartActionDisable = QtWidgets.QAction("-better bband", self)
         closeAction = QtWidgets.QAction("close", self)
         tabBarMenu.addAction(trendingMarketAction)
         tabBarMenu.addAction(oscillatingMarketAction)
@@ -1767,8 +1767,8 @@ class Window(QtWidgets.QMainWindow):
       oscillatingMarketAction = QtWidgets.QAction("oscillating", self)
       candlestickChartAction = QtWidgets.QAction("candlestick", self)
       heikinashiChartAction = QtWidgets.QAction("heikin ashi", self)
-      trendbarsChartActionEnable = QtWidgets.QAction("+trendbars", self)
-      trendbarsChartActionDisable = QtWidgets.QAction("-trendbars", self)
+      trendbarsChartActionEnable = QtWidgets.QAction("+better bband", self)
+      trendbarsChartActionDisable = QtWidgets.QAction("-better bband", self)
       closeAction = QtWidgets.QAction("close", self)
       tabBarMenu.addAction(trendingMarketAction)
       tabBarMenu.addAction(oscillatingMarketAction)
