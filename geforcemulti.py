@@ -1001,10 +1001,17 @@ class ChartRunner(QtCore.QThread):
 
           if first == True:
             color = "#2c681d" # green
-            line_color = green
+            if current_bband_type == BBAND_TYPE_DEFAULT:
+                line_color = green
+            elif current_bband_type == BBAND_TYPE_TRENDBARS:
+                line_color = "#00BFFF" # deep sky blue
+
             if prices[-1][4] < prices[-1][1]:
                 color = "#681d1d" # red
-                line_color = red
+                if current_bband_type == BBAND_TYPE_DEFAULT:
+                    line_color = red
+                elif current_bband_type == BBAND_TYPE_TRENDBARS:
+                    line_color = "#E87FE8" #violet
 
             tag_title = symbol + " " + ticker_formatted
 
@@ -1023,10 +1030,16 @@ class ChartRunner(QtCore.QThread):
             annotation.set_bbox(dict(facecolor=color, edgecolor=white, lw=.5))
           else:
             color = "#2c681d" # green
-            line_color = green
+            if current_bband_type == BBAND_TYPE_DEFAULT:
+                line_color = green
+            elif current_bband_type == BBAND_TYPE_TRENDBARS:
+                line_color = "#00BFFF" # deep sky blue
             if prices[-1][4] < prices[-1][1]:
                 color = "#681d1d" # red
-                line_color = red
+                if current_bband_type == BBAND_TYPE_DEFAULT:
+                    line_color = red
+                elif current_bband_type == BBAND_TYPE_TRENDBARS:
+                    line_color = "#E87FE8" #violet
 
             tag_title = symbol + " " + ticker_formatted
             if time.time() <= time_close and not (hours == 0 and minutes == 0 and seconds == 0):
