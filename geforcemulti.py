@@ -158,12 +158,12 @@ def _bars(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, \
       quotes = [quotes[-1]]
 
     if trendbars_enabled == True and (first == True or trendbars_display_counter % 60 == 0):
-        indicator_color1 = "#00BFFF" # deep sky blue
-        indicator_color1_2 = "#00FFFF"
+        indicator_color1 = "#134F5C"
+        indicator_color1_2 = "#53B987"
         indicator_color2 = "#7F7F28" # yellowish
         indicator_color2_2 = "#9F7F28"
-        indicator_color3 = "#E87FE8" # violet
-        indicator_color3_2 = "#E8E8E8"
+        indicator_color3 = "#A61C00"
+        indicator_color3_2 = "#EB4D5C"
 
         trendbars_period_1 = 8
         trendbars_period_2 = 34
@@ -1000,24 +1000,14 @@ class ChartRunner(QtCore.QThread):
             time_to_next_candle = "%02d:%02d:%02d" % (hours, minutes, seconds)
 
           if first == True:
-            if current_bband_type == BBAND_TYPE_DEFAULT:
-                color = "#2c681d"  # green
-                line_color = green
-                text_color = white
-            elif current_bband_type == BBAND_TYPE_TRENDBARS:
-                color = "#00AEFF" # deep sky blue
-                line_color = "#00BFFF"
-                text_color = black
+            color = "#2c681d"  # green
+            line_color = green
+            text_color = white
 
             if prices[-1][4] < prices[-1][1]:
-                if current_bband_type == BBAND_TYPE_DEFAULT:
-                    color = "#681d1d"  # red
-                    line_color = red
-                    text_color = white
-                elif current_bband_type == BBAND_TYPE_TRENDBARS:
-                    color = "#E87FE8"  # violet
-                    line_color = "#E87FE8"
-                    text_color = black
+                color = "#681d1d"  # red
+                line_color = red
+                text_color = white
 
             tag_title = symbol + " " + ticker_formatted
 
@@ -1035,23 +1025,13 @@ class ChartRunner(QtCore.QThread):
             annotation.set_y(ticker_for_line)
             annotation.set_bbox(dict(facecolor=color, edgecolor=white, lw=.5))
           else:
-            if current_bband_type == BBAND_TYPE_DEFAULT:
-                color = "#2c681d"  # green
-                line_color = green
-                text_color = white
-            elif current_bband_type == BBAND_TYPE_TRENDBARS:
-                color = "#00AEFF" # deep sky blue
-                line_color = "#00BFFF"
-                text_color = black
+            color = "#2c681d"  # green
+            line_color = green
+            text_color = white
             if prices[-1][4] < prices[-1][1]:
-                if current_bband_type == BBAND_TYPE_DEFAULT:
-                    color = "#681d1d"  # red
-                    line_color = red
-                    text = white
-                elif current_bband_type == BBAND_TYPE_TRENDBARS:
-                    color = "#E87FE8"  # violet
-                    line_color = "#E87FE8"
-                    text_color = black
+                color = "#681d1d"  # red
+                line_color = red
+                text = white
 
             tag_title = symbol + " " + ticker_formatted
             if time.time() <= time_close and not (hours == 0 and minutes == 0 and seconds == 0):
@@ -1167,7 +1147,10 @@ class ChartRunner(QtCore.QThread):
               t.label1On = t.label2On = False
 
             if first == True:
-                ax.plot(1,1, label=symbol + ", " + timeframe_entered, marker = '',ls ='')
+                better_bband_str = ""
+                if current_bband_type == BBAND_TYPE_TRENDBARS:
+                    better_bband_str = ", Better Bollinger Band"
+                ax.plot(1,1, label=symbol + ", " + timeframe_entered + better_bband_str, marker = '',ls ='')
                 legend = ax.legend(frameon=False,loc="upper left", fontsize=9)
                 for text in legend.get_texts():
                   text.set_color(grayscale_lighter)
