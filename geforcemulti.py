@@ -327,6 +327,7 @@ def _bars(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, \
           if trendbars_enabled == True and trendbars_refresh == True:
               color = trendbar_colors[-1][0]
               color2 = trendbar_colors[-1][1]
+              last_trendbar_color = trendbar_colors[-1]
           elif trendbars_enabled == True:
               color = last_trendbar_color[0]
               color2 = last_trendbar_color[1]
@@ -1150,7 +1151,7 @@ class ChartRunner(QtCore.QThread):
             if first == True:
                 better_bband_str = ""
                 if current_bband_type == BBAND_TYPE_TRENDBARS:
-                    better_bband_str = ", Better Bollinger Band"
+                    better_bband_str = ", Better Bollinger Band, MACD Confirm"
                 ax.plot(1,1, label=symbol + ", " + timeframe_entered + better_bband_str, marker = '',ls ='')
                 legend = ax.legend(frameon=False,loc="upper left", fontsize=9)
                 for text in legend.get_texts():
