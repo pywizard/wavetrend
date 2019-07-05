@@ -55,7 +55,10 @@ class Bitfinex:
             self.started_depth = True
 
     def stop_depth_websocket(self):
-        self.manager_depth.close()
+        try:
+            self.manager_depth.close()
+        except:
+            pass
 
     def start_trades_websocket(self, symbol, callback):
         self.symbol = self.get_exchange_symbol(symbol)
@@ -104,7 +107,10 @@ class Binance:
         thread.start()
 
     def stop_depth_websocket(self):
-        self.depth_cache_manager.close(close_socket=True)
+        try:
+            self.depth_cache_manager.close(close_socket=True)
+        except:
+            pass
 
     def start_trades_websocket(self, symbol, callback):
         self.symbol = self.get_exchange_symbol(symbol)
@@ -165,7 +171,10 @@ class Kraken:
             self.started_depth = True
 
     def stop_depth_websocket(self):
-        self.manager_depth.close()
+        try:
+            self.manager_depth.close()
+        except:
+            pass
 
     def start_trades_websocket(self, symbol, callback):
         subscription = {'name': 'trade'}

@@ -159,7 +159,7 @@ def _bars(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, \
         indicator_color1 = "#134F5C"
         indicator_color1_2 = "#53B987"
         indicator_color2 = "#7F7F28" # yellowish
-        indicator_color2_2 = "#9F7F28"
+        indicator_color2_2 = "#FF7F28"
         indicator_color3 = "#A61C00"
         indicator_color3_2 = "#EB4D5C"
 
