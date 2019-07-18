@@ -39,6 +39,8 @@ import numpy
 import prettydate
 import collections
 from exchange_accounts import ExchangeAccounts
+from sklearn.linear_model import LinearRegression
+import psutil
 
 #FIX: squash memory leak for redraws
 class MyTransformNode(object):
@@ -409,6 +411,11 @@ destroyed_window_ids = {}
 
 ChartRunnerTabs = {}
 DataRunnerTabs = {}
+stop_buying = True
+stop_selling = True
+
+train_input = []
+train_output = []
 
 days_table = {"1m": 0.17, "3m": .5, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, \
               "2h": 20, "3h": 30, "4h": 40, "6h": 60, "8h": 80, "12h": 120, \
@@ -1478,11 +1485,17 @@ class Window(QtWidgets.QMainWindow):
 
     def keyPressEvent(self, event):
      global window_configs
-      
+     global stop_buying
+     global stop_selling
+
      key = event.key()
 
      self.symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[0]
      if str(key) == "66": # B pressed
+        print("BUYING")
+        stop_buying = False
+        stop_selling = True
+     '''
       try:
         percent = .25
         price = accounts.get_symbol_price(self.exchange, self.symbol)
@@ -1502,8 +1515,13 @@ class Window(QtWidgets.QMainWindow):
       except:
         print(get_full_stacktrace())
         return
-      
+     '''
+
      if str(key) == "83": # S pressed
+      print("NOT BUYING")
+      stop_buying = True
+      stop_selling = False
+      '''
       try:
         asset_balance = float(accounts.client(self.exchange).fetch_balance()[accounts.get_asset_from_symbol(self.exchange, self.symbol)]["free"])
         amount = float(accounts.client(self.exchange).amount_to_precision(self.symbol, asset_balance * .5))
@@ -1519,6 +1537,7 @@ class Window(QtWidgets.QMainWindow):
       except:
         print(get_full_stacktrace())
         return
+      '''
 
      if str(key) == "67": # C pressed
       tab_index = self.tabWidget.currentIndex()
@@ -2188,6 +2207,12 @@ class OrderBookWidget(QtWidgets.QWidget):
 
         self.font = QtGui.QFont()
         self.font.setPointSize(10)
+
+        self.predict_time = time.time() + 60*30
+        self.percent_check_time = time.time()
+        self.trade_state = "NEUTRAL"
+        self.train_time = time.time()
+
         if is_darwin == True:
             self.font.setPointSize(11)
 
@@ -2250,7 +2275,6 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.tableWidgetBids.hide()
         self.tableWidgetAsks.hide()
         self.tableWidgetTrades.hide()
-
         self.init_orderbook_widget()
 
     def kraken_prettify_value(self, value):
@@ -2261,8 +2285,37 @@ class OrderBookWidget(QtWidgets.QWidget):
     def resizeEvent(self, event):
         self.tableWidgetTrades.setMinimumHeight(self.height()*0.4)
 
+    def dobuy(self):
+        try:
+            percent = 0.98
+            price = accounts.get_symbol_price(self.exchange, self.symbol)
+            quote = accounts.get_quote_from_symbol(self.exchange, self.symbol)
+            asset_balance = float(accounts.client(self.exchange).fetch_balance()[quote]["free"])
+            amount = float(
+                accounts.client(self.exchange).amount_to_precision(self.symbol, (asset_balance / price) * percent))
+            print(str(amount))
+            accounts.client(self.exchange).create_market_buy_order(self.symbol, amount)
+            return
+        except:
+            print(get_full_stacktrace())
+            return
+
+    def dosell(self):
+        try:
+            asset_balance = float(accounts.client(self.exchange).fetch_balance()[
+                                      accounts.get_asset_from_symbol(self.exchange, self.symbol)]["free"])
+            amount = float(accounts.client(self.exchange).amount_to_precision(self.symbol, asset_balance * 0.98))
+            print(str(amount))
+            accounts.client(self.exchange).create_market_sell_order(self.symbol, amount)
+            return
+        except:
+            print(get_full_stacktrace())
+            return
+
     @QtCore.pyqtSlot(list, list)
     def on_DISPLAY_ORDERBOOK(self, bids_, asks_):
+        global stop_buying
+        global stop_selling
         self.tableWidgetBids.setRowCount(len(bids_))
         highest_amount = 0
         for bid in bids_:
@@ -2291,6 +2344,29 @@ class OrderBookWidget(QtWidgets.QWidget):
                 third_highest_amount_ask = ask[1]
         i = 0
         sum = 0
+
+        if time.time() - self.predict_time > 60:
+            # AI
+            try:
+                bid = bids_[0]
+                predictor = LinearRegression(n_jobs=-1)
+                predictor.fit(X=train_input, y=train_output)
+                percent = 0.98
+                price = accounts.get_symbol_price(self.exchange, self.symbol)
+                quote = accounts.get_quote_from_symbol(self.exchange, self.symbol)
+                asset_balance = float(accounts.client(self.exchange).fetch_balance()[quote]["free"])
+                amount = float(
+                    accounts.client(self.exchange).amount_to_precision(self.symbol, (asset_balance / price) * percent))
+                X_TEST = [[float(bid[0]), float(amount)]]
+                outcome = predictor.predict(X=X_TEST)
+                print("AI says buy? " + str(outcome) + " " + str(bid[0]))
+                if outcome[0] > 0.7:
+                    if self.trade_state == "NEUTRAL" or self.trade_state == "SOLD":
+                        self.dobuy()
+                        self.trade_state = "BOUGHT"
+            except:
+                print(get_full_stacktrace())
+
         for bid in bids_:
             self.tableWidgetBids.setRowHeight(i, 23)
             price = str(accounts.client(self.exchange).price_to_precision(self.symbol, bid[0]))
@@ -2349,6 +2425,27 @@ class OrderBookWidget(QtWidgets.QWidget):
         i = 0
         sum = 0
         self.tableWidgetAsks.setRowCount(len(asks_))
+
+        ask = asks_[0]
+        if time.time() - self.predict_time > 60:
+            # AI
+            try:
+                predictor = LinearRegression(n_jobs=-1)
+                predictor.fit(X=train_input, y=train_output)
+                asset_balance = float(accounts.client(self.exchange).fetch_balance()[
+                                          accounts.get_asset_from_symbol(self.exchange, self.symbol)]["free"])
+                amount = float(accounts.client(self.exchange).amount_to_precision(self.symbol, asset_balance * 0.98))
+                X_TEST = [[float(ask[0]), float(amount)]]
+                outcome = predictor.predict(X=X_TEST)
+                print("AI says sell? " + str(outcome) + " " + str(ask[0]))
+                if outcome[0] < 0.3:
+                    if self.trade_state == "NEUTRAL" or self.trade_state == "BOUGHT":
+                        self.dosell()
+                        self.trade_state = "SOLD"
+                self.predict_time = time.time()
+            except:
+                print(get_full_stacktrace())
+
         for ask in asks_:
             self.tableWidgetAsks.setRowHeight(i, 23)
             self.tableWidgetBids.setRowHeight(i, 23)
@@ -2362,6 +2459,7 @@ class OrderBookWidget(QtWidgets.QWidget):
 
             columnItem = QtWidgets.QTableWidgetItem(price)
             columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+
             if ask[1] == highest_amount_ask:
                 columnItem.setBackground(QtGui.QColor(100, 30, 22))
             elif ask[1] == second_highest_amount_ask:
@@ -2424,6 +2522,8 @@ class OrderBookWidget(QtWidgets.QWidget):
 
     @QtCore.pyqtSlot(list)
     def on_DISPLAY_TRADES(self, trades_list):
+        global train_input
+        global train_output
         self.tableWidgetTrades.setRowCount(len(self.trades_list))
 
         i = 0
@@ -2433,6 +2533,29 @@ class OrderBookWidget(QtWidgets.QWidget):
             trade_quantity = trade[2]
             trade_buy_maker = not trade[3]
             trade_time_pretty = prettydate.date(datetime.datetime.fromtimestamp(trade_time))
+
+            if trade_buy_maker == True:
+                trade = 1
+            else:
+                trade = 0
+            train_input.append([trade_price, trade_quantity])
+            train_output.append(trade)
+
+
+            if time.time() - self.percent_check_time > 60:
+                total, available, percent, used, free = psutil.virtual_memory()
+                available_megabyte = available / (1024*1024)
+                process = psutil.Process(os.getpid())
+                process_rss_megabyte = process.memory_full_info().rss / (1024*1024)
+                if (process_rss_megabyte * 100) / available_megabyte > 50:
+                    del train_input[:int(len(train_input)/2)]
+                    del train_output[:int(len(train_output)/2)]
+                self.percent_check_time = time.time()
+
+            if time.time() - self.train_time > 60*60:
+                self.train_time = time.time()
+                del train_input[:int(len(train_input)/2)]
+                del train_output[:int(len(train_output)/2)]
 
             self.tableWidgetTrades.setRowHeight(i, 23)
             trade_price = str(accounts.client(self.exchange).price_to_precision(self.symbol, trade_price))

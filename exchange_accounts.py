@@ -1,5 +1,6 @@
 import ccxt
 import sys
+import time
 
 EXCHANGE_BITFINEX = "BITFINEX"
 EXCHANGE_BINANCE = "BINANCE"
@@ -60,10 +61,22 @@ class ExchangeAccounts:
             self.exchanges[exchange_name]["tickers"] = self.exchanges[exchange_name]["client"].fetch_tickers()
 
     def fetch_tickers(self, exchange):
-        return self.exchanges[exchange]["client"].fetch_tickers()
+        while True:
+            try:
+                tickers = self.exchanges[exchange]["client"].fetch_tickers()
+                break
+            except:
+                time.sleep(5)
+        return tickers
 
     def get_symbol_price(self, exchange, symbol):
-        return self.fetch_tickers(exchange)[symbol]["last"]
+        while True:
+            try:
+                ticker_last = self.fetch_tickers(exchange)[symbol]["last"]
+                break
+            except:
+                time.sleep(5)
+        return ticker_last
 
     def get_asset_from_symbol(self, exchange, symbol):
         for market in self.exchanges[exchange]["markets"]:
@@ -79,4 +92,10 @@ class ExchangeAccounts:
         return self.exchanges[exchange]["client"]
 
     def get_orderbook(self, exchange, symbol):
-        return self.exchanges[exchange]["client"].fetch_order_book(symbol)
+        while True:
+            try:
+                orderbook = self.exchanges[exchange]["client"].fetch_order_book(symbol)
+                break
+            except:
+                time.sleep(5)
+        return orderbook

@@ -86,18 +86,32 @@ class Binance:
 
     def start_candlestick_websocket(self, symbol, interval, callback):
         self.symbol = self.get_exchange_symbol(symbol)
-        self.connection_key = self.manager.start_kline_socket(self.symbol, callback, interval=interval)
-        if self.started == False:
-            self.manager.start()
-            self.started = True
+
+        while True:
+            try:
+                self.connection_key = self.manager.start_kline_socket(self.symbol, callback, interval=interval)
+                if self.started == False:
+                    self.manager.start()
+                    self.started = True
+                break
+            except:
+                time.sleep(5)
 
     def stop_candlestick_websocket(self):
-        self.manager.stop_socket(self.connection_key)
+        try:
+            self.manager.stop_socket(self.connection_key)
+        except:
+            pass
 
     def start_depth_websocket_internal(self, symbol, callback):
         time.sleep(0.1)
-        self.depth_cache_manager = DepthCacheManager(self.client, self.symbol, callback=callback, limit=50, refresh_interval=0)
-        self.started = True
+        while True:
+            try:
+                self.depth_cache_manager = DepthCacheManager(self.client, self.symbol, callback=callback, limit=50, refresh_interval=0)
+                self.started = True
+                break
+            except:
+                time.sleep(5)
 
     def start_depth_websocket(self, symbol, callback):
         self.symbol = self.get_exchange_symbol(symbol)
@@ -114,13 +128,21 @@ class Binance:
 
     def start_trades_websocket(self, symbol, callback):
         self.symbol = self.get_exchange_symbol(symbol)
-        self.connection_key_trades = self.manager.start_trade_socket(self.symbol, callback)
-        if self.started == False:
-            self.manager.start()
-            self.started = True
+        while True:
+            try:
+                self.connection_key_trades = self.manager.start_trade_socket(self.symbol, callback)
+                if self.started == False:
+                    self.manager.start()
+                    self.started = True
+                break
+            except:
+                time.sleep(5)
 
     def stop_trades_websocket(self):
-        self.manager.stop_socket(self.connection_key_trades)
+        try:
+            self.manager.stop_socket(self.connection_key_trades)
+        except:
+            pass
 
 class Kraken:
     def __init__(self, markets):
