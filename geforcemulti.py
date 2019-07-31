@@ -417,6 +417,7 @@ stop_selling = True
 
 train_input = []
 train_output = []
+train_data_lock = threading.Lock()
 current_order_id = 0
 
 days_table = {"1m": 0.17, "3m": .5, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, \
@@ -2214,6 +2215,10 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.percent_check_time = time.time()
         self.trade_state = "NEUTRAL"
         self.train_time = time.time()
+        self.ki_watcher_collection = collections.deque()
+        self.ki_watcher_thread = threading.Thread(target=self.ki_watcher)
+        self.ki_watcher_thread.daemon = True
+        self.ki_watcher_thread.start()
 
         if is_darwin == True:
             self.font.setPointSize(11)
@@ -2332,6 +2337,69 @@ class OrderBookWidget(QtWidgets.QWidget):
             print(get_full_stacktrace())
             return
 
+    def ki_watcher(self):
+        global train_data_lock
+        global train_input
+        global train_output
+        while True:
+            try:
+                if time.time() - self.percent_check_time > 60:
+                    total, available, percent, used, free = psutil.virtual_memory()
+                    available_megabyte = available / (1024 * 1024)
+                    process = psutil.Process(os.getpid())
+                    process_rss_megabyte = process.memory_full_info().rss / (1024 * 1024)
+                    if (process_rss_megabyte * 100) / available_megabyte > 80:
+                        train_data_lock.acquire()
+                        del train_input[:int(len(train_input) * 0.25)]
+                        del train_output[:int(len(train_output) * 0.25)]
+                        train_data_lock.release()
+                    self.percent_check_time = time.time()
+
+                [bid, ask] = self.ki_watcher_collection.pop()
+                self.ki_watcher_collection.clear()
+                # AI
+                try:
+                    predictor = LinearRegression(n_jobs=-1)
+
+                    train_data_lock.acquire()
+                    predictor.fit(X=train_input, y=train_output)
+                    train_data_lock.release()
+
+                    percent = 1
+                    asset_balance = asset_balance_usd
+                    amount = float(
+                        accounts.client(self.exchange).amount_to_precision(self.symbol, (asset_balance / bid[0]) * percent))
+                    X_TEST = [[float(bid[0]), float(amount)]]
+                    outcome = predictor.predict(X=X_TEST)
+                    print("AI says buy? " + str(outcome) + " " + str(bid[0]))
+                    if outcome[0] > 0.7:
+                        if self.trade_state == "NEUTRAL" or self.trade_state == "SOLD":
+                            self.dobuy(bid[0])
+                            self.trade_state = "BOUGHT"
+                except:
+                    print(get_full_stacktrace())
+
+                # AI
+                try:
+                    percent = 1
+                    predictor = LinearRegression(n_jobs=-1)
+                    train_data_lock.acquire()
+                    predictor.fit(X=train_input, y=train_output)
+                    train_data_lock.release()
+                    asset_balance = asset_balance_usd
+                    amount = float(accounts.client(self.exchange).amount_to_precision(self.symbol, (asset_balance / ask[0]) * percent))
+                    X_TEST = [[float(ask[0]), float(amount)]]
+                    outcome = predictor.predict(X=X_TEST)
+                    print("AI says sell? " + str(outcome) + " " + str(ask[0]))
+                    if outcome[0] < 0.3:
+                        if self.trade_state == "NEUTRAL" or self.trade_state == "BOUGHT":
+                            self.dosell(ask[0])
+                            self.trade_state = "SOLD"
+                except:
+                    print(get_full_stacktrace())
+            except IndexError:
+                time.sleep(0.5)
+
     @QtCore.pyqtSlot(list, list)
     def on_DISPLAY_ORDERBOOK(self, bids_, asks_):
         global stop_buying
@@ -2369,26 +2437,6 @@ class OrderBookWidget(QtWidgets.QWidget):
         if len(bids_) > 0 and len(asks_) > 0:
             if asks_[0][0] - bids_[0][0] < 50 and asks_[0][0] - bids_[0][0] > -50:
                 orderbook_intact = True
-
-        if orderbook_intact and time.time() - self.predict_time > 60 and len(bids_) > 0:
-            # AI
-            try:
-                bid = bids_[0]
-                predictor = LinearRegression(n_jobs=-1)
-                predictor.fit(X=train_input, y=train_output)
-                percent = 1
-                asset_balance = asset_balance_usd
-                amount = float(
-                    accounts.client(self.exchange).amount_to_precision(self.symbol, (asset_balance / bid[0]) * percent))
-                X_TEST = [[float(bid[0]), float(amount)]]
-                outcome = predictor.predict(X=X_TEST)
-                print("AI says buy? " + str(outcome) + " " + str(bid[0]))
-                if outcome[0] > 0.7:
-                    if self.trade_state == "NEUTRAL" or self.trade_state == "SOLD":
-                        self.dobuy(bid[0])
-                        self.trade_state = "BOUGHT"
-            except:
-                print(get_full_stacktrace())
 
         for bid in bids_:
             self.tableWidgetBids.setRowHeight(i, 23)
@@ -2449,25 +2497,11 @@ class OrderBookWidget(QtWidgets.QWidget):
         sum = 0
         self.tableWidgetAsks.setRowCount(len(asks_))
 
-        if orderbook_intact and time.time() - self.predict_time > 60 and len(asks_) > 0:
-            # AI
-            try:
-                ask = asks_[0]
-                percent = 1
-                predictor = LinearRegression(n_jobs=-1)
-                predictor.fit(X=train_input, y=train_output)
-                asset_balance = asset_balance_usd
-                amount = float(accounts.client(self.exchange).amount_to_precision(self.symbol, (asset_balance / ask[0]) * percent))
-                X_TEST = [[float(ask[0]), float(amount)]]
-                outcome = predictor.predict(X=X_TEST)
-                print("AI says sell? " + str(outcome) + " " + str(ask[0]))
-                if outcome[0] < 0.3:
-                    if self.trade_state == "NEUTRAL" or self.trade_state == "BOUGHT":
-                        self.dosell(ask[0])
-                        self.trade_state = "SOLD"
-                self.predict_time = time.time()
-            except:
-                print(get_full_stacktrace())
+        if orderbook_intact and time.time() - self.predict_time > 60 and len(bids_) > 0 and len(asks_) > 0:
+            bid = bids_[0]
+            ask = asks_[0]
+            self.ki_watcher_collection.append([bid, ask])
+            self.predict_time = time.time()
 
         for ask in asks_:
             self.tableWidgetAsks.setRowHeight(i, 23)
@@ -2547,6 +2581,8 @@ class OrderBookWidget(QtWidgets.QWidget):
     def on_DISPLAY_TRADES(self, trades_list):
         global train_input
         global train_output
+        global train_data_lock
+
         self.tableWidgetTrades.setRowCount(len(self.trades_list))
 
         i = 0
@@ -2561,26 +2597,11 @@ class OrderBookWidget(QtWidgets.QWidget):
                 trade = 1
             else:
                 trade = 0
+
+            train_data_lock.acquire()
             train_input.append([trade_price, trade_quantity])
             train_output.append(trade)
-
-
-            if time.time() - self.percent_check_time > 60:
-                total, available, percent, used, free = psutil.virtual_memory()
-                available_megabyte = available / (1024*1024)
-                process = psutil.Process(os.getpid())
-                process_rss_megabyte = process.memory_full_info().rss / (1024*1024)
-                if (process_rss_megabyte * 100) / available_megabyte > 80:
-                    del train_input[:int(len(train_input)*0.25)]
-                    del train_output[:int(len(train_output)*0.25)]
-                self.percent_check_time = time.time()
-
-            '''
-            if time.time() - self.train_time > 60*60*12:
-                self.train_time = time.time()
-                del train_input[:int(len(train_input)/2)]
-                del train_output[:int(len(train_output)/2)]
-            '''
+            train_data_lock.release()
 
             self.tableWidgetTrades.setRowHeight(i, 23)
             trade_price = str(accounts.client(self.exchange).price_to_precision(self.symbol, trade_price))
