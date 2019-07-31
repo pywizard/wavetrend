@@ -41,6 +41,11 @@ class ExchangeAccounts:
                     'secret': self.exchanges[EXCHANGE_BITFINEX]["api_secret"],
                     'enableRateLimit': True
                 })
+                self.exchanges[exchange_name]["client_"] = ccxt.bitfinex({
+                    'apiKey': self.exchanges[EXCHANGE_BITFINEX]["api_key"],
+                    'secret': self.exchanges[EXCHANGE_BITFINEX]["api_secret"],
+                    'enableRateLimit': True
+                })
             elif exchange_name == EXCHANGE_BINANCE:
                 self.exchanges[exchange_name]["client"] = ccxt.binance({
                     'apiKey': self.exchanges[EXCHANGE_BINANCE]["api_key"],
@@ -90,6 +95,9 @@ class ExchangeAccounts:
 
     def client(self, exchange):
         return self.exchanges[exchange]["client"]
+
+    def client_(self, exchange):
+        return self.exchanges[exchange]["client_"]
 
     def get_orderbook(self, exchange, symbol):
         while True:

@@ -353,6 +353,7 @@ def get_window_id():
   return "win-" + ''.join(random.choice('0123456789abcdef') for i in range(10))
 
 window_configs = {}
+asset_balance_usd = 6000
 
 def get_full_stacktrace():
     exc = sys.exc_info()[0]
@@ -416,6 +417,7 @@ stop_selling = True
 
 train_input = []
 train_output = []
+current_order_id = 0
 
 days_table = {"1m": 0.17, "3m": .5, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, \
               "2h": 20, "3h": 30, "4h": 40, "6h": 60, "8h": 80, "12h": 120, \
@@ -2208,7 +2210,7 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.font = QtGui.QFont()
         self.font.setPointSize(10)
 
-        self.predict_time = time.time() + 60*30
+        self.predict_time = time.time() + 60*30 #XXX 60 multiplied by 30
         self.percent_check_time = time.time()
         self.trade_state = "NEUTRAL"
         self.train_time = time.time()
@@ -2285,29 +2287,47 @@ class OrderBookWidget(QtWidgets.QWidget):
     def resizeEvent(self, event):
         self.tableWidgetTrades.setMinimumHeight(self.height()*0.4)
 
-    def dobuy(self):
+    def dobuy(self, price):
+        global current_order_id
         try:
-            percent = 0.98
-            price = accounts.get_symbol_price(self.exchange, self.symbol)
-            quote = accounts.get_quote_from_symbol(self.exchange, self.symbol)
-            asset_balance = float(accounts.client(self.exchange).fetch_balance()[quote]["free"])
+            percent = 1
+            asset_balance = asset_balance_usd
             amount = float(
-                accounts.client(self.exchange).amount_to_precision(self.symbol, (asset_balance / price) * percent))
+                accounts.client(accounts.EXCHANGE_BITFINEX).amount_to_precision(self.symbol, (asset_balance / price) * percent))
             print(str(amount))
-            accounts.client(self.exchange).create_market_buy_order(self.symbol, amount)
-            return
+            try:
+                if current_order_id != 0:
+                    params = {'type': 'market'}
+                    order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="buy",
+                                                                                      type="market", amount=amount,
+                                                                                      params=params)
+            except:
+                print(get_full_stacktrace())
+            params = {'type': 'limit'}
+            order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="buy", type="limit", price=price, amount=amount, params=params)
+            current_order_id = int(order["id"])
         except:
             print(get_full_stacktrace())
             return
 
-    def dosell(self):
+    def dosell(self, price):
+        global current_order_id
         try:
-            asset_balance = float(accounts.client(self.exchange).fetch_balance()[
-                                      accounts.get_asset_from_symbol(self.exchange, self.symbol)]["free"])
-            amount = float(accounts.client(self.exchange).amount_to_precision(self.symbol, asset_balance * 0.98))
+            percent = 1
+            asset_balance = asset_balance_usd
+            amount = float(accounts.client(accounts.EXCHANGE_BITFINEX).amount_to_precision(self.symbol, (asset_balance / price) * percent))
             print(str(amount))
-            accounts.client(self.exchange).create_market_sell_order(self.symbol, amount)
-            return
+            try:
+                if current_order_id != 0:
+                    params = {'type': 'market'}
+                    order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="sell",
+                                                                                      type="market", amount=amount,
+                                                                                      params=params)
+            except:
+                print(get_full_stacktrace())
+            params = {'type': 'limit'}
+            order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="sell", type="limit", price=price, amount=amount, params=params)
+            current_order_id = int(order["id"])
         except:
             print(get_full_stacktrace())
             return
@@ -2345,24 +2365,27 @@ class OrderBookWidget(QtWidgets.QWidget):
         i = 0
         sum = 0
 
-        if time.time() - self.predict_time > 60:
+        orderbook_intact = False
+        if len(bids_) > 0 and len(asks_) > 0:
+            if asks_[0][0] - bids_[0][0] < 50 and asks_[0][0] - bids_[0][0] > -50:
+                orderbook_intact = True
+
+        if orderbook_intact and time.time() - self.predict_time > 60 and len(bids_) > 0:
             # AI
             try:
                 bid = bids_[0]
                 predictor = LinearRegression(n_jobs=-1)
                 predictor.fit(X=train_input, y=train_output)
-                percent = 0.98
-                price = accounts.get_symbol_price(self.exchange, self.symbol)
-                quote = accounts.get_quote_from_symbol(self.exchange, self.symbol)
-                asset_balance = float(accounts.client(self.exchange).fetch_balance()[quote]["free"])
+                percent = 1
+                asset_balance = asset_balance_usd
                 amount = float(
-                    accounts.client(self.exchange).amount_to_precision(self.symbol, (asset_balance / price) * percent))
+                    accounts.client(self.exchange).amount_to_precision(self.symbol, (asset_balance / bid[0]) * percent))
                 X_TEST = [[float(bid[0]), float(amount)]]
                 outcome = predictor.predict(X=X_TEST)
                 print("AI says buy? " + str(outcome) + " " + str(bid[0]))
                 if outcome[0] > 0.7:
                     if self.trade_state == "NEUTRAL" or self.trade_state == "SOLD":
-                        self.dobuy()
+                        self.dobuy(bid[0])
                         self.trade_state = "BOUGHT"
             except:
                 print(get_full_stacktrace())
@@ -2426,21 +2449,21 @@ class OrderBookWidget(QtWidgets.QWidget):
         sum = 0
         self.tableWidgetAsks.setRowCount(len(asks_))
 
-        ask = asks_[0]
-        if time.time() - self.predict_time > 60:
+        if orderbook_intact and time.time() - self.predict_time > 60 and len(asks_) > 0:
             # AI
             try:
+                ask = asks_[0]
+                percent = 1
                 predictor = LinearRegression(n_jobs=-1)
                 predictor.fit(X=train_input, y=train_output)
-                asset_balance = float(accounts.client(self.exchange).fetch_balance()[
-                                          accounts.get_asset_from_symbol(self.exchange, self.symbol)]["free"])
-                amount = float(accounts.client(self.exchange).amount_to_precision(self.symbol, asset_balance * 0.98))
+                asset_balance = asset_balance_usd
+                amount = float(accounts.client(self.exchange).amount_to_precision(self.symbol, (asset_balance / ask[0]) * percent))
                 X_TEST = [[float(ask[0]), float(amount)]]
                 outcome = predictor.predict(X=X_TEST)
                 print("AI says sell? " + str(outcome) + " " + str(ask[0]))
                 if outcome[0] < 0.3:
                     if self.trade_state == "NEUTRAL" or self.trade_state == "BOUGHT":
-                        self.dosell()
+                        self.dosell(ask[0])
                         self.trade_state = "SOLD"
                 self.predict_time = time.time()
             except:
@@ -2547,15 +2570,17 @@ class OrderBookWidget(QtWidgets.QWidget):
                 available_megabyte = available / (1024*1024)
                 process = psutil.Process(os.getpid())
                 process_rss_megabyte = process.memory_full_info().rss / (1024*1024)
-                if (process_rss_megabyte * 100) / available_megabyte > 50:
-                    del train_input[:int(len(train_input)/2)]
-                    del train_output[:int(len(train_output)/2)]
+                if (process_rss_megabyte * 100) / available_megabyte > 80:
+                    del train_input[:int(len(train_input)*0.25)]
+                    del train_output[:int(len(train_output)*0.25)]
                 self.percent_check_time = time.time()
 
-            if time.time() - self.train_time > 60*60:
+            '''
+            if time.time() - self.train_time > 60*60*12:
                 self.train_time = time.time()
                 del train_input[:int(len(train_input)/2)]
                 del train_output[:int(len(train_output)/2)]
+            '''
 
             self.tableWidgetTrades.setRowHeight(i, 23)
             trade_price = str(accounts.client(self.exchange).price_to_precision(self.symbol, trade_price))
