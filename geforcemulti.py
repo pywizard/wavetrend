@@ -2449,6 +2449,7 @@ class OrderBookWidget(QtWidgets.QWidget):
                         if self.trade_state == "NEUTRAL" or self.trade_state == "SOLD":
                             self.dobuy(bid[0])
                             self.trade_state = "BOUGHT"
+                            outcome_buystr = outcome_buystr + " YES"
                 except:
                     print(get_full_stacktrace())
 
@@ -2469,6 +2470,7 @@ class OrderBookWidget(QtWidgets.QWidget):
                         if self.trade_state == "NEUTRAL" or self.trade_state == "BOUGHT":
                             self.dosell(ask[0])
                             self.trade_state = "SOLD"
+                            outcome_sellstr = outcome_sellstr + " YES"
                 except:
                     print(get_full_stacktrace())
 
