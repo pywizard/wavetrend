@@ -353,6 +353,7 @@ def get_window_id():
 
 window_configs = {}
 asset_balance_usd = 6000
+aiDialog = None
 
 def get_full_stacktrace():
     exc = sys.exc_info()[0]
@@ -1406,6 +1407,7 @@ class Window(QtWidgets.QMainWindow):
         window_configs[window_id].candle_type = CANDLE_TYPE_CANDLESTICK
         window_configs[window_id].trade_type = TRADE_TYPE_TRENDING
         window_configs[window_id].bband_type = BBAND_TYPE_DEFAULT
+        window_configs[window_id].ai_enabled = False
 
         self.tabBar = self.tabWidget.tabBar()
         tabBarMenu = QtWidgets.QMenu()
@@ -1415,6 +1417,8 @@ class Window(QtWidgets.QMainWindow):
         heikinashiChartAction = QtWidgets.QAction("heikin ashi", self)
         trendbarsChartActionEnable = QtWidgets.QAction("+better bband", self)
         trendbarsChartActionDisable = QtWidgets.QAction("-better bband", self)
+        if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT":
+            aiActionEnable = QtWidgets.QAction("+neural network", self)
         closeAction = QtWidgets.QAction("close", self)
         tabBarMenu.addAction(trendingMarketAction)
         tabBarMenu.addAction(oscillatingMarketAction)
@@ -1422,6 +1426,8 @@ class Window(QtWidgets.QMainWindow):
         tabBarMenu.addAction(heikinashiChartAction)
         tabBarMenu.addAction(trendbarsChartActionEnable)
         tabBarMenu.addAction(trendbarsChartActionDisable)
+        if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT":
+            tabBarMenu.addAction(aiActionEnable)
         tabBarMenu.addAction(closeAction)
         trendingMarketAction.triggered.connect(functools.partial(self.trendingEnabled, window_ids[0]))
         oscillatingMarketAction.triggered.connect(functools.partial(self.oscillatingEnabled, window_ids[0]))
@@ -1429,6 +1435,8 @@ class Window(QtWidgets.QMainWindow):
         heikinashiChartAction.triggered.connect(functools.partial(self.heikinashiEnabled, window_ids[0]))
         trendbarsChartActionEnable.triggered.connect(functools.partial(self.trendbarsEnabled, window_ids[0]))
         trendbarsChartActionDisable.triggered.connect(functools.partial(self.trendbarsDisabled, window_ids[0]))
+        if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT":
+            aiActionEnable.triggered.connect(functools.partial(self.aiEnabled, window_ids[0]))
         closeAction.triggered.connect(functools.partial(self.removeTab, window_ids[0]))
         menuButton = QtWidgets.QToolButton(self)
         menuButton.setStyleSheet('border: 0px; padding: 0px;')
@@ -1441,6 +1449,7 @@ class Window(QtWidgets.QMainWindow):
         OrderBookWidget_ = OrderBookWidget(self, self.exchange, symbol, window_id)
         OrderBookWidget_.DISPLAY_ORDERBOOK.connect(OrderBookWidget_.on_DISPLAY_ORDERBOOK, QtCore.Qt.BlockingQueuedConnection)
         OrderBookWidget_.DISPLAY_TRADES.connect(OrderBookWidget_.on_DISPLAY_TRADES, QtCore.Qt.BlockingQueuedConnection)
+        OrderBookWidget_.DISPLAY_AI_PROGRESS.connect(OrderBookWidget_.on_DISPLAY_AI_PROGRESS, QtCore.Qt.BlockingQueuedConnection)
         self.OrderbookWidget.append(OrderBookWidget_)
         dc = MplCanvas(self.tabWidget.widget(0), symbol=symbol)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
@@ -1631,6 +1640,8 @@ class Window(QtWidgets.QMainWindow):
     def on_CHART_DESTROY(self, winid, exchange):
         global aqs
         global window_ids
+        global window_configs
+        global aiDialog
 
         tab_index = get_tab_index(winid)
         if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
@@ -1656,6 +1667,11 @@ class Window(QtWidgets.QMainWindow):
         self.OrderbookWidget[tab_index].exchange_obj.stop_trades_websocket()
         self.OrderbookWidget[tab_index].kill_websocket_watch_thread = True
         self.OrderbookWidget[tab_index].websocket_watch_thread.join()
+        if window_configs[winid].ai_enabled == True:
+            self.OrderbookWidget[tab_index].ai_watcher_thread_kill = True
+            self.OrderbookWidget[tab_index].ai_watcher_thread.join()
+            aiDialog.close()
+
         del self.OrderbookWidget[tab_index].exchange_obj
         del self.OrderbookWidget[tab_index]
 
@@ -1750,6 +1766,37 @@ class Window(QtWidgets.QMainWindow):
         global window_configs
         window_configs[window_id].bband_type = BBAND_TYPE_DEFAULT
 
+    def aiEnabled(self, window_id):
+        global aiDialog
+        global window_configs
+        for window_config in window_configs.keys():
+            if window_configs[window_config].ai_enabled == True:
+                msg = QtWidgets.QMessageBox()
+                msg.setIcon(QtWidgets.QMessageBox.Information)
+                msg.setText("AI already enabled")
+                msg.setInformativeText("Wavetrend supports one AI trading instance per application execution.")
+                msg.setWindowTitle("Wavetrend AI")
+                msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+                msg.exec_()
+                return
+        tab_index = get_tab_index(window_id)
+        if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
+            return
+
+        aiDialog = AIDialog()
+        aiDialog.show()
+
+        self.OrderbookWidget[tab_index].ai_watcher_collection = collections.deque()
+        self.OrderbookWidget[tab_index].ai_watcher_thread_kill = False
+        self.OrderbookWidget[tab_index].ai_watcher_thread = threading.Thread(target=self.OrderbookWidget[tab_index].ai_watcher)
+        self.OrderbookWidget[tab_index].ai_watcher_thread.daemon = True
+        self.OrderbookWidget[tab_index].ai_watcher_thread.start()
+        window_configs[window_id].ai_enabled = True
+
+        tab_index = get_tab_index(window_id)
+        newTabText = self.tabWidget.tabText(tab_index) + " AI ENABLED"
+        self.tabWidget.setTabText(tab_index, newTabText)
+
     def removeTab(self, window_id, selected_exchange):
       global destroyed_window_ids
       global exchange_balances
@@ -1792,6 +1839,7 @@ class Window(QtWidgets.QMainWindow):
       window_configs[window_id].candle_type = CANDLE_TYPE_CANDLESTICK
       window_configs[window_id].trade_type = TRADE_TYPE_TRENDING
       window_configs[window_id].bband_type = BBAND_TYPE_DEFAULT
+      window_configs[window_id].ai_enabled = False
 
       tabBarMenu = QtWidgets.QMenu()
       trendingMarketAction = QtWidgets.QAction("trending", self)
@@ -1800,6 +1848,8 @@ class Window(QtWidgets.QMainWindow):
       heikinashiChartAction = QtWidgets.QAction("heikin ashi", self)
       trendbarsChartActionEnable = QtWidgets.QAction("+better bband", self)
       trendbarsChartActionDisable = QtWidgets.QAction("-better bband", self)
+      if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT":
+          aiActionEnable = QtWidgets.QAction("+neural network", self)
       closeAction = QtWidgets.QAction("close", self)
       tabBarMenu.addAction(trendingMarketAction)
       tabBarMenu.addAction(oscillatingMarketAction)
@@ -1807,6 +1857,8 @@ class Window(QtWidgets.QMainWindow):
       tabBarMenu.addAction(heikinashiChartAction)
       tabBarMenu.addAction(trendbarsChartActionEnable)
       tabBarMenu.addAction(trendbarsChartActionDisable)
+      if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT":
+        tabBarMenu.addAction(aiActionEnable)
       tabBarMenu.addAction(closeAction)
       trendingMarketAction.triggered.connect(functools.partial(self.trendingEnabled, window_ids[tab_index]))
       oscillatingMarketAction.triggered.connect(functools.partial(self.oscillatingEnabled, window_ids[tab_index]))
@@ -1814,6 +1866,8 @@ class Window(QtWidgets.QMainWindow):
       heikinashiChartAction.triggered.connect(functools.partial(self.heikinashiEnabled, window_ids[tab_index]))
       trendbarsChartActionEnable.triggered.connect(functools.partial(self.trendbarsEnabled, window_ids[tab_index]))
       trendbarsChartActionDisable.triggered.connect(functools.partial(self.trendbarsDisabled, window_ids[tab_index]))
+      if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT":
+        aiActionEnable.triggered.connect(functools.partial(self.aiEnabled, window_ids[tab_index]))
       closeAction.triggered.connect(functools.partial(self.removeTab, window_ids[tab_index], selected_exchange))
 
       menuButton = QtWidgets.QToolButton(self)
@@ -1825,6 +1879,7 @@ class Window(QtWidgets.QMainWindow):
       OrderBookWidget_ = OrderBookWidget(self, self.exchange, symbol, window_id)
       OrderBookWidget_.DISPLAY_ORDERBOOK.connect(OrderBookWidget_.on_DISPLAY_ORDERBOOK)
       OrderBookWidget_.DISPLAY_TRADES.connect(OrderBookWidget_.on_DISPLAY_TRADES, QtCore.Qt.BlockingQueuedConnection)
+      OrderBookWidget_.DISPLAY_AI_PROGRESS.connect(OrderBookWidget_.on_DISPLAY_AI_PROGRESS, QtCore.Qt.BlockingQueuedConnection)
       self.OrderbookWidget.append(OrderBookWidget_)
       dc = MplCanvas(self.tabWidget.widget(0), symbol=symbol)
       sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
@@ -1881,6 +1936,13 @@ class Window(QtWidgets.QMainWindow):
         for tab_number in range(0, self.tabWidget.count()):
             ChartRunnerTabs[window_ids[tab_number]].widthAdjusted = False
         return super(Window, self).resizeEvent(event)
+
+    def closeEvent(self, event):
+        global aiDialog
+        try:
+            aiDialog.close()
+        except:
+            pass
 
 class TradeDialog(QtWidgets.QDialog):
   def __init__(self, parent, exchange):
@@ -2060,6 +2122,12 @@ class TradeDialog(QtWidgets.QDialog):
     amount = truncate(float(self.editAmount2_3.text()), 2)
     self.editTotal2_3.setText("%.04f" % (amount * price))
 
+class AIDialog(QtWidgets.QDialog):
+    def __init__(self):
+        QtWidgets.QDialog.__init__(self)
+        uic.loadUi('aiprogress.ui', self)
+        self.setWindowFlag(QtCore.Qt.WindowCloseButtonHint, False)
+
 class Dialog(QtWidgets.QDialog):
     global config
     def __init__(self):
@@ -2185,6 +2253,7 @@ class Dialog(QtWidgets.QDialog):
 class OrderBookWidget(QtWidgets.QWidget):
     DISPLAY_ORDERBOOK = QtCore.pyqtSignal(list, list)
     DISPLAY_TRADES = QtCore.pyqtSignal(list)
+    DISPLAY_AI_PROGRESS = QtCore.pyqtSignal(list)
 
     def __init__(self, parent, exchange, symbol, winid):
         super(OrderBookWidget,self).__init__(parent)
@@ -2214,10 +2283,6 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.percent_check_time = time.time()
         self.trade_state = "NEUTRAL"
         self.train_time = time.time()
-        self.ki_watcher_collection = collections.deque()
-        self.ki_watcher_thread = threading.Thread(target=self.ki_watcher)
-        self.ki_watcher_thread.daemon = True
-        self.ki_watcher_thread.start()
 
         if is_darwin == True:
             self.font.setPointSize(11)
@@ -2336,11 +2401,17 @@ class OrderBookWidget(QtWidgets.QWidget):
             print(get_full_stacktrace())
             return
 
-    def ki_watcher(self):
+    def ai_watcher(self):
         global train_data_lock
         global train_input
         global train_output
+        global aiDialog
+
+        aiDialog.listWidget.addItem("AI learning for 30 minutes...")
+
         while True:
+            if self.ai_watcher_thread_kill == True:
+                return
             try:
                 if time.time() - self.percent_check_time > 60:
                     total, available, percent, used, free = psutil.virtual_memory()
@@ -2354,8 +2425,10 @@ class OrderBookWidget(QtWidgets.QWidget):
                         train_data_lock.release()
                     self.percent_check_time = time.time()
 
-                [bid, ask] = self.ki_watcher_collection.pop()
-                self.ki_watcher_collection.clear()
+                [bid, ask] = self.ai_watcher_collection.pop()
+                self.ai_watcher_collection.clear()
+                outcome_buystr = ""
+                outcome_sellstr = ""
                 # AI
                 try:
                     predictor = LinearRegression(n_jobs=-1)
@@ -2371,6 +2444,7 @@ class OrderBookWidget(QtWidgets.QWidget):
                     X_TEST = [[float(bid[0]), float(amount)]]
                     outcome = predictor.predict(X=X_TEST)
                     print("AI says buy? " + str(outcome) + " " + str(bid[0]))
+                    outcome_buystr = "AI says buy? " + str(outcome) + " " + str(bid[0])
                     if outcome[0] > 0.7:
                         if self.trade_state == "NEUTRAL" or self.trade_state == "SOLD":
                             self.dobuy(bid[0])
@@ -2390,12 +2464,15 @@ class OrderBookWidget(QtWidgets.QWidget):
                     X_TEST = [[float(ask[0]), float(amount)]]
                     outcome = predictor.predict(X=X_TEST)
                     print("AI says sell? " + str(outcome) + " " + str(ask[0]))
+                    outcome_sellstr = "AI says sell? " + str(outcome) + " " + str(ask[0])
                     if outcome[0] < 0.3:
                         if self.trade_state == "NEUTRAL" or self.trade_state == "BOUGHT":
                             self.dosell(ask[0])
                             self.trade_state = "SOLD"
                 except:
                     print(get_full_stacktrace())
+
+                self.DISPLAY_AI_PROGRESS.emit([outcome_buystr, outcome_sellstr])
             except IndexError:
                 time.sleep(0.5)
 
@@ -2499,7 +2576,7 @@ class OrderBookWidget(QtWidgets.QWidget):
         if orderbook_intact and time.time() - self.predict_time > 60 and len(bids_) > 0 and len(asks_) > 0:
             bid = bids_[0]
             ask = asks_[0]
-            self.ki_watcher_collection.append([bid, ask])
+            self.ai_watcher_collection.append([bid, ask])
             self.predict_time = time.time()
 
         for ask in asks_:
@@ -2597,10 +2674,11 @@ class OrderBookWidget(QtWidgets.QWidget):
             else:
                 trade = 0
 
-            train_data_lock.acquire()
-            train_input.append([trade_price, trade_quantity])
-            train_output.append(trade)
-            train_data_lock.release()
+            if window_configs[self.winid].ai_enabled == True:
+                train_data_lock.acquire()
+                train_input.append([trade_price, trade_quantity])
+                train_output.append(trade)
+                train_data_lock.release()
 
             self.tableWidgetTrades.setRowHeight(i, 23)
             trade_price = str(accounts.client(self.exchange).price_to_precision(self.symbol, trade_price))
@@ -2639,6 +2717,12 @@ class OrderBookWidget(QtWidgets.QWidget):
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetTrades.setItem(i, 2, columnItem)
             i = i + 1
+
+    @QtCore.pyqtSlot(list)
+    def on_DISPLAY_AI_PROGRESS(self, ai_progress):
+        global aiDialog
+        aiDialog.listWidget.addItem(ai_progress[0])
+        aiDialog.listWidget.addItem(ai_progress[1])
 
     def restart_websocket(self):
         self.exchange_obj.stop_depth_websocket()
@@ -2806,12 +2890,13 @@ class OrderBookWidget(QtWidgets.QWidget):
             if msg is not None:
                 self.websocket_alive_time = time.time()
 
-                tab_index = get_tab_index(self.winid)
-                if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
-                    return
+                if window_configs[self.winid].ai_enabled == False:
+                    tab_index = get_tab_index(self.winid)
+                    if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
+                        return
+                    if self.parent.tabWidget.currentIndex() != tab_index:
+                        return
 
-                if self.parent.tabWidget.currentIndex() != tab_index:
-                    return
                 if self.orderbook_time_shown != 0 and time.time() - self.orderbook_time_shown < 1:
                     return
 
@@ -2910,12 +2995,12 @@ class OrderBookWidget(QtWidgets.QWidget):
                 if len(self.trades_list) > 100:
                     self.trades_list.pop(0)
 
-                tab_index = get_tab_index(self.winid)
-                if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
-                    return
-
-                if self.parent.tabWidget.currentIndex() != tab_index:
-                    return
+                if window_configs[self.winid].ai_enabled == False:
+                    tab_index = get_tab_index(self.winid)
+                    if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
+                        return
+                    if self.parent.tabWidget.currentIndex() != tab_index:
+                        return
 
                 self.DISPLAY_TRADES.emit(self.trades_list)
                 return
