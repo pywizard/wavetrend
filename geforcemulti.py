@@ -27,7 +27,6 @@ import copy
 import threading
 import math
 import queue as Queue
-import ccxt
 from indicators import *
 from colors import *
 import decimal
@@ -417,7 +416,7 @@ stop_selling = True
 
 train_input = []
 train_output = []
-train_data_lock = threading.Lock()
+train_data_lock = threading.RLock()
 current_order_id = 0
 
 days_table = {"1m": 0.17, "3m": .5, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, \
@@ -467,8 +466,8 @@ class DataRunner:
             self.timeframe_entered = "1D"
     elif self.exchange == accounts.EXCHANGE_BINANCE:
         self.exchange_obj = exchanges.Binance(accounts.exchanges[accounts.EXCHANGE_BINANCE]["markets"], \
-                                              accounts.exchanges[accounts.EXCHANGE_BITFINEX]["api_key"], \
-                                              accounts.exchanges[accounts.EXCHANGE_BITFINEX]["api_secret"])
+                                              accounts.exchanges[accounts.EXCHANGE_BINANCE]["api_key"], \
+                                              accounts.exchanges[accounts.EXCHANGE_BINANCE]["api_secret"])
     elif self.exchange == accounts.EXCHANGE_KRAKEN:
         self.last_result = []
         self.exchange_obj = exchanges.Kraken(accounts.exchanges[accounts.EXCHANGE_KRAKEN]["markets"])
