@@ -432,7 +432,7 @@ from operator import itemgetter
 class MplCanvas(FigureCanvas):
     def __init__(self, parent=None, dpi=100, symbol=None):
         self.fig = Figure(facecolor=black, edgecolor=white, dpi=dpi,
-                          frameon=False, tight_layout=False, constrained_layout=False)
+                          frameon=False, tight_layout=False)
 
         FigureCanvas.__init__(self, self.fig)
         self.setParent(parent)
