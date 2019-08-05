@@ -9,3 +9,4 @@ kraken-wsclient-py
 bitfinex-v2
 sklearn
 psutil
+pywin32 (in case of windows)
