@@ -1797,7 +1797,7 @@ class Window(QtWidgets.QMainWindow):
 
             aiDialog.listWidget.addItem("Amount for trades: " + str(asset_balance_usd) + " USDT")
             aiDialog.listWidget.addItem("Trending Market: " + str(window_configs[window_id].ai_trending_market))
-            aiDialog.listWidget.addItem("AI learning for 30 minutes...")
+            aiDialog.listWidget.addItem("AI learning for 60 minutes...")
 
             window_configs[window_id].ai_enabled = True
 
