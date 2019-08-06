@@ -2286,7 +2286,7 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.font = QtGui.QFont()
         self.font.setPointSize(10)
 
-        self.predict_time = time.time() + 60*30 #XXX 60 multiplied by 30
+        self.predict_time = time.time() + 60*60 #XXX 60 multiplied by 60
         self.percent_check_time = time.time()
         self.trade_state = "NEUTRAL"
         self.train_time = time.time()
