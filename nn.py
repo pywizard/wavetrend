@@ -145,53 +145,50 @@ class NeuralNetwork(QtCore.QThread):
                 self.first = False
                 self.trains_time = time.time()
 
-            if time.time() - self.predict_time > 30:
-                outcome_buystr = ""
-                outcome_sellstr = ""
-                # AI
-                try:
-                    predictor = LinearRegression(n_jobs=-1)
-                    predictor.fit(X=self.train_input, y=self.train_output)
-                    percent = 1
-                    asset_balance = self.asset_balance_usd
-                    amount = float(
-                        self.accounts.client(self.exchange).amount_to_precision(self.symbol,
-                                                                                (asset_balance / self.bid[0]) * percent))
-                    X_TEST = [[float(self.bid[0]), float(amount)]]
-                    outcome = predictor.predict(X=X_TEST)
-                    print("AI says buy? " + str(outcome[0]) + " " + str(self.bid[0]))
-                    outcome_buystr = "AI says buy? " + str(outcome[0]) + " " + str(self.bid[0])
-                    if outcome[0] > 0.7:
-                        if self.trade_state == "NEUTRAL" or self.trade_state == "SOLD":
-                            self.dobuy(self.bid[0])
-                            self.trade_state = "BOUGHT"
-                            outcome_buystr = outcome_buystr + " YES"
-                except:
-                    print(get_full_stacktrace())
+            outcome_buystr = ""
+            outcome_sellstr = ""
+            # AI
+            try:
+                predictor = LinearRegression(n_jobs=-1)
+                predictor.fit(X=self.train_input, y=self.train_output)
+                percent = 1
+                asset_balance = self.asset_balance_usd
+                amount = float(
+                    self.accounts.client(self.exchange).amount_to_precision(self.symbol,
+                                                                            (asset_balance / self.bid[0]) * percent))
+                X_TEST = [[float(self.bid[0]), float(amount)]]
+                outcome = predictor.predict(X=X_TEST)
+                print("AI says buy? " + str(outcome[0]) + " " + str(self.bid[0]))
+                outcome_buystr = "AI says buy? " + str(outcome[0]) + " " + str(self.bid[0])
+                if outcome[0] > 0.7:
+                    if self.trade_state == "NEUTRAL" or self.trade_state == "SOLD":
+                        self.dobuy(self.bid[0])
+                        self.trade_state = "BOUGHT"
+                        outcome_buystr = outcome_buystr + " YES"
+            except:
+                print(get_full_stacktrace())
 
-                # AI
-                try:
-                    percent = 1
-                    predictor = LinearRegression(n_jobs=-1)
-                    predictor.fit(X=self.train_input, y=self.train_output)
-                    asset_balance = self.asset_balance_usd
-                    amount = float(self.accounts.client(self.exchange).amount_to_precision(self.symbol,
-                                                                                            (asset_balance /
-                                                                                             self.ask[0]) * percent))
-                    X_TEST = [[float(self.ask[0]), float(amount)]]
-                    outcome = predictor.predict(X=X_TEST)
-                    print("AI says sell? " + str(outcome[0]) + " " + str(self.ask[0]))
-                    outcome_sellstr = "AI says sell? " + str(outcome[0]) + " " + str(self.ask[0])
-                    if outcome[0] < 0.3:
-                        if self.trade_state == "NEUTRAL" or self.trade_state == "BOUGHT":
-                            self.dosell(self.ask[0])
-                            self.trade_state = "SOLD"
-                            outcome_sellstr = outcome_sellstr + " YES"
-                except:
-                    print(get_full_stacktrace())
+            # AI
+            try:
+                percent = 1
+                predictor = LinearRegression(n_jobs=-1)
+                predictor.fit(X=self.train_input, y=self.train_output)
+                asset_balance = self.asset_balance_usd
+                amount = float(self.accounts.client(self.exchange).amount_to_precision(self.symbol,
+                                                                                        (asset_balance /
+                                                                                         self.ask[0]) * percent))
+                X_TEST = [[float(self.ask[0]), float(amount)]]
+                outcome = predictor.predict(X=X_TEST)
+                print("AI says sell? " + str(outcome[0]) + " " + str(self.ask[0]))
+                outcome_sellstr = "AI says sell? " + str(outcome[0]) + " " + str(self.ask[0])
+                if outcome[0] < 0.3:
+                    if self.trade_state == "NEUTRAL" or self.trade_state == "BOUGHT":
+                        self.dosell(self.ask[0])
+                        self.trade_state = "SOLD"
+                        outcome_sellstr = outcome_sellstr + " YES"
+            except:
+                print(get_full_stacktrace())
 
-                self.DISPLAY_LINE.emit(outcome_buystr)
-                self.DISPLAY_LINE.emit(outcome_sellstr)
-                self.predict_time = time.time()
-
-            time.sleep(0.5)
+            self.DISPLAY_LINE.emit(outcome_buystr)
+            self.DISPLAY_LINE.emit(outcome_sellstr)
+            self.predict_time = time.time()
