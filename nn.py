@@ -50,6 +50,7 @@ class NeuralNetwork(QtCore.QThread):
         self.market_type_trending = True
         self.ai_trending_market = True
         self.predict_time = time.time() + 60 * 30  # XXX 60 multiplied by 30
+        self.display_time = time.time()
         self.exit_thread = False
 
     def dobuy(self, price):
@@ -199,7 +200,11 @@ class NeuralNetwork(QtCore.QThread):
                 except:
                     print(get_full_stacktrace())
 
-                self.DISPLAY_LINE.emit(outcome_buystr)
-                self.DISPLAY_LINE.emit(outcome_sellstr)
+                if time.time() - self.display_time > 60 or outcome_buystr.find("YES") > -1 \
+                        or outcome_sellstr.find("YES") > -1:
+                    self.DISPLAY_LINE.emit(outcome_buystr)
+                    self.DISPLAY_LINE.emit(outcome_sellstr)
+                    self.display_time = time.time()
+
                 self.predict_time = time.time()
             time.sleep(1)
