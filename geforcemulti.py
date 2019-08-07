@@ -38,8 +38,7 @@ import numpy
 import prettydate
 import collections
 from exchange_accounts import ExchangeAccounts
-from sklearn.linear_model import LinearRegression
-import psutil
+import nn
 
 #FIX: squash memory leak for redraws
 class MyTransformNode(object):
@@ -352,8 +351,6 @@ def get_window_id():
   return "win-" + ''.join(random.choice('0123456789abcdef') for i in range(10))
 
 window_configs = {}
-asset_balance_usd = 6000
-aiDialog = None
 stddev_is_plateau = 0
 
 def get_full_stacktrace():
@@ -413,13 +410,6 @@ destroyed_window_ids = {}
 
 ChartRunnerTabs = {}
 DataRunnerTabs = {}
-stop_buying = True
-stop_selling = True
-
-train_input = []
-train_output = []
-train_times = []
-current_order_id = 0
 
 days_table = {"1m": 0.17, "3m": .5, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, \
               "2h": 20, "3h": 30, "4h": 40, "6h": 60, "8h": 80, "12h": 120, \
@@ -890,9 +880,9 @@ class ChartRunner(QtCore.QThread):
                       stddev_on_axis.append([pdate[ii], stddev[ii]])
                   stddev_is_plateau = self.is_plateau(numpy.array(stddev_on_axis))
                   if stddev_is_plateau[-1] == 0:
-                      window_configs[self.tab_index].ai_trending_market = True
+                      self.neural_network.ai_trending_market = True
                   else:
-                      window_configs[self.tab_index].ai_trending_market = False
+                      self.neural_network.ai_trending_market = False
 
               if indicator.overlay_chart:
                 indicator.plot_once(ax, pdate)
@@ -945,9 +935,9 @@ class ChartRunner(QtCore.QThread):
                       stddev_on_axis.append([pdate[ii], stddev[ii]])
                   stddev_is_plateau = self.is_plateau(numpy.array(stddev_on_axis))
                   if stddev_is_plateau[-1] == 0:
-                      window_configs[self.tab_index].ai_trending_market = True
+                      self.parent.neural_network.ai_trending_market = True
                   else:
-                      window_configs[self.tab_index].ai_trending_market = False
+                      self.parent.neural_network.ai_trending_market = False
 
               if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or current_trade_type != trade_type or current_bband_type != bband_type:
                 indicator.update()              
@@ -1532,59 +1522,15 @@ class Window(QtWidgets.QMainWindow):
 
     def keyPressEvent(self, event):
      global window_configs
-     global stop_buying
-     global stop_selling
 
      key = event.key()
 
      self.symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[0]
      if str(key) == "66": # B pressed
-        print("BUYING")
-        stop_buying = False
-        stop_selling = True
-     '''
-      try:
-        percent = .25
-        price = accounts.get_symbol_price(self.exchange, self.symbol)
-        quote = accounts.get_quote_from_symbol(self.exchange, self.symbol)
-        asset_balance = float(accounts.client(self.exchange).fetch_balance()[quote]["free"])
-        amount = float(accounts.client(self.exchange).amount_to_precision(self.symbol, (asset_balance / price) * percent))
-
-        book = accounts.get_orderbook(self.exchange, self.symbol)
-        asks_added = 0
-        for ask in book["asks"]:
-          asks_added = asks_added + ask[1]
-          if asks_added > amount:
-            price = ask[0]
-            print(str(amount) + " " + str(price))
-            accounts.client(self.exchange).create_limit_buy_order(self.symbol, amount, price)
-            return
-      except:
-        print(get_full_stacktrace())
-        return
-     '''
+      pass
 
      if str(key) == "83": # S pressed
-      print("NOT BUYING")
-      stop_buying = True
-      stop_selling = False
-      '''
-      try:
-        asset_balance = float(accounts.client(self.exchange).fetch_balance()[accounts.get_asset_from_symbol(self.exchange, self.symbol)]["free"])
-        amount = float(accounts.client(self.exchange).amount_to_precision(self.symbol, asset_balance * .5))
-        book = accounts.get_orderbook(self.exchange, self.symbol)
-        bids_added = 0
-        for bid in book["bids"]:
-          bids_added = bids_added + bid[1]
-          if bids_added > amount:
-            price = bid[0]
-            print(str(amount) + " " + str(price))
-            accounts.client(self.exchange).create_limit_sell_order(self.symbol, amount, price)
-            return       
-      except:
-        print(get_full_stacktrace())
-        return
-      '''
+      pass
 
      if str(key) == "67": # C pressed
       tab_index = self.tabWidget.currentIndex()
@@ -1677,7 +1623,6 @@ class Window(QtWidgets.QMainWindow):
         global aqs
         global window_ids
         global window_configs
-        global aiDialog
 
         tab_index = get_tab_index(winid)
         if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
@@ -1704,7 +1649,9 @@ class Window(QtWidgets.QMainWindow):
         self.OrderbookWidget[tab_index].kill_websocket_watch_thread = True
         self.OrderbookWidget[tab_index].websocket_watch_thread.join()
         if window_configs[winid].ai_enabled == True:
-            aiDialog.close()
+            self.neural_network.exit_thread = True
+            self.neural_network.wait()
+            self.aiDialog.close()
 
         del self.OrderbookWidget[tab_index].exchange_obj
         del self.OrderbookWidget[tab_index]
@@ -1801,9 +1748,7 @@ class Window(QtWidgets.QMainWindow):
         window_configs[window_id].bband_type = BBAND_TYPE_DEFAULT
 
     def aiEnabled(self, window_id):
-        global aiDialog
         global window_configs
-        global asset_balance_usd
         for window_config in window_configs.keys():
             if window_configs[window_config].ai_enabled == True:
                 msg = QtWidgets.QMessageBox()
@@ -1820,19 +1765,22 @@ class Window(QtWidgets.QMainWindow):
 
         leverage_amount, okPressed = QtWidgets.QInputDialog.getDouble(self, "Leverage Trading", "Leverage Trade Amount in USDT:", 13000)
         if okPressed:
-            asset_balance_usd = leverage_amount
+            self.aiDialog = AIDialog()
+            self.aiDialog.show()
 
-            aiDialog = AIDialog()
-            aiDialog.show()
-
-            aiDialog.listWidget.addItem("Amount for trades: " + str(asset_balance_usd) + " USDT")
-            aiDialog.listWidget.addItem("AI learning for 60 minutes...")
+            self.aiDialog.listWidget.addItem("Amount for trades: " + str(leverage_amount) + " USDT")
+            self.aiDialog.listWidget.addItem("AI learning for 30 minutes...")
 
             window_configs[window_id].ai_enabled = True
 
             tab_index = get_tab_index(window_id)
             newTabText = self.tabWidget.tabText(tab_index) + " AI ENABLED"
             self.tabWidget.setTabText(tab_index, newTabText)
+
+            self.neural_network = nn.NeuralNetwork(self, accounts)
+            self.neural_network.asset_balance_usd = leverage_amount
+            self.neural_network.DISPLAY_LINE.connect(self.aiDialog.on_DISPLAY_AIDIALOG_ITEM)
+            self.neural_network.start()
 
     def removeTab(self, window_id, selected_exchange):
       global destroyed_window_ids
@@ -1977,7 +1925,7 @@ class Window(QtWidgets.QMainWindow):
     def closeEvent(self, event):
         global aiDialog
         try:
-            aiDialog.close()
+            self.aiDialog.close()
         except:
             pass
 
@@ -2165,6 +2113,10 @@ class AIDialog(QtWidgets.QDialog):
         uic.loadUi('aiprogress.ui', self)
         self.setWindowFlag(QtCore.Qt.WindowCloseButtonHint, False)
 
+    @QtCore.pyqtSlot(str)
+    def on_DISPLAY_AIDIALOG_ITEM(self, str):
+        self.listWidget.addItem(str)
+
 class Dialog(QtWidgets.QDialog):
     global config
     def __init__(self):
@@ -2315,14 +2267,6 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.font = QtGui.QFont()
         self.font.setPointSize(10)
 
-        self.predict_time = time.time() + 60*60 #XXX 60 multiplied by 60
-        self.percent_check_time = time.time()
-        self.trade_state = "NEUTRAL"
-        self.train_time = time.time()
-        self.trains_time = time.time()
-        self.first = True
-        self.market_type_trending = True
-
         if is_darwin == True:
             self.font.setPointSize(11)
 
@@ -2395,109 +2339,10 @@ class OrderBookWidget(QtWidgets.QWidget):
     def resizeEvent(self, event):
         self.tableWidgetTrades.setMinimumHeight(self.height()*0.4)
 
-    def dobuy(self, price):
-        global current_order_id
-        try:
-            percent = 1
-            asset_balance = asset_balance_usd
-            amount = float(
-                accounts.client(accounts.EXCHANGE_BITFINEX).amount_to_precision(self.symbol, (asset_balance / price) * percent))
-            print(str(amount))
-            try:
-                if current_order_id != 0:
-                    params = {'type': 'market'}
-                    order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="buy",
-                                                                                      type="market", amount=amount,
-                                                                                      params=params)
-            except:
-                print(get_full_stacktrace())
-            params = {'type': 'market'}
-            order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="buy", type="market", amount=amount, params=params)
-            current_order_id = int(order["id"])
-        except:
-            print(get_full_stacktrace())
-            return
-
-    def dosell(self, price):
-        global current_order_id
-        try:
-            percent = 1
-            asset_balance = asset_balance_usd
-            amount = float(accounts.client(accounts.EXCHANGE_BITFINEX).amount_to_precision(self.symbol, (asset_balance / price) * percent))
-            print(str(amount))
-            try:
-                if current_order_id != 0:
-                    params = {'type': 'market'}
-                    order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="sell",
-                                                                                      type="market", amount=amount,
-                                                                                      params=params)
-            except:
-                print(get_full_stacktrace())
-            params = {'type': 'market'}
-            order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="sell", type="market", amount=amount, params=params)
-            current_order_id = int(order["id"])
-        except:
-            print(get_full_stacktrace())
-            return
-
-    def ai_watch(self, bid, ask):
-        global train_input
-        global train_output
-        global aiDialog
-
-        try:
-            outcome_buystr = ""
-            outcome_sellstr = ""
-            # AI
-            try:
-                predictor = LinearRegression(n_jobs=-1)
-
-                predictor.fit(X=train_input, y=train_output)
-
-                percent = 1
-                asset_balance = asset_balance_usd
-                amount = float(
-                    accounts.client(self.exchange).amount_to_precision(self.symbol, (asset_balance / bid[0]) * percent))
-                X_TEST = [[float(bid[0]), float(amount)]]
-                outcome = predictor.predict(X=X_TEST)
-                print("AI says buy? " + str(outcome[0]) + " " + str(bid[0]))
-                outcome_buystr = "AI says buy? " + str(outcome[0]) + " " + str(bid[0])
-                if outcome[0] > 0.7:
-                    if self.trade_state == "NEUTRAL" or self.trade_state == "SOLD":
-                        self.dobuy(bid[0])
-                        self.trade_state = "BOUGHT"
-                        outcome_buystr = outcome_buystr + " YES"
-            except:
-                print(get_full_stacktrace())
-
-            # AI
-            try:
-                percent = 1
-                predictor = LinearRegression(n_jobs=-1)
-                predictor.fit(X=train_input, y=train_output)
-                asset_balance = asset_balance_usd
-                amount = float(accounts.client(self.exchange).amount_to_precision(self.symbol, (asset_balance / ask[0]) * percent))
-                X_TEST = [[float(ask[0]), float(amount)]]
-                outcome = predictor.predict(X=X_TEST)
-                print("AI says sell? " + str(outcome[0]) + " " + str(ask[0]))
-                outcome_sellstr = "AI says sell? " + str(outcome[0]) + " " + str(ask[0])
-                if outcome[0] < 0.3:
-                    if self.trade_state == "NEUTRAL" or self.trade_state == "BOUGHT":
-                        self.dosell(ask[0])
-                        self.trade_state = "SOLD"
-                        outcome_sellstr = outcome_sellstr + " YES"
-            except:
-                print(get_full_stacktrace())
-
-            aiDialog.listWidget.addItem(outcome_buystr)
-            aiDialog.listWidget.addItem(outcome_sellstr)
-        except:
-            print(get_full_stacktrace())
-
     @QtCore.pyqtSlot(list, list)
     def on_DISPLAY_ORDERBOOK(self, bids_, asks_):
-        global stop_buying
-        global stop_selling
+        global window_configs
+
         self.tableWidgetBids.setRowCount(len(bids_))
         highest_amount = 0
         for bid in bids_:
@@ -2591,11 +2436,12 @@ class OrderBookWidget(QtWidgets.QWidget):
         sum = 0
         self.tableWidgetAsks.setRowCount(len(asks_))
 
-        if orderbook_intact and time.time() - self.predict_time > 60 and len(bids_) > 0 and len(asks_) > 0:
-            bid = bids_[0]
-            ask = asks_[0]
-            self.ai_watch(bid, ask)
-            self.predict_time = time.time()
+        if window_configs[self.winid].ai_enabled == True:
+            if orderbook_intact == True and len(bids_) > 0 and len(asks_) > 0:
+                bid = bids_[0]
+                ask = asks_[0]
+                self.parent.neural_network.bid = bid
+                self.parent.neural_network.ask = ask
 
         for ask in asks_:
             self.tableWidgetAsks.setRowHeight(i, 23)
@@ -2673,11 +2519,6 @@ class OrderBookWidget(QtWidgets.QWidget):
 
     @QtCore.pyqtSlot(list)
     def on_DISPLAY_TRADES(self, trades_list):
-        global train_input
-        global train_output
-        global train_times
-        global aiDialog
-
         self.tableWidgetTrades.setRowCount(len(self.trades_list))
 
         i = 0
@@ -2694,47 +2535,9 @@ class OrderBookWidget(QtWidgets.QWidget):
                 trade = 0
 
             if window_configs[self.winid].ai_enabled == True:
-                train_times.append(time.time())
-                train_input.append([trade_price, trade_quantity])
-                train_output.append(trade)
-
-                if self.market_type_trending == False and \
-                        window_configs[self.winid].ai_trending_market == True:
-                    for ii in reversed(range(0, train_times)):
-                        if time.time() - train_times[ii] > 60*60:
-                            del train_input[:ii]
-                            del train_output[:ii]
-                            del train_times[:ii]
-                            break
-
-                if window_configs[self.winid].ai_trending_market == True:
-                    if time.time() - self.train_time > 60*60:
-                        self.train_time = time.time()
-                        del train_input[:int(len(train_input)/2)]
-                        del train_output[:int(len(train_output)/2)]
-
-                elif window_configs[self.winid].ai_trending_market == False:
-                    if time.time() - self.percent_check_time > 60*5:
-                        total, available, percent, used, free = psutil.virtual_memory()
-                        available_megabyte = available / (1024*1024)
-                        process = psutil.Process(os.getpid())
-                        process_rss_megabyte = process.memory_full_info().rss / (1024*1024)
-                        if (process_rss_megabyte * 100) / available_megabyte > 50:
-                            del train_input[:int(len(train_input)/2)]
-                            del train_output[:int(len(train_output)/2)]
-                        self.percent_check_time = time.time()
-
-                if self.first or time.time() - self.trains_time > 60 * 30:
-                    market_str = ""
-                    if window_configs[self.winid].ai_trending_market == True:
-                        market_str = "TREND"
-                        self.market_type_trending = True
-                    else:
-                        market_str = "SIDEWAYS"
-                        self.market_type_trending = False
-                    aiDialog.listWidget.addItem("Market Type: " + market_str)
-                    self.first = False
-                    self.trains_time = time.time()
+                self.parent.neural_network.train_times.append(time.time())
+                self.parent.neural_network.train_input.append([trade_price, trade_quantity])
+                self.parent.neural_network.train_output.append(trade)
 
             self.tableWidgetTrades.setRowHeight(i, 23)
             trade_price = str(accounts.client(self.exchange).price_to_precision(self.symbol, trade_price))
