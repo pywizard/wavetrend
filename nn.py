@@ -162,7 +162,6 @@ class NeuralNetwork(QtCore.QThread):
                     predictor.fit(X=self.train_input[train_input_start_index:],
                                   y=self.train_output[train_output_start_index:])
                 except:
-                    print("predictor.fit values len not equal")
                     continue
 
                 try:
