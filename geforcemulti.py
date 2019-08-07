@@ -2382,9 +2382,9 @@ class OrderBookWidget(QtWidgets.QWidget):
         for bid in bids_:
             self.tableWidgetBids.setRowHeight(i, 23)
             price = str(accounts.client(self.exchange).price_to_precision(self.symbol, bid[0]))
-            amount = str(accounts.client(self.exchange).amount_to_precision(self.symbol, bid[1]))
+            amount = str(accounts.client(self.exchange).price_to_precision(self.symbol, bid[1]))
             sum = sum + bid[1]
-            sum_str = str(accounts.client(self.exchange).amount_to_precision(self.symbol, sum))
+            sum_str = str(accounts.client(self.exchange).price_to_precision(self.symbol, sum))
             if self.exchange == accounts.EXCHANGE_KRAKEN:
                 amount = self.kraken_prettify_value(amount)
                 sum_str = self.kraken_prettify_value(sum_str)
@@ -2449,9 +2449,9 @@ class OrderBookWidget(QtWidgets.QWidget):
             self.tableWidgetAsks.setRowHeight(i, 23)
             self.tableWidgetBids.setRowHeight(i, 23)
             price = str(accounts.client(self.exchange).price_to_precision(self.symbol, ask[0]))
-            amount = str(accounts.client(self.exchange).amount_to_precision(self.symbol, ask[1]))
+            amount = str(accounts.client(self.exchange).price_to_precision(self.symbol, ask[1]))
             sum = sum + ask[1]
-            sum_str = str(accounts.client(self.exchange).amount_to_precision(self.symbol, sum))
+            sum_str = str(accounts.client(self.exchange).price_to_precision(self.symbol, sum))
             if self.exchange == accounts.EXCHANGE_KRAKEN:
                 amount = self.kraken_prettify_value(amount)
                 sum_str = self.kraken_prettify_value(sum_str)
@@ -2543,7 +2543,7 @@ class OrderBookWidget(QtWidgets.QWidget):
 
             self.tableWidgetTrades.setRowHeight(i, 23)
             trade_price = str(accounts.client(self.exchange).price_to_precision(self.symbol, trade_price))
-            trade_quantity = str(accounts.client(self.exchange).amount_to_precision(self.symbol, trade_quantity))
+            trade_quantity = str(accounts.client(self.exchange).price_to_precision(self.symbol, trade_quantity))
 
             columnItem = QtWidgets.QTableWidgetItem(str(trade_time_pretty))
             columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)

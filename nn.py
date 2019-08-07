@@ -133,7 +133,7 @@ class NeuralNetwork(QtCore.QThread):
                         del self.train_output[:int(len(self.train_output) / 2)]
                     self.percent_check_time = time.time()
 
-            if self.first or time.time() - self.trains_time > 60 * 30:
+            if self.first == True or time.time() - self.trains_time > 60 * 30:
                 market_str = ""
                 if self.ai_trending_market == True:
                     market_str = "TREND"
@@ -148,8 +148,23 @@ class NeuralNetwork(QtCore.QThread):
             if time.time() - self.predict_time > 0:
                 outcome_buystr = ""
                 outcome_sellstr = ""
+
                 predictor = LinearRegression(n_jobs=-1)
-                predictor.fit(X=self.train_input, y=self.train_output)
+
+                if len(self.train_input) > len(self.train_output):
+                    train_input_start_index = len(self.train_input) - len(self.train_output)
+                elif len(self.train_output) > len(self.train_input):
+                    train_output_start_index = len(self.train_output) - len(self.train_input)
+                elif len(self.train_input) == len(self.train_output):
+                    train_input_start_index = 0
+                    train_output_start_index = 0
+                try:
+                    predictor.fit(X=self.train_input[train_input_start_index:],
+                                  y=self.train_output[train_output_start_index:])
+                except:
+                    print("predictor.fit values len not equal")
+                    continue
+
                 try:
                     percent = 1
                     asset_balance = self.asset_balance_usd
