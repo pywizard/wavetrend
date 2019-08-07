@@ -880,9 +880,9 @@ class ChartRunner(QtCore.QThread):
                       stddev_on_axis.append([pdate[ii], stddev[ii]])
                   stddev_is_plateau = self.is_plateau(numpy.array(stddev_on_axis))
                   if stddev_is_plateau[-1] == 0:
-                      self.neural_network.ai_trending_market = True
+                      self.parent.neural_network.ai_trending_market = True
                   else:
-                      self.neural_network.ai_trending_market = False
+                      self.parent.neural_network.ai_trending_market = False
 
               if indicator.overlay_chart:
                 indicator.plot_once(ax, pdate)
