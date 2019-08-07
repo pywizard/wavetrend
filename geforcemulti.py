@@ -3089,7 +3089,7 @@ def showQtMessageMissingExchanges():
     msg = QtWidgets.QMessageBox()
     msg.setIcon(QtWidgets.QMessageBox.Information)
     msg.setText("Please configure valid exchanges.")
-    msg.setInformativeText("Edit the config.txt file and add your exchanges api keys.")
+    msg.setInformativeText("Edit the config.txt file and add your exchanges api keys. Check that the API keys are valid and have proper permission rights.")
     msg.setWindowTitle("Missing exchanges")
     msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
     msg.exec_()

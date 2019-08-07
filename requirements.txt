@@ -9,4 +9,5 @@ kraken-wsclient-py
 bitfinex-v2
 sklearn
 psutil
+Twisted==19.7.0
 pywin32 (in case of windows)
