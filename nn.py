@@ -148,10 +148,9 @@ class NeuralNetwork(QtCore.QThread):
             if time.time() - self.predict_time > 0:
                 outcome_buystr = ""
                 outcome_sellstr = ""
-                # AI
+                predictor = LinearRegression(n_jobs=-1)
+                predictor.fit(X=self.train_input, y=self.train_output)
                 try:
-                    predictor = LinearRegression(n_jobs=-1)
-                    predictor.fit(X=self.train_input, y=self.train_output)
                     percent = 1
                     asset_balance = self.asset_balance_usd
                     amount = float(
@@ -168,12 +167,8 @@ class NeuralNetwork(QtCore.QThread):
                             outcome_buystr = outcome_buystr + " YES"
                 except:
                     print(get_full_stacktrace())
-
-                # AI
                 try:
                     percent = 1
-                    predictor = LinearRegression(n_jobs=-1)
-                    predictor.fit(X=self.train_input, y=self.train_output)
                     asset_balance = self.asset_balance_usd
                     amount = float(self.accounts.client(self.exchange).amount_to_precision(self.symbol,
                                                                                             (asset_balance /
