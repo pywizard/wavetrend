@@ -354,6 +354,7 @@ def get_window_id():
 window_configs = {}
 asset_balance_usd = 6000
 aiDialog = None
+stddev_is_plateau = 0
 
 def get_full_stacktrace():
     exc = sys.exc_info()[0]
@@ -417,6 +418,7 @@ stop_selling = True
 
 train_input = []
 train_output = []
+train_times = []
 current_order_id = 0
 
 days_table = {"1m": 0.17, "3m": .5, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, \
@@ -734,12 +736,25 @@ class ChartRunner(QtCore.QThread):
                   results.append([i, result[i], pattern_name, pattern_description])
       return results
 
+  def is_plateau(self, data, chunksize=4, max_slope=.04):
+      midindex = int(chunksize / 2)
+      is_plateau = np.zeros((data.shape[0]))
+      for index in range(midindex, len(data) - midindex):
+          chunk = data[index - midindex: index + midindex]
+          # subtract the endpoints of the chunk
+          # if not sufficient, maybe use a linear fit
+          dy, dx = abs(chunk[0] - chunk[-1]) / chunksize
+          if (0 <= dy / dx < max_slope):
+              is_plateau[index] = 1.0
+      return is_plateau
+
   def run(self):
     global qs
     global aqs
     global tab_current_index
     global destroyed_window_ids
     global window_configs
+    global stddev_is_plateau
 
     days_entered = days_table[self.timeframe_entered]
     timeframe_entered = self.timeframe_entered
@@ -868,6 +883,17 @@ class ChartRunner(QtCore.QThread):
           for indicator in indicators:
             if first == True:
               indicator.generate_values(popen, phigh, plow, pclose, pvol)
+              if window_configs[self.tab_index].ai_enabled == True:
+                  stddev = talib.STDDEV(np.array(pclose), timeperiod=20, nbdev=1)
+                  stddev_on_axis = []
+                  for ii in range(0, len(stddev)):
+                      stddev_on_axis.append([pdate[ii], stddev[ii]])
+                  stddev_is_plateau = self.is_plateau(numpy.array(stddev_on_axis))
+                  if stddev_is_plateau[-1] == 0:
+                      window_configs[self.tab_index].ai_trending_market = True
+                  else:
+                      window_configs[self.tab_index].ai_trending_market = False
+
               if indicator.overlay_chart:
                 indicator.plot_once(ax, pdate)
               else:
@@ -912,6 +938,17 @@ class ChartRunner(QtCore.QThread):
                 indicator.plot_once(new_ax, pdate)
             else:
               indicator.generate_values(popen, phigh, plow, pclose, pvol)
+              if window_configs[self.tab_index].ai_enabled == True:
+                  stddev = talib.STDDEV(np.array(pclose), timeperiod=20, nbdev=1)
+                  stddev_on_axis = []
+                  for ii in range(0, len(stddev)):
+                      stddev_on_axis.append([pdate[ii], stddev[ii]])
+                  stddev_is_plateau = self.is_plateau(numpy.array(stddev_on_axis))
+                  if stddev_is_plateau[-1] == 0:
+                      window_configs[self.tab_index].ai_trending_market = True
+                  else:
+                      window_configs[self.tab_index].ai_trending_market = False
+
               if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or current_trade_type != trade_type or current_bband_type != bband_type:
                 indicator.update()              
             
@@ -1417,7 +1454,7 @@ class Window(QtWidgets.QMainWindow):
         heikinashiChartAction = QtWidgets.QAction("heikin ashi", self)
         trendbarsChartActionEnable = QtWidgets.QAction("+better bband", self)
         trendbarsChartActionDisable = QtWidgets.QAction("-better bband", self)
-        if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT":
+        if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT" and timeframe_entered == "1h":
             aiActionEnable = QtWidgets.QAction("+neural network", self)
         closeAction = QtWidgets.QAction("close", self)
         tabBarMenu.addAction(trendingMarketAction)
@@ -1783,20 +1820,12 @@ class Window(QtWidgets.QMainWindow):
 
         leverage_amount, okPressed = QtWidgets.QInputDialog.getDouble(self, "Leverage Trading", "Leverage Trade Amount in USDT:", 13000)
         if okPressed:
-            buttonAnswer = QtWidgets.QMessageBox.question(self, "Leverage Trading", "Is this a Trending Market? For a Trending Market please Click on 'Yes'. For a Choppy Sideways Market click on 'No'.",
-                                 QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.Yes)
-            if buttonAnswer == QtWidgets.QMessageBox.Yes:
-                window_configs[window_id].ai_trending_market = True
-            elif buttonAnswer == QtWidgets.QMessageBox.No:
-                window_configs[window_id].ai_trending_market = False
-
             asset_balance_usd = leverage_amount
 
             aiDialog = AIDialog()
             aiDialog.show()
 
             aiDialog.listWidget.addItem("Amount for trades: " + str(asset_balance_usd) + " USDT")
-            aiDialog.listWidget.addItem("Trending Market: " + str(window_configs[window_id].ai_trending_market))
             aiDialog.listWidget.addItem("AI learning for 60 minutes...")
 
             window_configs[window_id].ai_enabled = True
@@ -2290,6 +2319,9 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.percent_check_time = time.time()
         self.trade_state = "NEUTRAL"
         self.train_time = time.time()
+        self.trains_time = time.time()
+        self.first = True
+        self.market_type_trending = True
 
         if is_darwin == True:
             self.font.setPointSize(11)
@@ -2379,8 +2411,8 @@ class OrderBookWidget(QtWidgets.QWidget):
                                                                                       params=params)
             except:
                 print(get_full_stacktrace())
-            params = {'type': 'limit'}
-            order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="buy", type="limit", price=price, amount=amount, params=params)
+            params = {'type': 'market'}
+            order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="buy", type="market", amount=amount, params=params)
             current_order_id = int(order["id"])
         except:
             print(get_full_stacktrace())
@@ -2401,8 +2433,8 @@ class OrderBookWidget(QtWidgets.QWidget):
                                                                                       params=params)
             except:
                 print(get_full_stacktrace())
-            params = {'type': 'limit'}
-            order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="sell", type="limit", price=price, amount=amount, params=params)
+            params = {'type': 'market'}
+            order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="sell", type="market", amount=amount, params=params)
             current_order_id = int(order["id"])
         except:
             print(get_full_stacktrace())
@@ -2643,6 +2675,8 @@ class OrderBookWidget(QtWidgets.QWidget):
     def on_DISPLAY_TRADES(self, trades_list):
         global train_input
         global train_output
+        global train_times
+        global aiDialog
 
         self.tableWidgetTrades.setRowCount(len(self.trades_list))
 
@@ -2660,8 +2694,18 @@ class OrderBookWidget(QtWidgets.QWidget):
                 trade = 0
 
             if window_configs[self.winid].ai_enabled == True:
+                train_times.append(time.time())
                 train_input.append([trade_price, trade_quantity])
                 train_output.append(trade)
+
+                if self.market_type_trending == False and \
+                        window_configs[self.winid].ai_trending_market == True:
+                    for ii in reversed(range(0, train_times)):
+                        if time.time() - train_times[ii] > 60*60:
+                            del train_input[:ii]
+                            del train_output[:ii]
+                            del train_times[:ii]
+                            break
 
                 if window_configs[self.winid].ai_trending_market == True:
                     if time.time() - self.train_time > 60*60:
@@ -2670,7 +2714,7 @@ class OrderBookWidget(QtWidgets.QWidget):
                         del train_output[:int(len(train_output)/2)]
 
                 elif window_configs[self.winid].ai_trending_market == False:
-                    if time.time() - self.percent_check_time > 60:
+                    if time.time() - self.percent_check_time > 60*5:
                         total, available, percent, used, free = psutil.virtual_memory()
                         available_megabyte = available / (1024*1024)
                         process = psutil.Process(os.getpid())
@@ -2679,6 +2723,18 @@ class OrderBookWidget(QtWidgets.QWidget):
                             del train_input[:int(len(train_input)/2)]
                             del train_output[:int(len(train_output)/2)]
                         self.percent_check_time = time.time()
+
+                if self.first or time.time() - self.trains_time > 60 * 30:
+                    market_str = ""
+                    if window_configs[self.winid].ai_trending_market == True:
+                        market_str = "TREND"
+                        self.market_type_trending = True
+                    else:
+                        market_str = "SIDEWAYS"
+                        self.market_type_trending = False
+                    aiDialog.listWidget.addItem("Market Type: " + market_str)
+                    self.first = False
+                    self.trains_time = time.time()
 
             self.tableWidgetTrades.setRowHeight(i, 23)
             trade_price = str(accounts.client(self.exchange).price_to_precision(self.symbol, trade_price))

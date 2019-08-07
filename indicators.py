@@ -281,4 +281,3 @@ class indicator_VOLUME():
   
   def xaxis_get_start(self):
     return 0
-  
