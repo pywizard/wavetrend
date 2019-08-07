@@ -928,19 +928,19 @@ class ChartRunner(QtCore.QThread):
                 indicator.plot_once(new_ax, pdate)
             else:
               indicator.generate_values(popen, phigh, plow, pclose, pvol)
-              if window_configs[self.tab_index].ai_enabled == True:
-                  stddev = talib.STDDEV(np.array(pclose), timeperiod=20, nbdev=1)
-                  stddev_on_axis = []
-                  for ii in range(0, len(stddev)):
-                      stddev_on_axis.append([pdate[ii], stddev[ii]])
-                  stddev_is_plateau = self.is_plateau(numpy.array(stddev_on_axis))
-                  if stddev_is_plateau[-1] == 0:
-                      self.parent.neural_network.ai_trending_market = True
-                  else:
-                      self.parent.neural_network.ai_trending_market = False
 
               if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or current_trade_type != trade_type or current_bband_type != bband_type:
-                indicator.update()              
+                  if window_configs[self.tab_index].ai_enabled == True:
+                      stddev = talib.STDDEV(np.array(pclose), timeperiod=20, nbdev=1)
+                      stddev_on_axis = []
+                      for ii in range(0, len(stddev)):
+                          stddev_on_axis.append([pdate[ii], stddev[ii]])
+                      stddev_is_plateau = self.is_plateau(numpy.array(stddev_on_axis))
+                      if stddev_is_plateau[-1] == 0:
+                          self.parent.neural_network.ai_trending_market = True
+                      else:
+                          self.parent.neural_network.ai_trending_market = False
+                  indicator.update()
             
             xaxis_start = indicator.xaxis_get_start()
             if xaxis_start != 0 and xaxis_start > start_x:
