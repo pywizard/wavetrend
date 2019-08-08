@@ -403,6 +403,8 @@ BBAND_TYPE_DEFAULT = 0
 BBAND_TYPE_TRENDBARS = 1
 TRADE_TYPE_TRENDING = 0
 TRADE_TYPE_OSC = 1
+CHART_ONLY = 0
+CHART_INDICATORS = 1
 INTERNAL_TAB_INDEX_NOTFOUND = "NOTFOUND"
 
 tab_current_index = None
@@ -767,6 +769,7 @@ class ChartRunner(QtCore.QThread):
     current_candle_type = window_configs[self.tab_index].candle_type
     current_trade_type = window_configs[self.tab_index].trade_type
     current_bband_type = window_configs[self.tab_index].bband_type
+    current_indicator_type = window_configs[self.tab_index].indicator_type
     date = None
     date2 = None
     force_redraw_chart = False # True means switched from tab
@@ -800,7 +803,9 @@ class ChartRunner(QtCore.QThread):
           candle_type = window_configs[self.tab_index].candle_type
           trade_type = window_configs[self.tab_index].trade_type
           bband_type = window_configs[self.tab_index].bband_type
-          hotkeys_pressed = current_candle_type != candle_type or current_trade_type != trade_type or current_bband_type != bband_type
+          indicator_type = window_configs[self.tab_index].indicator_type
+          hotkeys_pressed = current_candle_type != candle_type or current_trade_type != trade_type or \
+                            current_bband_type != bband_type or current_indicator_type != indicator_type
           if hotkeys_pressed == True:
               trendbars_display_counter = 0
               force_redraw_chart = True
@@ -831,6 +836,7 @@ class ChartRunner(QtCore.QThread):
                 current_candle_type = candle_type
                 current_trade_type = trade_type
                 current_bband_type = bband_type
+                current_indicator_type = indicator_type
                 continue
 
           if first == True:
@@ -852,12 +858,14 @@ class ChartRunner(QtCore.QThread):
             bband_index = 0
             indicators.append(indicator_KELTNER_CHANNEL())
             keltner_index = 1
-            if current_trade_type == TRADE_TYPE_TRENDING:
-              indicators.append(indicator_MACD())
-            elif current_trade_type == TRADE_TYPE_OSC:
-              indicators.append(indicator_STOCH())
-            indicators.append(indicator_DMI())
-            indicators.append(indicator_RSI())
+            if current_indicator_type == CHART_INDICATORS and current_trade_type == TRADE_TYPE_TRENDING:
+                indicators.append(indicator_MACD())
+            elif current_indicator_type == CHART_INDICATORS and current_trade_type == TRADE_TYPE_OSC:
+                indicators.append(indicator_STOCH())
+
+            if current_indicator_type == CHART_INDICATORS:
+                indicators.append(indicator_DMI())
+                indicators.append(indicator_RSI())
             indicators.append(indicator_VOLUME())
 
           start_x = 0
@@ -887,16 +895,18 @@ class ChartRunner(QtCore.QThread):
               if indicator.overlay_chart:
                 indicator.plot_once(ax, pdate)
               else:
-                indicator_axes_count += 1
-                rows = 0
-                if indicator_axes_count == 1:
-                    rows = 211
-                elif indicator_axes_count == 2:
-                    rows = 311
-                elif indicator_axes_count == 3:
-                    rows = 411
-                elif indicator_axes_count == 4:
-                    rows = 511
+                if current_indicator_type == CHART_INDICATORS:
+                    indicator_axes_count += 1
+                    rows = 0
+                    if indicator_axes_count == 1:
+                        rows = 211
+                    elif indicator_axes_count == 2:
+                        rows = 311
+                    elif indicator_axes_count == 3:
+                        rows = 411
+                    elif indicator_axes_count == 4:
+                        rows = 511
+
                 if indicator.name == "VOLUME":
                     self.FIGURE_ADD_AXES.emit(self.tab_index, [0,0,0.4,0.4], ax)
                     new_ax = aqs[self.tab_index].get()
@@ -941,14 +951,18 @@ class ChartRunner(QtCore.QThread):
                       else:
                           self.parent.neural_network.ai_trending_market = False
 
-              if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or current_trade_type != trade_type or current_bband_type != bband_type:
+              if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or \
+                      current_trade_type != trade_type or current_bband_type != bband_type or \
+                      current_indicator_type != indicator_type:
                   indicator.update()
             
             xaxis_start = indicator.xaxis_get_start()
             if xaxis_start != 0 and xaxis_start > start_x:
               start_x = xaxis_start
-                          
-          if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or current_trade_type != trade_type or current_bband_type != bband_type:
+
+          if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or \
+                  current_trade_type != trade_type or current_bband_type != bband_type or \
+                  current_indicator_type != indicator_type:
             indicator_update_time = time.time()
 
           if current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
@@ -1170,18 +1184,21 @@ class ChartRunner(QtCore.QThread):
                 if axis != indicator_axes[len(indicator_axes)-1]:
                   axis_height = axis_height + bbox.height
 
-            ax.set_position([ax_bbox.x0, ax_bbox.y0 + axis_height, ax_bbox.width, ax_bbox.height - axis_height])
+            if current_indicator_type == CHART_INDICATORS:
+                ax.set_position([ax_bbox.x0, ax_bbox.y0 + axis_height, ax_bbox.width, ax_bbox.height - axis_height])
+            else:
+                ax.set_position([ax_bbox.x0, ax_bbox.y0, ax_bbox.width, ax_bbox.height])
 
             first_axis = True
             for axis in indicator_axes:
-              axis.get_xaxis().set_visible(True)
-              if first_axis:
-                first_axis = False
-                continue
-              for t in axis.xaxis.get_major_ticks():
-                t.tick1On = t.tick2On = False
-                t.label1On = t.label2On = False            
-            
+                  axis.get_xaxis().set_visible(True)
+                  if first_axis:
+                    first_axis = False
+                    continue
+                  for t in axis.xaxis.get_major_ticks():
+                    t.tick1On = t.tick2On = False
+                    t.label1On = t.label2On = False
+
             for t in ax.xaxis.get_major_ticks():
               t.tick1On = t.tick2On = False
               t.label1On = t.label2On = False
@@ -1435,6 +1452,7 @@ class Window(QtWidgets.QMainWindow):
         window_configs[window_id].candle_type = CANDLE_TYPE_CANDLESTICK
         window_configs[window_id].trade_type = TRADE_TYPE_TRENDING
         window_configs[window_id].bband_type = BBAND_TYPE_DEFAULT
+        window_configs[window_id].indicator_type = CHART_INDICATORS
         window_configs[window_id].ai_enabled = False
         window_configs[window_id].ai_trending_market = True
 
@@ -1446,6 +1464,8 @@ class Window(QtWidgets.QMainWindow):
         heikinashiChartAction = QtWidgets.QAction("heikin ashi", self)
         trendbarsChartActionEnable = QtWidgets.QAction("+better bband", self)
         trendbarsChartActionDisable = QtWidgets.QAction("-better bband", self)
+        chartOnlyActionEnable = QtWidgets.QAction("+chart only", self)
+        chartOnlyActionDisable = QtWidgets.QAction("-chart only", self)
         if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT" and timeframe_entered == "1h":
             aiActionEnable = QtWidgets.QAction("+neural network", self)
         closeAction = QtWidgets.QAction("close", self)
@@ -1455,7 +1475,9 @@ class Window(QtWidgets.QMainWindow):
         tabBarMenu.addAction(heikinashiChartAction)
         tabBarMenu.addAction(trendbarsChartActionEnable)
         tabBarMenu.addAction(trendbarsChartActionDisable)
-        if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT":
+        tabBarMenu.addAction(chartOnlyActionEnable)
+        tabBarMenu.addAction(chartOnlyActionDisable)
+        if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT" and timeframe_entered == "1h":
             tabBarMenu.addAction(aiActionEnable)
         tabBarMenu.addAction(closeAction)
         trendingMarketAction.triggered.connect(functools.partial(self.trendingEnabled, window_ids[0]))
@@ -1464,7 +1486,9 @@ class Window(QtWidgets.QMainWindow):
         heikinashiChartAction.triggered.connect(functools.partial(self.heikinashiEnabled, window_ids[0]))
         trendbarsChartActionEnable.triggered.connect(functools.partial(self.trendbarsEnabled, window_ids[0]))
         trendbarsChartActionDisable.triggered.connect(functools.partial(self.trendbarsDisabled, window_ids[0]))
-        if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT":
+        chartOnlyActionEnable.triggered.connect(functools.partial(self.chartOnlyEnable, window_ids[0]))
+        chartOnlyActionDisable.triggered.connect(functools.partial(self.chartOnlyDisable, window_ids[0]))
+        if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT" and timeframe_entered == "1h":
             aiActionEnable.triggered.connect(functools.partial(self.aiEnabled, window_ids[0]))
         closeAction.triggered.connect(functools.partial(self.removeTab, window_ids[0]))
         menuButton = QtWidgets.QToolButton(self)
@@ -1727,10 +1751,12 @@ class Window(QtWidgets.QMainWindow):
 
     def trendingEnabled(self, window_id):
         global window_configs
+        window_configs[window_id].indicator_type = CHART_INDICATORS
         window_configs[window_id].trade_type = TRADE_TYPE_TRENDING
 
     def oscillatingEnabled(self, window_id):
         global window_configs
+        window_configs[window_id].indicator_type = CHART_INDICATORS
         window_configs[window_id].trade_type = TRADE_TYPE_OSC
 
     def candlestickEnabled(self, window_id):
@@ -1743,11 +1769,21 @@ class Window(QtWidgets.QMainWindow):
 
     def trendbarsEnabled(self, window_id):
         global window_configs
+        window_configs[window_id].indicator_type = CHART_INDICATORS
         window_configs[window_id].bband_type = BBAND_TYPE_TRENDBARS
 
     def trendbarsDisabled(self, window_id):
         global window_configs
+        window_configs[window_id].indicator_type = CHART_INDICATORS
         window_configs[window_id].bband_type = BBAND_TYPE_DEFAULT
+
+    def chartOnlyEnable(self, window_id):
+        global window_configs
+        window_configs[window_id].indicator_type = CHART_ONLY
+
+    def chartOnlyDisable(self, window_id):
+        global window_configs
+        window_configs[window_id].indicator_type = CHART_INDICATORS
 
     def aiEnabled(self, window_id):
         global window_configs
@@ -1826,6 +1862,7 @@ class Window(QtWidgets.QMainWindow):
       window_configs[window_id].candle_type = CANDLE_TYPE_CANDLESTICK
       window_configs[window_id].trade_type = TRADE_TYPE_TRENDING
       window_configs[window_id].bband_type = BBAND_TYPE_DEFAULT
+      window_configs[window_id].indicator_type = CHART_INDICATORS
       window_configs[window_id].ai_enabled = False
       window_configs[window_id].ai_trending_market = True
 
@@ -1836,7 +1873,9 @@ class Window(QtWidgets.QMainWindow):
       heikinashiChartAction = QtWidgets.QAction("heikin ashi", self)
       trendbarsChartActionEnable = QtWidgets.QAction("+better bband", self)
       trendbarsChartActionDisable = QtWidgets.QAction("-better bband", self)
-      if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT":
+      chartOnlyActionEnable = QtWidgets.QAction("+chart only", self)
+      chartOnlyActionDisable = QtWidgets.QAction("-chart only", self)
+      if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT" and timeframe_entered == "1h":
           aiActionEnable = QtWidgets.QAction("+neural network", self)
       closeAction = QtWidgets.QAction("close", self)
       tabBarMenu.addAction(trendingMarketAction)
@@ -1845,7 +1884,9 @@ class Window(QtWidgets.QMainWindow):
       tabBarMenu.addAction(heikinashiChartAction)
       tabBarMenu.addAction(trendbarsChartActionEnable)
       tabBarMenu.addAction(trendbarsChartActionDisable)
-      if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT":
+      tabBarMenu.addAction(chartOnlyActionEnable)
+      tabBarMenu.addAction(chartOnlyActionDisable)
+      if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT" and timeframe_entered == "1h":
         tabBarMenu.addAction(aiActionEnable)
       tabBarMenu.addAction(closeAction)
       trendingMarketAction.triggered.connect(functools.partial(self.trendingEnabled, window_ids[tab_index]))
@@ -1854,7 +1895,9 @@ class Window(QtWidgets.QMainWindow):
       heikinashiChartAction.triggered.connect(functools.partial(self.heikinashiEnabled, window_ids[tab_index]))
       trendbarsChartActionEnable.triggered.connect(functools.partial(self.trendbarsEnabled, window_ids[tab_index]))
       trendbarsChartActionDisable.triggered.connect(functools.partial(self.trendbarsDisabled, window_ids[tab_index]))
-      if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT":
+      chartOnlyActionEnable.triggered.connect(functools.partial(self.chartOnlyEnable, window_ids[tab_index]))
+      chartOnlyActionDisable.triggered.connect(functools.partial(self.chartOnlyDisable, window_ids[tab_index]))
+      if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT" and timeframe_entered == "1h":
         aiActionEnable.triggered.connect(functools.partial(self.aiEnabled, window_ids[tab_index]))
       closeAction.triggered.connect(functools.partial(self.removeTab, window_ids[tab_index], selected_exchange))
 

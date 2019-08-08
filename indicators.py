@@ -67,7 +67,8 @@ class indicator_BBANDS():
     self.name="BBANDS"
     self.overlay_chart = True
     self.better_bbands = better_bbands
-  
+    self.first = True
+
   def generate_values(self, open_, high, low, close, volume):
     if self.better_bbands == False:
       self.bb_upper, self.bb_middle, self.bb_lower = talib.BBANDS(np.array(close) * 10000, timeperiod=20)
@@ -87,9 +88,18 @@ class indicator_BBANDS():
     self.bb_upper_[0].set_ydata(self.bb_upper)
     self.bb_middle_[0].set_ydata(self.bb_middle)
     self.bb_lower_[0].set_ydata(self.bb_lower)
-  
+
   def xaxis_get_start(self):
-    return 0
+    if self.first == True:
+      start_x = 0
+      self.first = False
+      for i in range(0, len(self.bb_upper)):
+          if not np.isnan(self.bb_upper[i]):
+            start_x = i
+            break
+      return start_x
+    else:
+      return 0
 
   def in_keltner(self, axis, dates, keltner_upper, keltner_lower, lowest_price):
     in_keltner_channel = False
