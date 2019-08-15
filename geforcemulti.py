@@ -1052,25 +1052,40 @@ class ChartRunner(QtCore.QThread):
             time_to_next_candle = "%02d:%02d" % (minutes, seconds)
           else:
             time_to_next_candle = "%02d:%02d:%02d" % (hours, minutes, seconds)
-
+ 
           if first == True:
             color = "#2c681d"  # green
             line_color = green
             text_color = white
 
-            if prices[-1][4] < prices[-1][1]:
-                color = "#681d1d"  # red
-                line_color = red
-                text_color = white
-
             tag_title = symbol + " " + ticker_formatted
+            if current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
+                ticker_heikin_ashi = prices2[-1][4]
+                ticker_formatted_heikin_ashi = str(accounts.client(self.exchange).price_to_precision(symbol, ticker_heikin_ashi))
+                if "e-" in str(ticker) or "e+" in str(ticker_heikin_ashi):
+                    d1 = ctx.create_decimal(repr(ticker_heikin_ashi))
+                    ticker_formatted_heikin_ashi = format(d1, 'f')
+                tag_title_ = tag_title + "\n"
+                tag_title_ = tag_title_ + " " * (len(tag_title)-len(ticker_formatted_heikin_ashi)) + ticker_formatted_heikin_ashi
+                ticker_for_line = prices2[-1][4]
+                if prices2[-1][4] < prices2[-1][1]:
+                    color = "#681d1d"  # red
+                    line_color = red
+                    text_color = white
+            else:
+                if prices[-1][4] < prices[-1][1]:
+                    color = "#681d1d"  # red
+                    line_color = red
+                    text_color = white
+                tag_title_ = tag_title
 
             if time.time() <= time_close and not (hours == 0 and minutes == 0 and seconds == 0):
-                tag_title = tag_title + "\n"
-                tag_title = tag_title + " " * (len(tag_title)-len(time_to_next_candle)-1) + time_to_next_candle
+                tag_title_ = tag_title_ + "\n"
+                tag_title_ = tag_title_ + " " * (len(tag_title)-len(time_to_next_candle)) + time_to_next_candle
 
             price_line = ax.axhline(ticker_for_line, color=line_color, linestyle="dotted", lw=.9)
-            annotation = ax.text(date[-1] + (date[-1]-date[-5]), ticker_for_line, tag_title, fontsize=7, weight="bold", color=text_color, backgroundcolor=color, family="monospace")
+            annotation = ax.text(date[-1] + (date[-1] - date[-5]), ticker_for_line, tag_title_, fontsize=7,
+                                 weight="bold", color=text_color, backgroundcolor=color, family="monospace")
 
             self.CANVAS_GET_SIZE.emit(self.tab_index, annotation)
             tbox = aqs[tab_index].get()
@@ -1082,19 +1097,35 @@ class ChartRunner(QtCore.QThread):
             color = "#2c681d"  # green
             line_color = green
             text_color = white
-            if prices[-1][4] < prices[-1][1]:
-                color = "#681d1d"  # red
-                line_color = red
-                text = white
 
             tag_title = symbol + " " + ticker_formatted
+            if current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
+                ticker_heikin_ashi = prices2[-1][4]
+                ticker_formatted_heikin_ashi = str(accounts.client(self.exchange).price_to_precision(symbol, ticker_heikin_ashi))
+                if "e-" in str(ticker) or "e+" in str(ticker_heikin_ashi):
+                    d1 = ctx.create_decimal(repr(ticker_heikin_ashi))
+                    ticker_formatted_heikin_ashi = format(d1, 'f')
+                tag_title_ = tag_title + "\n"
+                tag_title_ = tag_title_ + " " * (len(tag_title)-len(ticker_formatted_heikin_ashi)) + ticker_formatted_heikin_ashi
+                ticker_for_line = prices2[-1][4]
+                if prices2[-1][4] < prices2[-1][1]:
+                    color = "#681d1d"  # red
+                    line_color = red
+                    text_color = white
+            else:
+                if prices[-1][4] < prices[-1][1]:
+                    color = "#681d1d"  # red
+                    line_color = red
+                    text_color = white
+                tag_title_ = tag_title
+
             if time.time() <= time_close and not (hours == 0 and minutes == 0 and seconds == 0):
-                tag_title = tag_title + "\n"
-                tag_title = tag_title + " " * (len(tag_title)-len(time_to_next_candle)-1) + time_to_next_candle
+                tag_title_ = tag_title_ + "\n"
+                tag_title_ = tag_title_ + " " * (len(tag_title)-len(time_to_next_candle)) + time_to_next_candle
 
             price_line.set_ydata(ticker_for_line)
             price_line.set_color(line_color)
-            annotation.set_text(tag_title)
+            annotation.set_text(tag_title_)
             annotation.set_y(ticker_for_line)
             annotation.set_backgroundcolor(color)
             annotation.set_bbox(dict(facecolor=color, edgecolor=text_color, lw=.5))
