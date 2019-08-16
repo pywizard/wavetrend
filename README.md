@@ -4,7 +4,7 @@ Wavetrend is a trading terminal for Bitcoin and Altcoins
 
 SUPPORTED EXCHANGES
 =====
-BINANCE, BITFINEX, KRAKEN
+BINANCE, BITFINEX, KRAKEN, OANDA
 
 FEATURES
 =====
