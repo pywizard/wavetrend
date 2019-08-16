@@ -467,13 +467,16 @@ class DataRunner:
         self.exchange_obj = exchanges.Kraken(accounts.exchanges[accounts.EXCHANGE_KRAKEN]["markets"])
         self.exchange_obj.start_ticker_websocket(self.symbol, self.process_message_ticker)
         self.websocket_ticker_alive_time = time.time()
-    self.exchange_obj.start_candlestick_websocket(self.symbol, self.timeframe_entered, self.process_message)
+    elif self.exchange == accounts.EXCHANGE_OANDA:
+        self.exchange_obj = None
 
-    self.kill_websocket_watch_thread = False
-    self.websocket_alive_time = time.time()
-    self.websocket_watch_thread = threading.Thread(target=self.websocket_watch)
-    self.websocket_watch_thread.daemon = True
-    self.websocket_watch_thread.start()
+    if self.exchange_obj is not None:
+        self.exchange_obj.start_candlestick_websocket(self.symbol, self.timeframe_entered, self.process_message)
+        self.kill_websocket_watch_thread = False
+        self.websocket_alive_time = time.time()
+        self.websocket_watch_thread = threading.Thread(target=self.websocket_watch)
+        self.websocket_watch_thread.daemon = True
+        self.websocket_watch_thread.start()
 
   def restart_websocket(self):
       self.chanid = -1
@@ -816,12 +819,22 @@ class ChartRunner(QtCore.QThread):
                               elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
                 date2 = None
           elif first == False and force_redraw_chart == False:
-            try:
-                chart_result = dqs[self.tab_index].pop()
-                dqs[self.tab_index].clear()
-                [date2, open2_, high2, low2, close2, vol2, limit2] = chart_result
-            except IndexError:
-                pass
+            if self.exchange == accounts.EXCHANGE_OANDA:
+                dateX, openX, highX, lowX, closeX, volX, limitX = self.getData(timeframe_entered, days_entered, symbol, fixed_limit=1)
+                date2 = dateX[-1]
+                open2_ = openX[-1]
+                high2 = highX[-1]
+                low2 = lowX[-1]
+                close2 = closeX[-1]
+                vol2 = volX[-1]
+                limit2 = 1
+            else:
+                try:
+                    chart_result = dqs[self.tab_index].pop()
+                    dqs[self.tab_index].clear()
+                    [date2, open2_, high2, low2, close2, vol2, limit2] = chart_result
+                except IndexError:
+                    pass
           else:
               if first == False and force_redraw_chart == True:
                 self.FIGURE_CLEAR.emit(self.tab_index)
@@ -1299,49 +1312,52 @@ class ChartRunner(QtCore.QThread):
 
     self.CHART_DESTROY.emit(self.tab_index, self.exchange)
     
-  def getData(self, timeframe_entered, days_entered, currency_entered):
-    limit = 0
-    if timeframe_entered == "15m":
-        limit = int(days_entered * 4 * 24)
+  def getData(self, timeframe_entered, days_entered, currency_entered, fixed_limit=None):
+    if fixed_limit == None:
+        limit = 0
+        if timeframe_entered == "15m":
+            limit = int(days_entered * 4 * 24)
 
-    if timeframe_entered == "1m":
-        limit = int(days_entered * 60 * 24)
+        if timeframe_entered == "1m":
+            limit = int(days_entered * 60 * 24)
 
-    if timeframe_entered == "3m":
-        limit = int(days_entered * 20 * 24)
+        if timeframe_entered == "3m":
+            limit = int(days_entered * 20 * 24)
 
-    if timeframe_entered == "5m":
-        limit = int(days_entered * 12 * 24)
+        if timeframe_entered == "5m":
+            limit = int(days_entered * 12 * 24)
 
-    if timeframe_entered == "30m":
-        limit = int(days_entered * 2 * 24)
+        if timeframe_entered == "30m":
+            limit = int(days_entered * 2 * 24)
 
-    if timeframe_entered == "1h":
-        limit = int(days_entered * 24)
+        if timeframe_entered == "1h":
+            limit = int(days_entered * 24)
 
-    if timeframe_entered == "2h":
-        limit = int(days_entered * (24/2))
+        if timeframe_entered == "2h":
+            limit = int(days_entered * (24/2))
 
-    if timeframe_entered == "3h":
-        limit = int(days_entered * (24/3))
+        if timeframe_entered == "3h":
+            limit = int(days_entered * (24/3))
 
-    if timeframe_entered == "4h":
-        limit = int(days_entered * (24/4))
+        if timeframe_entered == "4h":
+            limit = int(days_entered * (24/4))
 
-    if timeframe_entered == "6h":
-        limit = int(days_entered * (24/6))
+        if timeframe_entered == "6h":
+            limit = int(days_entered * (24/6))
 
-    if timeframe_entered == "8h":
-        limit = int(days_entered * (24/8))
+        if timeframe_entered == "8h":
+            limit = int(days_entered * (24/8))
 
-    if timeframe_entered == "12h":
-        limit = int(days_entered * (24/12))
+        if timeframe_entered == "12h":
+            limit = int(days_entered * (24/12))
 
-    if timeframe_entered == "1d":
-        limit = int(days_entered)
+        if timeframe_entered == "1d":
+            limit = int(days_entered)
 
-    if timeframe_entered == "3d":
-        limit = int(days_entered / 3)
+        if timeframe_entered == "3d":
+            limit = int(days_entered / 3)
+    else:
+        limit = fixed_limit
 
     dt = []
     open_ = []
@@ -1366,7 +1382,10 @@ class ChartRunner(QtCore.QThread):
         candles = candles[len(candles)-limit:]
 
     for candle in candles:
-        dt.append(datetime.datetime.fromtimestamp(int(candle[0]) / 1000))
+        if self.exchange == accounts.EXCHANGE_OANDA:
+            dt.append(datetime.datetime.fromtimestamp(candle[0]))
+        else:
+            dt.append(datetime.datetime.fromtimestamp(int(candle[0]) / 1000))
         open_.append(float(candle[1]))
         high.append(float(candle[2]))
         low.append(float(candle[3]))
@@ -1388,6 +1407,9 @@ class UpdateUsdBalanceRunner(QtCore.QThread):
   def run(self):
     global qs_local
     global destroyed_window_ids
+
+    if self.exchange == accounts.EXCHANGE_OANDA:
+        return
 
     time.sleep(5)
     while True:
@@ -1693,24 +1715,26 @@ class Window(QtWidgets.QMainWindow):
 
         global DataRunnerTabs
 
-        DataRunnerTabs[winid].kill_websocket_watch_thread = True
-        DataRunnerTabs[winid].websocket_watch_thread.join()
-        DataRunnerTabs[winid].exchange_obj.stop_candlestick_websocket()
-        if exchange == accounts.EXCHANGE_BITFINEX or exchange == accounts.EXCHANGE_KRAKEN:
-            DataRunnerTabs[winid].exchange_obj.stop_ticker_websocket()
-        del DataRunnerTabs[winid].exchange_obj
+        if exchange != accounts.EXCHANGE_OANDA:
+            DataRunnerTabs[winid].kill_websocket_watch_thread = True
+            DataRunnerTabs[winid].websocket_watch_thread.join()
+            DataRunnerTabs[winid].exchange_obj.stop_candlestick_websocket()
+            if exchange == accounts.EXCHANGE_BITFINEX or exchange == accounts.EXCHANGE_KRAKEN:
+                DataRunnerTabs[winid].exchange_obj.stop_ticker_websocket()
+            del DataRunnerTabs[winid].exchange_obj
         del DataRunnerTabs[winid]
 
-        self.OrderbookWidget[tab_index].exchange_obj.stop_depth_websocket()
-        self.OrderbookWidget[tab_index].exchange_obj.stop_trades_websocket()
-        self.OrderbookWidget[tab_index].kill_websocket_watch_thread = True
-        self.OrderbookWidget[tab_index].websocket_watch_thread.join()
-        if window_configs[winid].ai_enabled == True:
-            self.neural_network.exit_thread = True
-            self.neural_network.wait()
-            self.aiDialog.close()
+        if exchange != accounts.EXCHANGE_OANDA:
+            self.OrderbookWidget[tab_index].exchange_obj.stop_depth_websocket()
+            self.OrderbookWidget[tab_index].exchange_obj.stop_trades_websocket()
+            self.OrderbookWidget[tab_index].kill_websocket_watch_thread = True
+            self.OrderbookWidget[tab_index].websocket_watch_thread.join()
+            if window_configs[winid].ai_enabled == True:
+                self.neural_network.exit_thread = True
+                self.neural_network.wait()
+                self.aiDialog.close()
 
-        del self.OrderbookWidget[tab_index].exchange_obj
+            del self.OrderbookWidget[tab_index].exchange_obj
         del self.OrderbookWidget[tab_index]
 
         self.tabWidget.removeTab(tab_index)
@@ -2218,7 +2242,10 @@ class Dialog(QtWidgets.QDialog):
 
     def updateWidget(self):
         self.tableWidget.setColumnCount(4)
-        self.tableWidget.setHorizontalHeaderLabels(["Symbol", "Price Change", "Price Change %", "Volume"])
+        if self.selected_exchange == accounts.EXCHANGE_OANDA:
+            self.tableWidget.setHorizontalHeaderLabels(["Instrument", "Price Change", "Price Change %", "Name"])
+        else:
+            self.tableWidget.setHorizontalHeaderLabels(["Symbol", "Price Change", "Price Change %", "Volume"])
         self.comboBox.clear()
         self.tableWidget.setRowCount(0)
         self.comboBox.addItem("1d")
@@ -2229,25 +2256,31 @@ class Dialog(QtWidgets.QDialog):
 
         coins = accounts.fetch_tickers(self.selected_exchange)
 
-        if "BTC/USD" in coins:
-            btcusd_symbol = "BTC/USD"
+        if self.selected_exchange == accounts.EXCHANGE_OANDA:
+            coins_ = []
+            for coin, value in coins.items():
+                coins_.append(coins[coin])
+            coins = copy.deepcopy(coins_)
         else:
-            btcusd_symbol = "BTC/USDT"
+            if "BTC/USD" in coins:
+                btcusd_symbol = "BTC/USD"
+            else:
+                btcusd_symbol = "BTC/USDT"
 
-        btc_price = coins[btcusd_symbol]["last"]
-        coins_ = []
-        for coin, value in coins.items():
-            if coin.endswith("BTC"):
-                coins[coin]["volumeFloat"] = int(
-                    float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]) * btc_price)
-                coins_.append(coins[coin])
-            if coin.endswith("USDT"):
-                coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]))
-                coins_.append(coins[coin])
-            if coin.endswith("USD"):
-                coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]))
-                coins_.append(coins[coin])
-        coins = sorted(coins_, key=itemgetter("volumeFloat"), reverse=True)
+            btc_price = coins[btcusd_symbol]["last"]
+            coins_ = []
+            for coin, value in coins.items():
+                if coin.endswith("BTC"):
+                    coins[coin]["volumeFloat"] = int(
+                        float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]) * btc_price)
+                    coins_.append(coins[coin])
+                if coin.endswith("USDT"):
+                    coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]))
+                    coins_.append(coins[coin])
+                if coin.endswith("USD"):
+                    coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]))
+                    coins_.append(coins[coin])
+            coins = sorted(coins_, key=itemgetter("volumeFloat"), reverse=True)
 
         self.tableWidget.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
 
@@ -2267,7 +2300,11 @@ class Dialog(QtWidgets.QDialog):
                     hasPercentage = True
                 else:
                     self.tableWidget.setItem(rowPosition, 2, QtWidgets.QTableWidgetItem(""))
-                self.tableWidget.setItem(rowPosition, 3, QtWidgets.QTableWidgetItem(str(coin["volumeFloat"])))
+
+                if self.selected_exchange == accounts.EXCHANGE_OANDA:
+                    self.tableWidget.setItem(rowPosition, 3, QtWidgets.QTableWidgetItem(str(coin["name"])))
+                else:
+                    self.tableWidget.setItem(rowPosition, 3, QtWidgets.QTableWidgetItem(str(coin["volumeFloat"])))
                 if "change" in coin and coin["change"]:
                     if float(coin["change"]) < 0:
                         self.tableWidget.item(rowPosition, 0).setForeground(QtGui.QColor(255, 0, 0))
@@ -2326,12 +2363,13 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.winid = winid
         self.symbol = symbol
 
-        self.kill_websocket_watch_thread = False
-        self.websocket_alive_time = time.time()
-        self.websocket_alive_time_trades = time.time()
-        self.websocket_watch_thread = threading.Thread(target=self.websocket_watch)
-        self.websocket_watch_thread.daemon = True
-        self.websocket_watch_thread.start()
+        if self.exchange != accounts.EXCHANGE_OANDA:
+            self.kill_websocket_watch_thread = False
+            self.websocket_alive_time = time.time()
+            self.websocket_alive_time_trades = time.time()
+            self.websocket_watch_thread = threading.Thread(target=self.websocket_watch)
+            self.websocket_watch_thread.daemon = True
+            self.websocket_watch_thread.start()
         self.wss_chanid = -1
         self.wss_orderbook = {}
         self.wss_orderbook["bids"] = {}
@@ -2402,6 +2440,8 @@ class OrderBookWidget(QtWidgets.QWidget):
         widget_verticalLayout.addWidget(self.tableWidgetTrades)
         self.tableWidgetTrades.setMinimumHeight(self.height()*0.4)
         self.orderbookWidthAdjusted = False
+        if self.exchange == accounts.EXCHANGE_OANDA:
+            self.orderbookWidthAdjusted = True # XXX adjusted fo testing
         self.tableWidgetBids.hide()
         self.tableWidgetAsks.hide()
         self.tableWidgetTrades.hide()
@@ -2951,8 +2991,12 @@ class OrderBookWidget(QtWidgets.QWidget):
                                                   accounts.exchanges[accounts.EXCHANGE_BINANCE]["api_secret"])
         elif self.exchange == accounts.EXCHANGE_KRAKEN:
             self.exchange_obj = exchanges.Kraken(accounts.exchanges[accounts.EXCHANGE_KRAKEN]["markets"])
-        self.exchange_obj.start_depth_websocket(self.symbol, self.process_message)
-        self.exchange_obj.start_trades_websocket(self.symbol, self.process_message_trades)
+        elif self.exchange == accounts.EXCHANGE_OANDA:
+            self.exchange_obj = None
+
+        if self.exchange_obj is not None:
+            self.exchange_obj.start_depth_websocket(self.symbol, self.process_message)
+            self.exchange_obj.start_trades_websocket(self.symbol, self.process_message_trades)
 
 def closeSplashScreen():
     # close opened splash screen

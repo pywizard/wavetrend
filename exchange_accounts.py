@@ -1,10 +1,12 @@
 import ccxt
 import sys
 import time
+import oanda
 
 EXCHANGE_BITFINEX = "BITFINEX"
 EXCHANGE_BINANCE = "BINANCE"
 EXCHANGE_KRAKEN = "KRAKEN"
+EXCHANGE_OANDA = "OANDA"
 
 class ExchangeAccounts:
     def __init__(self, exchanges):
@@ -12,6 +14,7 @@ class ExchangeAccounts:
         self.EXCHANGE_BITFINEX = "BITFINEX"
         self.EXCHANGE_BINANCE = "BINANCE"
         self.EXCHANGE_KRAKEN = "KRAKEN"
+        self.EXCHANGE_OANDA = "OANDA"
 
         for exchange in exchanges:
             exchange_name = exchange[0]
@@ -29,6 +32,10 @@ class ExchangeAccounts:
                 self.exchanges[EXCHANGE_KRAKEN] = {}
                 self.exchanges[EXCHANGE_KRAKEN]["api_key"] = exchange_api_key
                 self.exchanges[EXCHANGE_KRAKEN]["api_secret"] = exchange_api_secret
+            elif exchange_name == EXCHANGE_OANDA:
+                self.exchanges[EXCHANGE_OANDA] = {}
+                self.exchanges[EXCHANGE_OANDA]["account_id"] = exchange_api_key
+                self.exchanges[EXCHANGE_OANDA]["account_token"] = exchange_api_secret
             else:
                 print("Please configure a valid Exchange.")
                 sys.exit(1)
@@ -59,6 +66,9 @@ class ExchangeAccounts:
                     'secret': self.exchanges[EXCHANGE_KRAKEN]["api_secret"],
                     'enableRateLimit': True
                 })
+            elif exchange_name == EXCHANGE_OANDA:
+                self.exchanges[exchange_name]["client"] = oanda.oanda(self.exchanges[EXCHANGE_OANDA]["account_id"], \
+                                                                      self.exchanges[EXCHANGE_OANDA]["account_token"])
             else:
                 print("Please configure a valid Exchange.")
                 sys.exit(1)
