@@ -1268,13 +1268,13 @@ class ChartRunner(QtCore.QThread):
               # regard closed trading hours, Friday 5pm to Sunday 5pm
               nyc_time_now = arrow.now('America/New_York').datetime
               nyc_time_now_5pm = nyc_time_now.replace(hour=17, minute=0, second=0, microsecond=0)
-              weekday_now = arrow.now('America/New_York').datetime.weekday()
-              if weekday_now == 4:  # Friday
+              nyc_weekday_now = nyc_time_now.weekday()
+              if nyc_weekday_now == 4:  # Friday
                   if nyc_time_now >= nyc_time_now_5pm:
                     closed_hours = True
-              elif weekday_now == 5:  # Saturday
+              elif nyc_weekday_now == 5:  # Saturday
                   closed_hours = True
-              elif weekday_now == 6:  # Sunday
+              elif nyc_weekday_now == 6:  # Sunday
                   if nyc_time_now < nyc_time_now_5pm:
                       closed_hours = True
 
