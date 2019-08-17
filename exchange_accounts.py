@@ -73,7 +73,6 @@ class ExchangeAccounts:
                 print("Please configure a valid Exchange.")
                 sys.exit(1)
             self.exchanges[exchange_name]["markets"] = self.exchanges[exchange_name]["client"].fetch_markets()
-            self.exchanges[exchange_name]["tickers"] = self.exchanges[exchange_name]["client"].fetch_tickers()
 
     def fetch_tickers(self, exchange):
         while True:

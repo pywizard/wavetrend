@@ -820,23 +820,6 @@ class ChartRunner(QtCore.QThread):
                               elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
                 date2 = None
           elif first == False and force_redraw_chart == False:
-            if self.exchange == accounts.EXCHANGE_OANDA:
-                # regard closed trading hours, Friday 5pm to Sunday 5pm
-                nyc_time_now = arrow.now('America/New_York').datetime
-                nyc_time_now_5pm = nyc_time_now.replace(hour=17, minute=0, second=0, microsecond=0)
-                weekday_now = datetime.datetime.now().weekday()
-                if weekday_now == 4: # Friday
-                    if nyc_time_now >= nyc_time_now_5pm:
-                        time.sleep(60*60)
-                        continue
-                elif weekday_now == 5: # Saturday
-                    time.sleep(60*60)
-                    continue
-                elif weekday_now == 6: # Sunday
-                    if nyc_time_now < nyc_time_now_5pm:
-                        time.sleep(60*60)
-                        continue
-                ###
                 dateX, openX, highX, lowX, closeX, volX, limitX = self.getData(timeframe_entered, days_entered, symbol, fixed_limit=1)
                 date2 = dateX[-1]
                 open2_ = openX[-1]
@@ -845,7 +828,7 @@ class ChartRunner(QtCore.QThread):
                 close2 = closeX[-1]
                 vol2 = volX[-1]
                 limit2 = 1
-            else:
+          elif first == False and force_redraw_chart == False:
                 try:
                     chart_result = dqs[self.tab_index].pop()
                     dqs[self.tab_index].clear()
@@ -1280,7 +1263,28 @@ class ChartRunner(QtCore.QThread):
           pclose.clear()
           pvol.clear()
 
-          if init == False and time.time() > time_close:
+          closed_hours = False
+          if self.exchange == accounts.EXCHANGE_OANDA:
+              # regard closed trading hours, Friday 5pm to Sunday 5pm
+              nyc_time_now = arrow.now('America/New_York').datetime
+              nyc_time_now_5pm = nyc_time_now.replace(hour=17, minute=0, second=0, microsecond=0)
+              weekday_now = arrow.now('America/New_York').datetime.weekday()
+              if weekday_now == 4:  # Friday
+                  if nyc_time_now >= nyc_time_now_5pm:
+                    closed_hours = True
+              elif weekday_now == 5:  # Saturday
+                  closed_hours = True
+              elif weekday_now == 6:  # Sunday
+                  if nyc_time_now < nyc_time_now_5pm:
+                      closed_hours = True
+
+          if closed_hours == True:
+            do_break = False
+            if tab_index in destroyed_window_ids:
+                do_break = True
+            self.CANVAS_DRAW.emit(self.tab_index)
+            aqs[tab_index].get()
+          elif init == False and time.time() > time_close:
             do_break = False
             while True:
               if tab_index in destroyed_window_ids:
@@ -1300,7 +1304,6 @@ class ChartRunner(QtCore.QThread):
               else:
                   force_redraw_chart = True
                   time.sleep(0.1)
-
           else:
             do_break = False
             while True:
@@ -1325,7 +1328,7 @@ class ChartRunner(QtCore.QThread):
           init = False
         except:
           print(get_full_stacktrace())
-          
+
 
     self.CHART_DESTROY.emit(self.tab_index, self.exchange)
     
