@@ -39,6 +39,7 @@ import prettydate
 import collections
 from exchange_accounts import ExchangeAccounts
 import nn
+import arrow
 
 #FIX: squash memory leak for redraws
 class MyTransformNode(object):
@@ -820,6 +821,22 @@ class ChartRunner(QtCore.QThread):
                 date2 = None
           elif first == False and force_redraw_chart == False:
             if self.exchange == accounts.EXCHANGE_OANDA:
+                # regard closed trading hours, Friday 5pm to Sunday 5pm
+                nyc_time_now = arrow.now('America/New_York').datetime
+                nyc_time_now_5pm = nyc_time_now.replace(hour=17, minute=0, second=0, microsecond=0)
+                weekday_now = datetime.datetime.now().weekday()
+                if weekday_now == 4: # Friday
+                    if nyc_time_now >= nyc_time_now_5pm:
+                        time.sleep(60*60)
+                        continue
+                elif weekday_now == 5: # Saturday
+                    time.sleep(60*60)
+                    continue
+                elif weekday_now == 6: # Sunday
+                    if nyc_time_now < nyc_time_now_5pm:
+                        time.sleep(60*60)
+                        continue
+                ###
                 dateX, openX, highX, lowX, closeX, volX, limitX = self.getData(timeframe_entered, days_entered, symbol, fixed_limit=1)
                 date2 = dateX[-1]
                 open2_ = openX[-1]
