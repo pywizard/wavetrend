@@ -35,12 +35,14 @@ class oanda (Exchange):
             '15m': 'M15',
             '30m': 'M30',
             '1h': 'H1',
+            '2h': 'H2',
             '3h': 'H3',
-            '6h': 'H5',
+            '4h': 'H4',
+            '6h': 'H6',
+            '8h': 'H8',
             '12h': 'H12',
             '1d': 'D',
-            '1w': 'W',
-            '1M': 'M',
+            '1w': 'W'
         }
     def describe(self):
         return self.deep_extend(super(oanda, self).describe(), {

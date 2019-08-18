@@ -416,11 +416,11 @@ DataRunnerTabs = {}
 
 days_table = {"1m": 0.17, "3m": .5, "5m": .9, "15m": 2.5, "30m": 5 , "1h": 10, \
               "2h": 20, "3h": 30, "4h": 40, "6h": 60, "8h": 80, "12h": 120, \
-              "1d": 240, "1D": 240, "3d": 3*240, "3D": 3*240}
+              "1d": 240, "1D": 240, "3d": 3*240, "3D": 3*240, "1w": 240*7}
 elapsed_table = {"1m": 60, "3m": 60*3, "5m": 60*5, "15m": 60*15, "30m": 60*30, \
                  "1h": 60*60, "2h": 60*60*2, "3h": 60*60*3, "4h": 60*60*4, \
                  "6h": 60*60*6, "8h": 60*60*8, "12h": 60*60*12, "1d": 60*60*24, "1D": 60*60*24, \
-                 "3d": 60*60*24*3, "3D": 60*60*24*3}
+                 "3d": 60*60*24*3, "3D": 60*60*24*3, "1w": 60*60*24*7}
 
 from operator import itemgetter
 
@@ -1162,9 +1162,9 @@ class ChartRunner(QtCore.QThread):
                                                        indicators[keltner_index].keltner_lband[index], lowest_price)
                 squeeze_now_shown = True
 
-          if first == True and self.timeframe_entered in ["12h","1d","1D","3d","3D"]:
+          if first == True and self.timeframe_entered in ["12h","1d","1D","3d","3D","1w"]:
             scanner_results = self.candlescanner(popen, phigh, plow, pclose)
-          elif self.timeframe_entered not in ["12h","1d","1D","3d","3D"]:
+          elif self.timeframe_entered not in ["12h","1d","1D","3d","3D","1w"]:
             scanner_results = []
           if current_candle_type == CANDLE_TYPE_CANDLESTICK:
             last_line1, last_line2, last_rect, last_trendbar_color, trendbars_display_counter = \
@@ -1376,8 +1376,14 @@ class ChartRunner(QtCore.QThread):
 
         if timeframe_entered == "3d":
             limit = int(days_entered / 3)
+
+        if timeframe_entered == "1w":
+            limit = int(days_entered / 7)
     else:
         limit = fixed_limit
+
+    if self.exchange == accounts.EXCHANGE_OANDA:
+        limit = int(limit * 1.25)
 
     dt = []
     open_ = []
@@ -2271,6 +2277,9 @@ class Dialog(QtWidgets.QDialog):
         self.comboBox.addItem("1d")
         for key, value in accounts.client(self.selected_exchange).timeframes.items():
             if key == "1d" or key not in days_table.keys():
+                continue
+            if key == "1w" and (self.selected_exchange == accounts.EXCHANGE_BITFINEX or \
+                                self.selected_exchange == accounts.EXCHANGE_BINANCE):
                 continue
             self.comboBox.addItem(key)
 
