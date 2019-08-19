@@ -20,6 +20,7 @@ import json
 import requests
 import arrow
 import warnings
+import time
 warnings.filterwarnings("ignore")
 
 class oanda (Exchange):
@@ -44,6 +45,10 @@ class oanda (Exchange):
             '1d': 'D',
             '1w': 'W'
         }
+        self.elapsed_table = {"1m": 60, "3m": 60*3, "5m": 60*5, "15m": 60*15, "30m": 60*30, \
+                 "1h": 60*60, "2h": 60*60*2, "3h": 60*60*3, "4h": 60*60*4, \
+                 "6h": 60*60*6, "8h": 60*60*8, "12h": 60*60*12, "1d": 60*60*24, "1D": 60*60*24, \
+                 "3d": 60*60*24*3, "3D": 60*60*24*3, "1w": 60*60*24*7}
     def describe(self):
         return self.deep_extend(super(oanda, self).describe(), {
             'id': 'oanda',
@@ -109,18 +114,6 @@ class oanda (Exchange):
 
     def fetch_balance(self, params={}):
         return 0
-
-    def fetch_order_book(self, symbol, limit=None, params={}):
-        return #XXX
-        self.load_markets()
-        request = {
-            'symbol': self.market_id(symbol),
-        }
-        if limit is not None:
-            request['limit_bids'] = limit
-            request['limit_asks'] = limit
-        response = self.publicGetBookSymbol(self.extend(request, params))
-        return self.parse_order_book(response, None, 'bids', 'asks', 'price', 'amount')
 
     def fetch_tickers(self, symbols=None, params={}):
         instruments = self.oanda.get_instruments()
@@ -192,12 +185,16 @@ class oanda (Exchange):
         json_body = response.json()
 
         candles = []
+        real_timestamps = []
+        fake_timestamps = 86400
         for candle in json_body["candles"]:
             candle_time = candle["time"][:-8]
-            timestamp = arrow.get(candle_time, 'YYYY-MM-DDTHH:mm:ss').timestamp
-            candles.append([timestamp, candle["openMid"], candle["highMid"], candle["lowMid"], candle["closeMid"],candle["volume"]])
+            timestamp = arrow.get(candle_time, 'YYYY-MM-DDTHH:mm:ss').datetime
+            real_timestamps.append(timestamp)
+            candles.append([int(fake_timestamps), candle["openMid"], candle["highMid"], candle["lowMid"], candle["closeMid"],candle["volume"]])
+            fake_timestamps = fake_timestamps + self.elapsed_table[timeframe]
 
-        return candles
+        return candles, real_timestamps
 
     def handle_errors(self, code, reason, url, method, headers, body, response):
         if response is None:

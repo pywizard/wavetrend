@@ -15,6 +15,7 @@ from matplotlib.figure import Figure
 from matplotlib.dates import date2num
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
+from matplotlib.ticker import FuncFormatter
 import ctypes
 from matplotlib.transforms import Bbox
 from matplotlib.backends.backend_agg import FigureCanvasAgg
@@ -681,7 +682,7 @@ class ChartRunner(QtCore.QThread):
                   [talib.CDLTRISTAR, "Tristar", "Reversal Moderate STRING"],
                   [talib.CDLTASUKIGAP, "Tasuki Gap", "Market Continuation"],
                   [talib.CDLCLOSINGMARUBOZU, 'Closing Marubozu', 'Closing Marubozu'],
-                  [talib.CDLCONCEALBABYSWALL, 'Concealing Baby Swallow STRONG'],
+                  [talib.CDLCONCEALBABYSWALL, 'Concealing Baby Swallow', 'Bullish Reversal STRONG'],
                   [talib.CDLCOUNTERATTACK, 'Counterattack'],
                   [talib.CDLDOJISTAR, 'Doji Star'],
                   [talib.CDLGAPSIDESIDEWHITE, 'Up/Down-gap side-by-side white lines'],
@@ -815,12 +816,18 @@ class ChartRunner(QtCore.QThread):
               force_redraw_chart = True
 
           if first == True and force_redraw_chart == False:
-                date, open_, high, low, close, vol, limit = self.getData(timeframe_entered, days_entered, symbol)
-                time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
-                              elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
+                date, open_, high, low, close, vol, limit, real_timestamps = self.getData(timeframe_entered, days_entered, symbol)
+                if self.exchange == accounts.EXCHANGE_OANDA:
+                    time_close = (datetime.datetime.timestamp(real_timestamps[-1]) // elapsed_table[self.timeframe_entered] * \
+                                  elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
+                else:
+                    time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
+                                  elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
                 date2 = None
           elif first == False and force_redraw_chart == False:
-                dateX, openX, highX, lowX, closeX, volX, limitX = self.getData(timeframe_entered, days_entered, symbol, fixed_limit=1)
+                dateX, openX, highX, lowX, closeX, volX, limitX, real_timestampsX = self.getData(timeframe_entered, days_entered, symbol, fixed_limit=1)
+                if self.exchange == accounts.EXCHANGE_OANDA:
+                    real_timestamp2 = real_timestampsX[-1]
                 date2 = dateX[-1]
                 open2_ = openX[-1]
                 high2 = highX[-1]
@@ -865,6 +872,8 @@ class ChartRunner(QtCore.QThread):
           else:
             if date2 != None:
                 prices[-1] = [date2num(date2), open2_, high2, low2, close2, vol2, date2]
+                if self.exchange == accounts.EXCHANGE_OANDA:
+                    real_timestamps[-1] = real_timestamp2
 
           if first == True:
             indicators.append(indicator_BBANDS(current_bband_type == BBAND_TYPE_TRENDBARS))
@@ -1174,7 +1183,11 @@ class ChartRunner(QtCore.QThread):
             last_line1, last_line2, last_rect, last_trendbar_color, trendbars_display_counter = \
                 _bars(ax, prices2, first, last_line1, last_line2, last_rect, candle_width, scanner_results, highest_price, \
                       current_bband_type == BBAND_TYPE_TRENDBARS, last_trendbar_color, trendbars_display_counter)
-          
+
+          if self.exchange == accounts.EXCHANGE_OANDA:
+              dates_ = [d.strftime("%b %d %Y %H:%M:%S") for d in real_timestamps]
+              ax.set_xticklabels(dates_)
+
           if first == True:
             ax.autoscale_view()
             ax.set_facecolor(black)
@@ -1391,11 +1404,14 @@ class ChartRunner(QtCore.QThread):
     low = []
     close = []
     volume = []
+    real_timestamps = None
 
     while True:
         try:
           if self.exchange == accounts.EXCHANGE_KRAKEN:
             candles = accounts.client(self.exchange).fetch_ohlcv(currency_entered, timeframe_entered)
+          elif self.exchange == accounts.EXCHANGE_OANDA:
+            candles, real_timestamps = accounts.client(self.exchange).fetch_ohlcv(currency_entered, timeframe_entered, limit=limit)
           else:
             candles = accounts.client(self.exchange).fetch_ohlcv(currency_entered, timeframe_entered, limit=limit)
           break
@@ -1409,7 +1425,10 @@ class ChartRunner(QtCore.QThread):
 
     for candle in candles:
         if self.exchange == accounts.EXCHANGE_OANDA:
-            dt.append(datetime.datetime.fromtimestamp(candle[0]))
+            if candle[0] is not numpy.nan:
+                dt.append(datetime.datetime.fromtimestamp(candle[0]))
+            else:
+                dt.append(numpy.nan)
         else:
             dt.append(datetime.datetime.fromtimestamp(int(candle[0]) / 1000))
         open_.append(float(candle[1]))
@@ -1418,7 +1437,7 @@ class ChartRunner(QtCore.QThread):
         close.append(float(candle[4]))
         volume.append(float(candle[5]))
 
-    return dt, open_, high, low, close, volume, limit
+    return dt, open_, high, low, close, volume, limit, real_timestamps
 
 
 class UpdateUsdBalanceRunner(QtCore.QThread):
