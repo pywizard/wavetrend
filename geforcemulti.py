@@ -1185,8 +1185,18 @@ class ChartRunner(QtCore.QThread):
                       current_bband_type == BBAND_TYPE_TRENDBARS, last_trendbar_color, trendbars_display_counter)
 
           if self.exchange == accounts.EXCHANGE_OANDA:
-              dates_ = [d.strftime("%b %d %Y %H:%M:%S") for d in real_timestamps]
-              ax.set_xticklabels(dates_)
+              new_xticks = []
+              xticks = ax.get_xticks().tolist()
+              real_timestamps_datestr = [d.strftime("%b %d %Y %H:%M:%S") for d in real_timestamps]
+              additional_timestamp = (real_timestamps[-1] + datetime.timedelta(seconds=elapsed_table[self.timeframe_entered])).strftime("%b %d %Y %H:%M:%S")
+              fake = [date2num(d[-1]) for d in prices]
+              for tick in xticks:
+                  for i1 in range(0, len(fake)):
+                      if int(fake[i1]) == int(tick):
+                          new_xticks.append(real_timestamps_datestr[i1])
+                          break
+              new_xticks.append(additional_timestamp)
+              ax.set_xticklabels(new_xticks)
 
           if first == True:
             ax.autoscale_view()
