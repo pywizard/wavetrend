@@ -15,8 +15,10 @@ from ccxt.base.errors import ExchangeNotAvailable
 from ccxt.base.errors import InvalidNonce
 from ccxt.base.decimal_to_precision import SIGNIFICANT_DIGITS
 from ccxt.base.decimal_to_precision import decimal_to_precision
-import tpqoa
 import json
+import oandapyV20
+import oandapyV20.endpoints.accounts as accounts
+import oandapyV20.endpoints.instruments as instruments
 import requests
 import arrow
 import warnings
@@ -25,10 +27,8 @@ warnings.filterwarnings("ignore")
 
 class oanda (Exchange):
     def __init__(self, account_id, account_token):
-        f = open("oanda.cfg", "w")
-        f.write("[oanda]\naccount_id = " + account_id + "\naccess_token = " + account_token + "\naccount_type = practice\n")
-        f.close()
-        self.oanda = tpqoa.tpqoa('oanda.cfg')
+        self.account_id = account_id
+        self.oanda = oandapyV20.API(access_token=account_token)
         self.decimal_to_precision = decimal_to_precision
         self.timeframes = {
             '1m': 'M1',
@@ -79,25 +79,30 @@ class oanda (Exchange):
             },
         })
 
-    def fetch_markets(self, params={}):
-        instruments = self.oanda.get_instruments()
+    def fetch_markets(self):
+        request = accounts.AccountInstruments(accountID=self.account_id)
+        self.oanda.request(request)
+        instruments = request.response["instruments"]
         result = {}
         id = 0
         for instrument in instruments:
             id = id + 1
-            symbol = instrument[1]
+            symbol = instrument["name"]
             base = symbol.split("_")[0]
             quote = symbol.split("_")[1]
             baseId = 0
             quoteId = 0
             precision = {}
-            precision["price"] = 4
+            precision["price"] = instrument["displayPrecision"]
             limits = None
             market = None
-            name = instrument[0]
+            name = instrument["displayName"]
+            type = instrument["type"]
             result[symbol] = {
                 'id': id,
                 'symbol': symbol,
+                'name': name,
+                'type': type,
                 'base': base,
                 'quote': quote,
                 'baseId': baseId,
@@ -108,66 +113,10 @@ class oanda (Exchange):
                 'info': market
             }
         self.markets = result
+        return self.markets
 
     def amount_to_precision(self, symbol, amount):
         return self.number_to_string(amount)
-
-    def fetch_balance(self, params={}):
-        return 0
-
-    def fetch_tickers(self, symbols=None, params={}):
-        instruments = self.oanda.get_instruments()
-        instrument_list = instruments[0][1]
-        for instrument in instruments:
-            if instrument[1] == instruments[0][1]:
-                continue
-            instrument_list = instrument_list + "," + instrument[1]
-
-        pricing_response = self.oanda.ctx.pricing.get(
-            self.oanda.account_id,
-            instruments=instrument_list,
-            since=None,
-            includeUnitsAvailable=False
-        )
-
-        json_response = json.loads(pricing_response.raw_body)
-
-        result = {}
-        for price in json_response["prices"]:
-            ticker = self.parse_ticker(price)
-            symbol = ticker['symbol']
-            result[symbol] = ticker
-            for instrument in instruments:
-                if instrument[1] == symbol:
-                    ticker["name"] = instrument[0]
-                    break
-        return result
-
-    def fetch_ticker(self, symbol, params={}):
-        pricing_response = self.oanda.ctx.pricing.get(
-            self.oanda.account_id,
-            instruments=symbol,
-            since=None,
-            includeUnitsAvailable=False
-        )
-
-        result = {}
-        for price in pricing_response.get("prices", 200):
-            ticker = self.parse_ticker(price)
-            symbol = ticker['symbol']
-            result[symbol] = ticker
-
-        return result
-
-    def parse_ticker(self, ticker, market=None):
-        symbol = ticker["instrument"]
-        bid = ticker["bids"][0]["price"]
-        ask = ticker["asks"][0]["price"]
-        return {
-            'symbol': symbol,
-            'bid': self.safe_float(ticker, 'bid'),
-            'ask': self.safe_float(ticker, 'ask'),
-        }
 
     def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
         return [

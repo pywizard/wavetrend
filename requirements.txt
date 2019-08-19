@@ -10,7 +10,7 @@ bitfinex-v2
 sklearn
 psutil
 Twisted==19.7.0
-tpqoa
+oandapyV20
 requests
 arrow
 pywin32 (in case of windows)

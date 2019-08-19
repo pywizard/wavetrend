@@ -2068,6 +2068,8 @@ class Window(QtWidgets.QMainWindow):
       dialog.show()
 
     def trade_coin_clicked(self, event):
+      if self.exchange == accounts.EXCHANGE_OANDA:
+          return
       self.trade_dialog = TradeDialog(self, self.exchange)
       self.trade_dialog.show()
 
@@ -2296,10 +2298,11 @@ class Dialog(QtWidgets.QDialog):
                 win32gui.EndDialog(window_handle, 0)
 
     def updateWidget(self):
-        self.tableWidget.setColumnCount(4)
         if self.selected_exchange == accounts.EXCHANGE_OANDA:
-            self.tableWidget.setHorizontalHeaderLabels(["Instrument", "Price Change", "Price Change %", "Name"])
+            self.tableWidget.setColumnCount(3)
+            self.tableWidget.setHorizontalHeaderLabels(["Instrument", "Name", "Type"])
         else:
+            self.tableWidget.setColumnCount(4)
             self.tableWidget.setHorizontalHeaderLabels(["Symbol", "Price Change", "Price Change %", "Volume"])
         self.comboBox.clear()
         self.tableWidget.setRowCount(0)
@@ -2312,14 +2315,21 @@ class Dialog(QtWidgets.QDialog):
                 continue
             self.comboBox.addItem(key)
 
-        coins = accounts.fetch_tickers(self.selected_exchange)
-
         if self.selected_exchange == accounts.EXCHANGE_OANDA:
+            coins = accounts.client(self.selected_exchange).fetch_markets()
             coins_ = []
-            for coin, value in coins.items():
+            for coin in coins:
                 coins_.append(coins[coin])
-            coins = copy.deepcopy(coins_)
+            coins = sorted(coins_, key=itemgetter("type"))
+            for coin in coins:
+                rowPosition = self.tableWidget.rowCount()
+                self.tableWidget.insertRow(rowPosition)
+                self.tableWidget.setItem(rowPosition, 0, QtWidgets.QTableWidgetItem(str(coin["symbol"])))
+                self.tableWidget.setItem(rowPosition, 1, QtWidgets.QTableWidgetItem(str(coin["name"])))
+                self.tableWidget.setItem(rowPosition, 2, QtWidgets.QTableWidgetItem(str(coin["type"])))
+            return
         else:
+            coins = accounts.fetch_tickers(self.selected_exchange)
             if "BTC/USD" in coins:
                 btcusd_symbol = "BTC/USD"
             else:
@@ -2359,10 +2369,7 @@ class Dialog(QtWidgets.QDialog):
                 else:
                     self.tableWidget.setItem(rowPosition, 2, QtWidgets.QTableWidgetItem(""))
 
-                if self.selected_exchange == accounts.EXCHANGE_OANDA:
-                    self.tableWidget.setItem(rowPosition, 3, QtWidgets.QTableWidgetItem(str(coin["name"])))
-                else:
-                    self.tableWidget.setItem(rowPosition, 3, QtWidgets.QTableWidgetItem(str(coin["volumeFloat"])))
+                self.tableWidget.setItem(rowPosition, 3, QtWidgets.QTableWidgetItem(str(coin["volumeFloat"])))
                 if "change" in coin and coin["change"]:
                     if float(coin["change"]) < 0:
                         self.tableWidget.item(rowPosition, 0).setForeground(QtGui.QColor(255, 0, 0))
