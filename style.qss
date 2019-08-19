@@ -1,11 +1,3 @@
-#QToolTip {
-    border: 1px solid #76797C;
-    background-color: #5A7566;
-    color: white;
-    padding: 0px;                /*remove padding, for fix combobox tooltip.*/
-    opacity: 200;
-}
-
 QWidget {
     color: #eff0f1;
     background-color: #131D27;
@@ -30,10 +22,6 @@ QCheckBox {
     outline: none;
     color: #eff0f1;
     margin-bottom: 2px;
-}
-
-QCheckBox:disabled {
-    color: #76797C;
 }
 
 QCheckBox::indicator,

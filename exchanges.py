@@ -95,7 +95,7 @@ class Binance:
                     self.started = True
                 break
             except:
-                time.sleep(5)
+                time.sleep(1)
 
     def stop_candlestick_websocket(self):
         try:
@@ -111,7 +111,7 @@ class Binance:
                 self.started = True
                 break
             except:
-                time.sleep(5)
+                time.sleep(1)
 
     def start_depth_websocket(self, symbol, callback):
         self.symbol = self.get_exchange_symbol(symbol)
@@ -136,7 +136,7 @@ class Binance:
                     self.started = True
                 break
             except:
-                time.sleep(5)
+                time.sleep(1)
 
     def stop_trades_websocket(self):
         try:

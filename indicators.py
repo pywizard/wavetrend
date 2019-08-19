@@ -1,14 +1,14 @@
 ﻿import talib
 import numpy as np
-from colors import *
 import copy
 import pandas as pd
 
 class indicator_DMI:
-  def __init__(self):
+  def __init__(self, theme):
     self.name = "DMI"
     self.overlay_chart = False
     self.first = True
+    self.theme = theme
   
   def generate_values(self, open_, high, low, close, volume):
     self.plus_di_values = talib.PLUS_DI(np.array(high), np.array(low), np.array(close))
@@ -30,13 +30,13 @@ class indicator_DMI:
   def plot_once(self, axis, dates):
     self.axis = axis
     self.dates = dates
-    self.plus_di = axis.plot(self.dates, self.plus_di_values, color=blue, lw=.7, label="+DI=" + str(int(self.plus_di_values[-1])))
-    self.minus_di = axis.plot(self.dates, self.minus_di_values, color=orange, lw=.7, label="-DI=" + str(int(self.minus_di_values[-1])))
+    self.plus_di = axis.plot(self.dates, self.plus_di_values, color=self.theme.blue, lw=.7, label="+DI=" + str(int(self.plus_di_values[-1])))
+    self.minus_di = axis.plot(self.dates, self.minus_di_values, color=self.theme.orange, lw=.7, label="-DI=" + str(int(self.minus_di_values[-1])))
 
-    self.adx = axis.plot(self.dates, self.adx_values, color=red, lw=.7, label="ADX=" + str(int(self.adx_values[-1])) + "\n" + self.get_adx_trend_str(int(self.adx_values[-1])))
-    self.legend = axis.legend(loc="upper left", facecolor=darkish, edgecolor=darkish, fontsize=8)
+    self.adx = axis.plot(self.dates, self.adx_values, color=self.theme.red, lw=.7, label="ADX=" + str(int(self.adx_values[-1])) + "\n" + self.get_adx_trend_str(int(self.adx_values[-1])))
+    self.legend = axis.legend(loc="upper left", facecolor=self.theme.darkish, edgecolor=self.theme.darkish, fontsize=8)
     for text in self.legend.get_texts():
-      text.set_color("white")
+      text.set_color(self.theme.white)
   
   def update(self):
     self.plus_di[0].set_ydata(self.plus_di_values)
@@ -63,11 +63,12 @@ class indicator_DMI:
       return 0
 
 class indicator_BBANDS():
-  def __init__(self, better_bbands):
+  def __init__(self, theme, better_bbands):
     self.name="BBANDS"
     self.overlay_chart = True
     self.better_bbands = better_bbands
     self.first = True
+    self.theme = theme
 
   def generate_values(self, open_, high, low, close, volume):
     if self.better_bbands == False:
@@ -79,10 +80,10 @@ class indicator_BBANDS():
     self.bb_lower = self.bb_lower / 10000
     
   def plot_once(self, axis, dates):
-    self.bb_upper_ = axis.plot(dates, self.bb_upper, color=greenish, lw=.5, antialiased=True)
-    self.bb_middle_ = axis.plot(dates, self.bb_middle, color=red, lw=.5, antialiased=True)
-    self.bb_lower_ = axis.plot(dates, self.bb_lower, color=greenish, lw=.5, antialiased=True)
-    axis.fill_between(dates, self.bb_lower, self.bb_upper, where=self.bb_upper >= self.bb_lower, facecolor=greenish, interpolate=True, alpha=.05)
+    self.bb_upper_ = axis.plot(dates, self.bb_upper, color=self.theme.greenish, lw=.5, antialiased=True)
+    self.bb_middle_ = axis.plot(dates, self.bb_middle, color=self.theme.red, lw=.5, antialiased=True)
+    self.bb_lower_ = axis.plot(dates, self.bb_lower, color=self.theme.greenish, lw=.5, antialiased=True)
+    axis.fill_between(dates, self.bb_lower, self.bb_upper, where=self.bb_upper >= self.bb_lower, facecolor=self.theme.greenish, interpolate=True, alpha=.05)
   
   def update(self):
     self.bb_upper_[0].set_ydata(self.bb_upper)
@@ -106,10 +107,10 @@ class indicator_BBANDS():
     in_keltner_channel_index = -1
     for i in range(0, len(self.bb_upper)):
       if i != len(dates)-1 and self.bb_upper[i] - keltner_upper[i] < 0 and keltner_lower[i] - self.bb_lower[i] < 0:
-        axis.annotate("*", xy=(dates[i], keltner_upper[i]), xycoords="data", fontsize=6, color=white, weight="bold")
-        axis.annotate("*", xy=(dates[i], keltner_lower[i]), xycoords="data", fontsize=6, color=white, weight="bold")
+        axis.annotate("*", xy=(dates[i], keltner_upper[i]), xycoords="data", fontsize=6, color=self.theme.white, weight="bold")
+        axis.annotate("*", xy=(dates[i], keltner_lower[i]), xycoords="data", fontsize=6, color=self.theme.white, weight="bold")
         if in_keltner_channel == False and i - in_keltner_channel_index > 5:
-          axis.annotate("Squeeze", (dates[i], lowest_price), fontsize=6, color=white, weight="bold", ha='center', va='center')
+          axis.annotate("Squeeze", (dates[i], lowest_price), fontsize=6, color=self.theme.white, weight="bold", ha='center', va='center')
           in_keltner_channel = True
           in_keltner_channel_index = i
       else:
@@ -117,9 +118,9 @@ class indicator_BBANDS():
 
   def in_keltner_now(self, axis, dates, keltner_upper, keltner_lower, lowest_price):
     if self.bb_upper[-1] - keltner_upper < 0 and keltner_lower - self.bb_lower[-1] < 0:
-      axis.annotate("*", xy=(dates, keltner_upper), xycoords="data", fontsize=6, color=white, weight="bold")
-      axis.annotate("*", xy=(dates, keltner_lower), xycoords="data", fontsize=6, color=white, weight="bold")
-      axis.annotate("Squeeze", (dates, lowest_price), fontsize=6, color=white, weight="bold", ha='center', va='center')
+      axis.annotate("*", xy=(dates, keltner_upper), xycoords="data", fontsize=6, color=self.theme.white, weight="bold")
+      axis.annotate("*", xy=(dates, keltner_lower), xycoords="data", fontsize=6, color=self.theme.white, weight="bold")
+      axis.annotate("Squeeze", (dates, lowest_price), fontsize=6, color=self.theme.white, weight="bold", ha='center', va='center')
 
 class indicator_KELTNER_CHANNEL():
   def __init__(self):
@@ -160,20 +161,21 @@ class indicator_KELTNER_CHANNEL():
     return 0
 
 class indicator_RSI():
-  def __init__(self):
+  def __init__(self, theme):
     self.name = "RSI"
     self.overlay_chart = False
-  
+    self.theme = theme
+
   def generate_values(self, open_, high, low, close, volume):
     self.rsi = talib.RSI(np.array(close), timeperiod=14)
     
   def plot_once(self, axis, dates):
-    self.rsi_ = axis.plot(dates, self.rsi, color=white, lw=.7, antialiased=True, label=self.name)
-    axis.axhline(70, color=white, lw=.5, linestyle="--")
-    axis.axhline(30, color=white, lw=.5, linestyle="--")
-    self.legend = axis.legend(loc="upper left", facecolor=darkish, edgecolor=darkish, fontsize=8)
+    self.rsi_ = axis.plot(dates, self.rsi, color=self.theme.white, lw=.7, antialiased=True, label=self.name)
+    axis.axhline(70, color=self.theme.white, lw=.5, linestyle="--")
+    axis.axhline(30, color=self.theme.white, lw=.5, linestyle="--")
+    self.legend = axis.legend(loc="upper left", facecolor=self.theme.darkish, edgecolor=self.theme.darkish, fontsize=8)
     for text in self.legend.get_texts():
-      text.set_color("white")
+      text.set_color(self.theme.white)
       text.set_text("RSI=" + str(int(self.rsi[-1])))
   
   def update(self):
@@ -185,11 +187,12 @@ class indicator_RSI():
     return 0
 
 class indicator_MACD():
-  def __init__(self):
+  def __init__(self, theme):
     self.name = "MACD"
     self.overlay_chart = False
     self.candle_width = 0
     self.first = True
+    self.theme = theme
   
   def generate_values(self, open_, high, low, close, volume):
     self.macd_values, self.signal_values, self.hist_values = talib.MACD(np.array(close))
@@ -197,52 +200,53 @@ class indicator_MACD():
   def plot_once(self, axis, dates):
     self.axis = axis
     self.dates = copy.deepcopy(dates)
-    self.macd = axis.plot(dates, self.macd_values, color=blue, lw=.7, antialiased=True, label="MACD")
-    self.signal = axis.plot(dates, self.signal_values, color=red, lw=.7, antialiased=True, label="Signal")
-    self.legend = axis.legend(loc="upper left", facecolor=darkish, edgecolor=darkish, fontsize=8)
+    self.macd = axis.plot(dates, self.macd_values, color=self.theme.blue, lw=.7, antialiased=True, label="MACD")
+    self.signal = axis.plot(dates, self.signal_values, color=self.theme.red, lw=.7, antialiased=True, label="Signal")
+    self.legend = axis.legend(loc="upper left", facecolor=self.theme.darkish, edgecolor=self.theme.darkish, fontsize=8)
     for text in self.legend.get_texts():
-      text.set_color("white")
+      text.set_color(self.theme.white)
   
   def update(self):
     self.macd[0].set_ydata(self.macd_values)
     self.signal[0].set_ydata(self.signal_values)
     
     if self.first == True:
-      self.bar = self.axis.bar(self.dates, self.hist_values, self.candle_width, color=green, antialiased=True, label="Histogram")
+      self.bar = self.axis.bar(self.dates, self.hist_values, self.candle_width, color=self.theme.green, antialiased=True, label="Histogram")
       for i in range(0, len(self.bar)):
         if self.hist_values[i] > 0:
-          self.bar[i].set_facecolor(green)
+          self.bar[i].set_facecolor(self.theme.green)
         elif self.hist_values[i] < 0:
-          self.bar[i].set_facecolor(red)
+          self.bar[i].set_facecolor(self.theme.red)
       self.first = False
     else:
       self.bar[-1].set_height(self.hist_values[-1])
       if self.hist_values[-1] > 0:
-        self.bar[-1].set_facecolor(green)
+        self.bar[-1].set_facecolor(self.theme.green)
       elif self.hist_values[-1] < 0:
-        self.bar[-1].set_facecolor(red)
+        self.bar[-1].set_facecolor(self.theme.red)
    
   def xaxis_get_start(self):
     return 0
 
 class indicator_STOCH():
-  def __init__(self):
+  def __init__(self, theme):
     self.name = "MACD"
     self.overlay_chart = False
-  
+    self.theme = theme
+
   def generate_values(self, open_, high, low, close, volume):
     self.slowk_values, self.slowd_values = talib.STOCH(np.array(high), np.array(low), np.array(close), slowd_period=3, slowk_period=3, fastk_period=14)
 
   def plot_once(self, axis, dates):
     self.axis = axis
     self.dates = copy.deepcopy(dates)
-    axis.axhline(80, color=white, lw=.5, linestyle="--")
-    axis.axhline(20, color=white, lw=.5, linestyle="--")    
-    self.slowk = axis.plot(dates, self.slowk_values, color=blue, lw=.7, antialiased=True, label="SLOW K")
-    self.slowd = axis.plot(dates, self.slowd_values, color=red, lw=.7, antialiased=True, label="SLOW D")
-    self.legend = axis.legend(loc="upper left", facecolor=darkish, edgecolor=darkish, fontsize=8)
+    axis.axhline(80, color=self.theme.white, lw=.5, linestyle="--")
+    axis.axhline(20, color=self.theme.white, lw=.5, linestyle="--")
+    self.slowk = axis.plot(dates, self.slowk_values, color=self.theme.blue, lw=.7, antialiased=True, label="SLOW K")
+    self.slowd = axis.plot(dates, self.slowd_values, color=self.theme.red, lw=.7, antialiased=True, label="SLOW D")
+    self.legend = axis.legend(loc="upper left", facecolor=self.theme.darkish, edgecolor=self.theme.darkish, fontsize=8)
     for text in self.legend.get_texts():
-      text.set_color("white")
+      text.set_color(self.theme.white)
   
   def update(self):
     self.slowk[0].set_ydata(self.slowk_values)
@@ -258,12 +262,13 @@ class indicator_STOCH():
 
 
 class indicator_VOLUME():
-  def __init__(self):
+  def __init__(self, theme):
     self.name="VOLUME"
     self.overlay_chart = False
     self.first = True
     self.candle_width = 0
-  
+    self.theme = theme
+
   def generate_values(self, open_, high, low, close, volume):
     self.open = open_
     self.close = close
@@ -275,19 +280,19 @@ class indicator_VOLUME():
   
   def update(self):
     if self.first == True:
-      self.bar = self.axis.bar(self.dates, self.volume, self.candle_width, color=green, antialiased=True, alpha=.5)
+      self.bar = self.axis.bar(self.dates, self.volume, self.candle_width, color=self.theme.green, antialiased=True, alpha=.5)
       for i in range(0, len(self.bar)):
         if self.close[i] > self.open[i]:
-          self.bar[i].set_facecolor(green)
+          self.bar[i].set_facecolor(self.theme.green)
         elif self.close[i] < self.open[i]:
-          self.bar[i].set_facecolor(red)
+          self.bar[i].set_facecolor(self.theme.red)
       self.first = False
     else:
       self.bar[-1].set_height(self.volume[-1])
       if self.close[-1] > self.open[-1]:
-        self.bar[-1].set_facecolor(green)
+        self.bar[-1].set_facecolor(self.theme.green)
       elif self.close[-1] < self.open[-1]:
-        self.bar[-1].set_facecolor(red)
+        self.bar[-1].set_facecolor(self.theme.red)
   
   def xaxis_get_start(self):
     return 0

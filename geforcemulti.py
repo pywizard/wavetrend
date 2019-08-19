@@ -29,7 +29,6 @@ import threading
 import math
 import queue as Queue
 from indicators import *
-from colors import *
 import decimal
 import random
 import functools
@@ -41,6 +40,7 @@ import collections
 from exchange_accounts import ExchangeAccounts
 import nn
 import arrow
+import theme as themes
 
 #FIX: squash memory leak for redraws
 class MyTransformNode(object):
@@ -143,7 +143,10 @@ class abstract():
 def _bars(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, \
                  scanner_results, highest_price, trendbars_enabled, last_trendbar_color, trendbars_display_counter):
     width = candle_width
-    line_width = 0.9
+    if theme.theme_type == themes.THEME_TYPE_LIGHT:
+        line_width = 0.7
+    elif theme.theme_type == themes.THEME_TYPE_DARK:
+        line_width = 0.9
     OFFSET = width / 2.0
 
     lines = []
@@ -151,19 +154,19 @@ def _bars(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, \
     annotations = []
     trendbar_colors = [""] * len(quotes)
 
-    colorup = "#134F5C"
-    colordown = "#A61C00"
-    colorup2 = "#53B987"
-    colordown2 = "#EB4D5C"
+    colorup = theme.colorup
+    colordown = theme.colordown
+    colorup2 = theme.colorup2
+    colordown2 = theme.colordown2
 
     trendbars_refresh = trendbars_display_counter % 60 == 0
     if trendbars_enabled == True and (first == True or trendbars_refresh == True):
-        indicator_color1 = "#134F5C"
-        indicator_color1_2 = "#53B987"
-        indicator_color2 = "#7F7F28" # yellowish
-        indicator_color2_2 = "#FF7F28"
-        indicator_color3 = "#A61C00"
-        indicator_color3_2 = "#EB4D5C"
+        indicator_color1 = theme.indicator_color1
+        indicator_color1_2 = theme.indicator_color1_2
+        indicator_color2 = theme.indicator_color2 # yellowish
+        indicator_color2_2 = theme.indicator_color2_2
+        indicator_color3 = theme.indicator_color3
+        indicator_color3_2 = theme.indicator_color3_2
 
         trendbars_period_1 = 8
         trendbars_period_2 = 34
@@ -296,19 +299,19 @@ def _bars(ax, quotes, first, last_line1, last_line2, last_rect, candle_width, \
           ax.add_patch(rect)
 
           if annotate == True and len(scanner_result) != 0:
-              rect.set_facecolor(orange)
-              rect.set_edgecolor(orange)
-              vline1.set_color(orange)
-              vline2.set_color(orange)
+              rect.set_facecolor(theme.orange)
+              rect.set_edgecolor(theme.orange)
+              vline1.set_color(theme.orange)
+              vline2.set_color(theme.orange)
 
               rx, ry = rect.get_xy()
               cx = rx + rect.get_width()
               cy = highest_price
-              color = green
+              color = theme.green
               if scanner_result[1] > 0:
-                  color = green
+                  color = theme.green
               elif scanner_result[1] < 0:
-                  color = red
+                  color = theme.red
 
               text = ax.annotate(scanner_result[2], (cx, cy), color=color, weight='bold',
                           fontsize=6, ha='center', va='center')
@@ -427,7 +430,7 @@ from operator import itemgetter
 
 class MplCanvas(FigureCanvas):
     def __init__(self, parent=None, dpi=100, symbol=None):
-        self.fig = Figure(facecolor=black, edgecolor=white, dpi=dpi,
+        self.fig = Figure(facecolor=theme.black, edgecolor=theme.white, dpi=dpi,
                           frameon=False, tight_layout=False)
 
         FigureCanvas.__init__(self, self.fig)
@@ -876,19 +879,19 @@ class ChartRunner(QtCore.QThread):
                     real_timestamps[-1] = real_timestamp2
 
           if first == True:
-            indicators.append(indicator_BBANDS(current_bband_type == BBAND_TYPE_TRENDBARS))
+            indicators.append(indicator_BBANDS(theme, current_bband_type == BBAND_TYPE_TRENDBARS))
             bband_index = 0
             indicators.append(indicator_KELTNER_CHANNEL())
             keltner_index = 1
             if current_indicator_type == CHART_INDICATORS and current_trade_type == TRADE_TYPE_TRENDING:
-                indicators.append(indicator_MACD())
+                indicators.append(indicator_MACD(theme))
             elif current_indicator_type == CHART_INDICATORS and current_trade_type == TRADE_TYPE_OSC:
-                indicators.append(indicator_STOCH())
+                indicators.append(indicator_STOCH(theme))
 
             if current_indicator_type == CHART_INDICATORS:
-                indicators.append(indicator_DMI())
-                indicators.append(indicator_RSI())
-            indicators.append(indicator_VOLUME())
+                indicators.append(indicator_DMI(theme))
+                indicators.append(indicator_RSI(theme))
+            indicators.append(indicator_VOLUME(theme))
 
           start_x = 0
           indicator_axes_count = 0
@@ -945,16 +948,16 @@ class ChartRunner(QtCore.QThread):
                 new_ax.yaxis.set_label_position("left")
                 new_ax.xaxis.set_tick_params(labelsize=7)
                 new_ax.yaxis.set_tick_params(labelsize=7)
-                new_ax.spines['left'].set_edgecolor(grayscale_dark)
-                new_ax.spines['right'].set_edgecolor(grayscale_light)
-                new_ax.spines['top'].set_edgecolor(grayscale_light)
-                new_ax.spines['bottom'].set_edgecolor(grayscale_light)
+                new_ax.spines['left'].set_edgecolor(theme.grayscale_dark)
+                new_ax.spines['right'].set_edgecolor(theme.grayscale_light)
+                new_ax.spines['top'].set_edgecolor(theme.grayscale_light)
+                new_ax.spines['bottom'].set_edgecolor(theme.grayscale_light)
                 new_ax.spines['bottom'].set_linewidth(1.05)
                 new_ax.spines['left'].set_linewidth(3)
-                new_ax.xaxis.label.set_color(white)
-                new_ax.yaxis.label.set_color(white)
-                new_ax.tick_params(axis='x', colors=white)
-                new_ax.tick_params(axis='y', colors=white)
+                new_ax.xaxis.label.set_color(theme.white)
+                new_ax.yaxis.label.set_color(theme.white)
+                new_ax.tick_params(axis='x', colors=theme.white)
+                new_ax.tick_params(axis='y', colors=theme.white)
                 indicator_axes.append(new_ax)
                 indicator_update_time = time.time()
                 indicator.plot_once(new_ax, pdate)
@@ -1076,9 +1079,12 @@ class ChartRunner(QtCore.QThread):
             time_to_next_candle = "%02d:%02d:%02d" % (hours, minutes, seconds)
  
           if first == True:
-            color = "#2c681d"  # green
-            line_color = green
-            text_color = white
+            color = theme.green2  # green
+            line_color = theme.green
+            if theme.theme_type == themes.THEME_TYPE_LIGHT:
+                text_color = theme.black
+            elif theme.theme_type == themes.THEME_TYPE_DARK:
+                text_color = theme.white
 
             tag_title = symbol + " " + ticker_formatted
             if current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
@@ -1091,14 +1097,12 @@ class ChartRunner(QtCore.QThread):
                 tag_title_ = tag_title_ + " " * (len(tag_title)-len(ticker_formatted_heikin_ashi)) + ticker_formatted_heikin_ashi
                 ticker_for_line = prices2[-1][4]
                 if prices2[-1][4] < prices2[-1][1]:
-                    color = "#681d1d"  # red
-                    line_color = red
-                    text_color = white
+                    color = theme.red2  # red
+                    line_color = theme.red
             else:
                 if prices[-1][4] < prices[-1][1]:
-                    color = "#681d1d"  # red
-                    line_color = red
-                    text_color = white
+                    color = theme.red2  # red
+                    line_color = theme.red
                 tag_title_ = tag_title
 
             if time.time() <= time_close and not (hours == 0 and minutes == 0 and seconds == 0):
@@ -1114,11 +1118,14 @@ class ChartRunner(QtCore.QThread):
 
             dbox = tbox.transformed(ax.transData.inverted())
             annotation.set_y(ticker_for_line)
-            annotation.set_bbox(dict(facecolor=color, edgecolor=white, lw=.5))
+            annotation.set_bbox(dict(facecolor=color, edgecolor=theme.white, lw=.5))
           else:
-            color = "#2c681d"  # green
-            line_color = green
-            text_color = white
+            color = theme.green2  # green
+            line_color = theme.green
+            if theme.theme_type == themes.THEME_TYPE_LIGHT:
+                text_color = theme.black
+            elif theme.theme_type == themes.THEME_TYPE_DARK:
+                text_color = theme.white
 
             tag_title = symbol + " " + ticker_formatted
             if current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
@@ -1131,14 +1138,12 @@ class ChartRunner(QtCore.QThread):
                 tag_title_ = tag_title_ + " " * (len(tag_title)-len(ticker_formatted_heikin_ashi)) + ticker_formatted_heikin_ashi
                 ticker_for_line = prices2[-1][4]
                 if prices2[-1][4] < prices2[-1][1]:
-                    color = "#681d1d"  # red
-                    line_color = red
-                    text_color = white
+                    color = theme.red2  # red
+                    line_color = theme.red
             else:
                 if prices[-1][4] < prices[-1][1]:
-                    color = "#681d1d"  # red
-                    line_color = red
-                    text_color = white
+                    color = theme.red2  # red
+                    line_color = theme.red
                 tag_title_ = tag_title
 
             if time.time() <= time_close and not (hours == 0 and minutes == 0 and seconds == 0):
@@ -1150,7 +1155,10 @@ class ChartRunner(QtCore.QThread):
             annotation.set_text(tag_title_)
             annotation.set_y(ticker_for_line)
             annotation.set_backgroundcolor(color)
-            annotation.set_bbox(dict(facecolor=color, edgecolor=text_color, lw=.5))
+            if theme.theme_type == themes.THEME_TYPE_DARK:
+                annotation.set_bbox(dict(facecolor=color, edgecolor=text_color, lw=.5))
+            elif theme.theme_type == themes.THEME_TYPE_LIGHT:
+                annotation.set_bbox(dict(facecolor=color, edgecolor=theme.white, lw=.5))
 
           if init == True:
             xl = ax.get_xlim()
@@ -1200,20 +1208,20 @@ class ChartRunner(QtCore.QThread):
 
           if first == True:
             ax.autoscale_view()
-            ax.set_facecolor(black)
+            ax.set_facecolor(theme.black)
             ax.yaxis.tick_right()
             ax.yaxis.set_label_position("right")
-            ax.spines['top'].set_edgecolor(grayscale_dark)
-            ax.spines['left'].set_edgecolor(grayscale_dark)
-            ax.spines['right'].set_edgecolor(grayscale_light)
-            ax.spines['bottom'].set_edgecolor(grayscale_light)
+            ax.spines['top'].set_edgecolor(theme.grayscale_dark)
+            ax.spines['left'].set_edgecolor(theme.grayscale_dark)
+            ax.spines['right'].set_edgecolor(theme.grayscale_light)
+            ax.spines['bottom'].set_edgecolor(theme.grayscale_light)
             ax.spines['left'].set_linewidth(3)
             ax.spines['top'].set_linewidth(3)
-            ax.set_facecolor(black)
-            ax.xaxis.label.set_color(white)
-            ax.yaxis.label.set_color(white)
-            ax.tick_params(axis='x', colors=white)
-            ax.tick_params(axis='y', colors=white)
+            ax.set_facecolor(theme.black)
+            ax.xaxis.label.set_color(theme.white)
+            ax.yaxis.label.set_color(theme.white)
+            ax.tick_params(axis='x', colors=theme.white)
+            ax.tick_params(axis='y', colors=theme.white)
             ax.grid(alpha=.25)
             ax.grid(True)
 
@@ -1277,7 +1285,7 @@ class ChartRunner(QtCore.QThread):
                 ax.plot(1,1, label=symbol + ", " + timeframe_entered + better_bband_str, marker = '',ls ='')
                 legend = ax.legend(frameon=False,loc="upper left", fontsize=9)
                 for text in legend.get_texts():
-                  text.set_color(grayscale_lighter)
+                  text.set_color(theme.grayscale_lighter)
 
           pdate.clear()
           popen.clear()
@@ -1717,7 +1725,7 @@ class Window(QtWidgets.QMainWindow):
     @QtCore.pyqtSlot(str, int, matplotlib.axes.Axes)
     def on_FIGURE_ADD_SUBPLOT(self, winid, rows, sharex):
         global aqs
-        axis = self.dcs[winid].fig.add_subplot(rows, facecolor=black, sharex=sharex)
+        axis = self.dcs[winid].fig.add_subplot(rows, facecolor=theme.black, sharex=sharex)
         aqs[winid].put(axis)
 
     @QtCore.pyqtSlot(str)
@@ -1729,7 +1737,7 @@ class Window(QtWidgets.QMainWindow):
     @QtCore.pyqtSlot(str, list, matplotlib.axes.Axes)
     def on_FIGURE_ADD_AXES(self, winid, position, sharex):
         global aqs
-        axis = self.dcs[winid].fig.add_axes(position, facecolor=black, sharex=sharex)
+        axis = self.dcs[winid].fig.add_axes(position, facecolor=theme.black, sharex=sharex)
         aqs[winid].put(axis)
 
     @QtCore.pyqtSlot(str, matplotlib.text.Text)
@@ -2279,7 +2287,6 @@ class Dialog(QtWidgets.QDialog):
     def __init__(self):
         QtWidgets.QDialog.__init__(self)
         uic.loadUi('windowqt.ui', self)
-        self.setFixedSize(555, 575)
 
         self.selected_exchange = ""
         for exchange_name in accounts.exchanges.keys():
@@ -2298,6 +2305,14 @@ class Dialog(QtWidgets.QDialog):
                 win32gui.EndDialog(window_handle, 0)
 
     def updateWidget(self):
+        global theme_init
+        if theme_init == True:
+            if theme.theme_type == themes.THEME_TYPE_LIGHT:
+                self.checkBox.setChecked(True)
+            self.checkBox.setEnabled(False)
+        theme_init = True
+
+        self.tableWidget.verticalHeader().hide()
         if self.selected_exchange == accounts.EXCHANGE_OANDA:
             self.tableWidget.setColumnCount(3)
             self.tableWidget.setHorizontalHeaderLabels(["Instrument", "Name", "Type"])
@@ -2342,11 +2357,20 @@ class Dialog(QtWidgets.QDialog):
                     coins[coin]["volumeFloat"] = int(
                         float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]) * btc_price)
                     coins_.append(coins[coin])
-                if coin.endswith("USDT"):
+                elif coin.endswith("USDT"):
                     coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]))
                     coins_.append(coins[coin])
-                if coin.endswith("USD"):
+                elif coin.endswith("USD"):
                     coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]))
+                    coins_.append(coins[coin])
+                elif coin.endswith("JPY"):
+                    coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin.split("/")[0] + "/USD"]["last"]))
+                    coins_.append(coins[coin])
+                elif coin.endswith("CNY"):
+                    coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin.split("/")[0] + "/USD"]["last"]))
+                    coins_.append(coins[coin])
+                elif coin.endswith("EUR"):
+                    coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin.split("/")[0] + "/USD"]["last"]))
                     coins_.append(coins[coin])
             coins = sorted(coins_, key=itemgetter("volumeFloat"), reverse=True)
 
@@ -2355,7 +2379,8 @@ class Dialog(QtWidgets.QDialog):
         hasChange = False
         hasPercentage = False
         for coin in coins:
-            if coin["symbol"].endswith("BTC") or coin["symbol"].endswith("USDT") or coin["symbol"].endswith("USD"):
+            if coin["symbol"].endswith("BTC") or coin["symbol"].endswith("USDT") or coin["symbol"].endswith("USD") or \
+                    coin["symbol"].endswith("JPY") or coin["symbol"].endswith("CNY") or coin["symbol"].endswith("EUR"):
                 rowPosition = self.tableWidget.rowCount()
                 self.tableWidget.insertRow(rowPosition)
                 self.tableWidget.setItem(rowPosition, 0, QtWidgets.QTableWidgetItem(coin["symbol"]))
@@ -2372,15 +2397,15 @@ class Dialog(QtWidgets.QDialog):
                 self.tableWidget.setItem(rowPosition, 3, QtWidgets.QTableWidgetItem(str(coin["volumeFloat"])))
                 if "change" in coin and coin["change"]:
                     if float(coin["change"]) < 0:
-                        self.tableWidget.item(rowPosition, 0).setForeground(QtGui.QColor(255, 0, 0))
-                        self.tableWidget.item(rowPosition, 1).setForeground(QtGui.QColor(255, 0, 0))
-                        self.tableWidget.item(rowPosition, 2).setForeground(QtGui.QColor(255, 0, 0))
-                        self.tableWidget.item(rowPosition, 3).setForeground(QtGui.QColor(255, 0, 0))
+                        self.tableWidget.item(rowPosition, 0).setForeground(QtGui.QColor(theme.dialog_red))
+                        self.tableWidget.item(rowPosition, 1).setForeground(QtGui.QColor(theme.dialog_red))
+                        self.tableWidget.item(rowPosition, 2).setForeground(QtGui.QColor(theme.dialog_red))
+                        self.tableWidget.item(rowPosition, 3).setForeground(QtGui.QColor(theme.dialog_red))
                     else:
-                        self.tableWidget.item(rowPosition, 0).setForeground(QtGui.QColor(0, 255, 0))
-                        self.tableWidget.item(rowPosition, 1).setForeground(QtGui.QColor(0, 255, 0))
-                        self.tableWidget.item(rowPosition, 2).setForeground(QtGui.QColor(0, 255, 0))
-                        self.tableWidget.item(rowPosition, 3).setForeground(QtGui.QColor(0, 255, 0))
+                        self.tableWidget.item(rowPosition, 0).setForeground(QtGui.QColor(theme.dialog_green))
+                        self.tableWidget.item(rowPosition, 1).setForeground(QtGui.QColor(theme.dialog_green))
+                        self.tableWidget.item(rowPosition, 2).setForeground(QtGui.QColor(theme.dialog_green))
+                        self.tableWidget.item(rowPosition, 3).setForeground(QtGui.QColor(theme.dialog_green))
 
         if hasChange == False and hasPercentage == False:
             self.tableWidget.removeColumn(1)
@@ -2398,11 +2423,28 @@ class Dialog(QtWidgets.QDialog):
             self.updateWidget()
 
     def accept(self):
+      global theme
+      global app
       selectionModel = self.tableWidget.selectionModel()
       if selectionModel.hasSelection():
         row = self.tableWidget.selectedItems()[0].row()
         timeframe_entered = str(self.comboBox.currentText())
         symbol = str(self.tableWidget.item(row, 0).text())
+
+        if self.checkBox.isChecked() == True:
+            theme = themes.Theme(themes.THEME_TYPE_LIGHT)
+            qss_data = '''
+            QMainWindow {
+                background-color: #FFFFFF;
+                margin: 0;
+            }
+            QDialog {
+                background-color: #FFFFFF;
+                margin: 0;
+            }
+            '''
+            app.setStyleSheet(qss_data)
+
         self.close()
 
         global main
@@ -2510,6 +2552,15 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.tableWidgetBids.hide()
         self.tableWidgetAsks.hide()
         self.tableWidgetTrades.hide()
+
+        if theme.theme_type == themes.THEME_TYPE_LIGHT:
+            self.tableWidgetBids.setStyleSheet(
+                "QHeaderView::section {background-color: #50535E; color: #FFFFFF;}")
+            self.tableWidgetAsks.setStyleSheet(
+                "QHeaderView::section {background-color: #50535E; color: #FFFFFF;}")
+            self.tableWidgetTrades.setStyleSheet(
+                "QHeaderView::section {background-color: #50535E; color: #FFFFFF;}")
+
         self.init_orderbook_widget()
 
     def kraken_prettify_value(self, value):
@@ -2572,42 +2623,42 @@ class OrderBookWidget(QtWidgets.QWidget):
             columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
 
             if bid[1] == highest_amount:
-                columnItem.setBackground(QtGui.QColor(11, 83, 69))
+                columnItem.setBackground(theme.orderbook_bids_1)
             elif bid[1] == second_highest_amount:
-                columnItem.setBackground(QtGui.QColor(14, 102, 85))
+                columnItem.setBackground(theme.orderbook_bids_2)
             elif bid[1] == third_highest_amount:
-                columnItem.setBackground(QtGui.QColor(17, 122, 101))
+                columnItem.setBackground(theme.orderbook_bids_3)
             else:
-                columnItem.setBackground(QtGui.QColor(33, 47, 60))
-            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+                columnItem.setBackground(theme.orderbook_bg)
+            columnItem.setForeground(theme.orderbook_fg)
             columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetBids.setItem(i, 0, columnItem)
             columnItem = QtWidgets.QTableWidgetItem(amount)
             columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
             if bid[1] == highest_amount:
-                columnItem.setBackground(QtGui.QColor(11, 83, 69))
+                columnItem.setBackground(theme.orderbook_bids_1)
             elif bid[1] == second_highest_amount:
-                columnItem.setBackground(QtGui.QColor(14, 102, 85))
+                columnItem.setBackground(theme.orderbook_bids_2)
             elif bid[1] == third_highest_amount:
-                columnItem.setBackground(QtGui.QColor(17, 122, 101))
+                columnItem.setBackground(theme.orderbook_bids_3)
             else:
-                columnItem.setBackground(QtGui.QColor(33, 47, 60))
-            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+                columnItem.setBackground(theme.orderbook_bg)
+            columnItem.setForeground(theme.orderbook_fg)
             columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetBids.setItem(i, 1, columnItem)
             columnItem = QtWidgets.QTableWidgetItem(sum_str)
             columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
             if bid[1] == highest_amount:
-                columnItem.setBackground(QtGui.QColor(11, 83, 69))
+                columnItem.setBackground(theme.orderbook_bids_1)
             elif bid[1] == second_highest_amount:
-                columnItem.setBackground(QtGui.QColor(14, 102, 85))
+                columnItem.setBackground(theme.orderbook_bids_2)
             elif bid[1] == third_highest_amount:
-                columnItem.setBackground(QtGui.QColor(17, 122, 101))
+                columnItem.setBackground(theme.orderbook_bids_3)
             else:
-                columnItem.setBackground(QtGui.QColor(33, 47, 60))
-            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+                columnItem.setBackground(theme.orderbook_bg)
+            columnItem.setForeground(theme.orderbook_fg)
             columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetBids.setItem(i, 2, columnItem)
@@ -2639,42 +2690,42 @@ class OrderBookWidget(QtWidgets.QWidget):
             columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
 
             if ask[1] == highest_amount_ask:
-                columnItem.setBackground(QtGui.QColor(100, 30, 22))
+                columnItem.setBackground(theme.orderbook_asks_1)
             elif ask[1] == second_highest_amount_ask:
-                columnItem.setBackground(QtGui.QColor(123, 36, 28))
+                columnItem.setBackground(theme.orderbook_asks_2)
             elif ask[1] == third_highest_amount_ask:
-                columnItem.setBackground(QtGui.QColor(146, 43, 33))
+                columnItem.setBackground(theme.orderbook_asks_3)
             else:
-                columnItem.setBackground(QtGui.QColor(33, 47, 60))
-            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+                columnItem.setBackground(theme.orderbook_bg)
+            columnItem.setForeground(theme.orderbook_fg)
             columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetAsks.setItem(i, 0, columnItem)
             columnItem = QtWidgets.QTableWidgetItem(amount)
             columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
             if ask[1] == highest_amount_ask:
-                columnItem.setBackground(QtGui.QColor(100, 30, 22))
+                columnItem.setBackground(theme.orderbook_asks_1)
             elif ask[1] == second_highest_amount_ask:
-                columnItem.setBackground(QtGui.QColor(123, 36, 28))
+                columnItem.setBackground(theme.orderbook_asks_2)
             elif ask[1] == third_highest_amount_ask:
-                columnItem.setBackground(QtGui.QColor(146, 43, 33))
+                columnItem.setBackground(theme.orderbook_asks_3)
             else:
-                columnItem.setBackground(QtGui.QColor(33, 47, 60))
-            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+                columnItem.setBackground(theme.orderbook_bg)
+            columnItem.setForeground(theme.orderbook_fg)
             columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetAsks.setItem(i, 1, columnItem)
             columnItem = QtWidgets.QTableWidgetItem(sum_str)
             columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
             if ask[1] == highest_amount_ask:
-                columnItem.setBackground(QtGui.QColor(100, 30, 22))
+                columnItem.setBackground(theme.orderbook_asks_1)
             elif ask[1] == second_highest_amount_ask:
-                columnItem.setBackground(QtGui.QColor(123, 36, 28))
+                columnItem.setBackground(theme.orderbook_asks_2)
             elif ask[1] == third_highest_amount_ask:
-                columnItem.setBackground(QtGui.QColor(146, 43, 33))
+                columnItem.setBackground(theme.orderbook_asks_3)
             else:
-                columnItem.setBackground(QtGui.QColor(33, 47, 60))
-            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+                columnItem.setBackground(theme.orderbook_bg)
+            columnItem.setForeground(theme.orderbook_fg)
             columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetAsks.setItem(i, 2, columnItem)
@@ -2727,10 +2778,10 @@ class OrderBookWidget(QtWidgets.QWidget):
             columnItem = QtWidgets.QTableWidgetItem(str(trade_time_pretty))
             columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
             if trade_buy_maker == True:
-                columnItem.setBackground(QtGui.QColor(17, 122, 101))
+                columnItem.setBackground(theme.trades_green)
             else:
-                columnItem.setBackground(QtGui.QColor(146, 43, 33))
-            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+                columnItem.setBackground(theme.trades_red)
+            columnItem.setForeground(theme.trades_fg)
             columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetTrades.setItem(i, 0, columnItem)
@@ -2738,10 +2789,10 @@ class OrderBookWidget(QtWidgets.QWidget):
             columnItem = QtWidgets.QTableWidgetItem(trade_price)
             columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
             if trade_buy_maker == True:
-                columnItem.setBackground(QtGui.QColor(17, 122, 101))
+                columnItem.setBackground(theme.trades_green)
             else:
-                columnItem.setBackground(QtGui.QColor(146, 43, 33))
-            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+                columnItem.setBackground(theme.trades_red)
+            columnItem.setForeground(theme.trades_fg)
             columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetTrades.setItem(i, 1, columnItem)
@@ -2749,10 +2800,10 @@ class OrderBookWidget(QtWidgets.QWidget):
             columnItem = QtWidgets.QTableWidgetItem(trade_quantity)
             columnItem.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
             if trade_buy_maker == True:
-                columnItem.setBackground(QtGui.QColor(17, 122, 101))
+                columnItem.setBackground(theme.trades_green)
             else:
-                columnItem.setBackground(QtGui.QColor(146, 43, 33))
-            columnItem.setForeground(QtGui.QColor(208, 211, 212))
+                columnItem.setBackground(theme.trades_red)
+            columnItem.setForeground(theme.trades_fg)
             columnItem.setFont(self.font)
             columnItem.setFlags(QtCore.Qt.NoItemFlags)
             self.tableWidgetTrades.setItem(i, 2, columnItem)
@@ -3142,14 +3193,29 @@ if __name__ == "__main__":
     accounts = ExchangeAccounts(exchanges_list)
     accounts.initialize()
 
-    with open("style.qss","r") as fh:
-        app.setStyleSheet(fh.read())
+    theme = themes.Theme(themes.THEME_TYPE_DARK)
+    if theme.theme_type == themes.THEME_TYPE_DARK:
+        with open("style.qss", "r") as fh:
+            app.setStyleSheet(fh.read())
+    elif theme.theme_type == themes.THEME_TYPE_LIGHT:
+        qss_data = '''
+        QMainWindow {
+            background-color: #FFFFFF;
+            margin: 0;
+        }
+        QDialog {
+            background-color: #FFFFFF;
+            margin: 0;
+        }
+        '''
+        app.setStyleSheet(qss_data)
 
     if platform.system() == "Linux":
         new_font = QtGui.QFont()
         new_font.setPointSize(10)
         app.setFont(new_font)
 
+    theme_init = False
     dialog = Dialog()
     dialog.show()
     os._exit(app.exec_())
