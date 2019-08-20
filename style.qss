@@ -1,3 +1,11 @@
+QMainWindow {
+    margin: 0;
+}
+
+QDialog {
+    margin: 0;
+}
+
 QWidget {
     color: #eff0f1;
     background-color: #131D27;

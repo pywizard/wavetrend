@@ -15,6 +15,8 @@ class ExchangeAccounts:
         self.EXCHANGE_BINANCE = "BINANCE"
         self.EXCHANGE_KRAKEN = "KRAKEN"
         self.EXCHANGE_OANDA = "OANDA"
+        self.tickers = {}
+        self.markets = {}
 
         for exchange in exchanges:
             exchange_name = exchange[0]
@@ -39,6 +41,8 @@ class ExchangeAccounts:
             else:
                 print("Please configure a valid Exchange.")
                 sys.exit(1)
+            self.tickers[exchange_name] = None
+            self.markets[exchange_name] = None
 
     def initialize(self):
         for exchange_name in self.exchanges.keys():
@@ -72,7 +76,6 @@ class ExchangeAccounts:
             else:
                 print("Please configure a valid Exchange.")
                 sys.exit(1)
-            self.exchanges[exchange_name]["markets"] = self.exchanges[exchange_name]["client"].fetch_markets()
 
     def fetch_tickers(self, exchange):
         while True:
@@ -80,7 +83,8 @@ class ExchangeAccounts:
                 tickers = self.exchanges[exchange]["client"].fetch_tickers()
                 break
             except:
-                time.sleep(5)
+                time.sleep(1)
+        self.tickers[exchange] = tickers
         return tickers
 
     def get_symbol_price(self, exchange, symbol):
@@ -89,7 +93,7 @@ class ExchangeAccounts:
                 ticker_last = self.fetch_tickers(exchange)[symbol]["last"]
                 break
             except:
-                time.sleep(5)
+                time.sleep(1)
         return ticker_last
 
     def get_asset_from_symbol(self, exchange, symbol):
@@ -114,5 +118,5 @@ class ExchangeAccounts:
                 orderbook = self.exchanges[exchange]["client"].fetch_order_book(symbol)
                 break
             except:
-                time.sleep(5)
+                time.sleep(1)
         return orderbook

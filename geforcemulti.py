@@ -456,7 +456,7 @@ class DataRunner:
 
     if self.exchange == accounts.EXCHANGE_BITFINEX:
         self.last_result = []
-        self.exchange_obj = exchanges.Bitfinex(accounts.exchanges[accounts.EXCHANGE_BITFINEX]["markets"], \
+        self.exchange_obj = exchanges.Bitfinex(accounts, \
                                                accounts.exchanges[accounts.EXCHANGE_BITFINEX]["api_key"], \
                                                accounts.exchanges[accounts.EXCHANGE_BITFINEX]["api_secret"])
         self.exchange_obj.start_ticker_websocket(self.symbol, self.process_message_ticker)
@@ -464,12 +464,12 @@ class DataRunner:
         if timeframe_entered == "1d":
             self.timeframe_entered = "1D"
     elif self.exchange == accounts.EXCHANGE_BINANCE:
-        self.exchange_obj = exchanges.Binance(accounts.exchanges[accounts.EXCHANGE_BINANCE]["markets"], \
+        self.exchange_obj = exchanges.Binance(accounts, \
                                               accounts.exchanges[accounts.EXCHANGE_BINANCE]["api_key"], \
                                               accounts.exchanges[accounts.EXCHANGE_BINANCE]["api_secret"])
     elif self.exchange == accounts.EXCHANGE_KRAKEN:
         self.last_result = []
-        self.exchange_obj = exchanges.Kraken(accounts.exchanges[accounts.EXCHANGE_KRAKEN]["markets"])
+        self.exchange_obj = exchanges.Kraken(accounts)
         self.exchange_obj.start_ticker_websocket(self.symbol, self.process_message_ticker)
         self.websocket_ticker_alive_time = time.time()
     elif self.exchange == accounts.EXCHANGE_OANDA:
@@ -2327,7 +2327,11 @@ class Dialog(QtWidgets.QDialog):
             self.comboBox.addItem(key)
 
         if self.selected_exchange == accounts.EXCHANGE_OANDA:
-            coins = accounts.client(self.selected_exchange).fetch_markets()
+            if accounts.markets[self.selected_exchange] is None:
+                coins = accounts.client(self.selected_exchange).fetch_markets()
+                accounts.markets[self.selected_exchange] = coins
+            else:
+                coins = accounts.markets[self.selected_exchange]
             coins_ = []
             for coin in coins:
                 coins_.append(coins[coin])
@@ -2340,7 +2344,11 @@ class Dialog(QtWidgets.QDialog):
                 self.tableWidget.setItem(rowPosition, 2, QtWidgets.QTableWidgetItem(str(coin["type"])))
             return
         else:
-            coins = accounts.fetch_tickers(self.selected_exchange)
+            if accounts.tickers[self.selected_exchange] is None or \
+                    self.selected_exchange in [accounts.EXCHANGE_BITFINEX, accounts.EXCHANGE_BINANCE]:
+                coins = accounts.fetch_tickers(self.selected_exchange)
+            else:
+                coins = accounts.tickers[self.selected_exchange]
             if "BTC/USD" in coins:
                 btcusd_symbol = "BTC/USD"
             else:
@@ -2497,7 +2505,7 @@ class OrderBookWidget(QtWidgets.QWidget):
         if theme.theme_type == themes.THEME_TYPE_DARK:
             self.tableWidgetBids.setShowGrid(False)
         elif theme.theme_type == themes.THEME_TYPE_LIGHT:
-            self.tableWidgetBids.setStyleSheet("QTablewView{gridline-color: #E0E3EB}")
+            self.tableWidgetBids.setStyleSheet("QTablewView {gridline-color: #E0E3EB}")
         self.tableWidgetBids.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.tableWidgetBids.setHorizontalHeaderLabels(["Price", "Qty", "Sum"])
         self.tableWidgetBids.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
@@ -3102,15 +3110,15 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.setFont(newfont)
         self.setStyleSheet("QLabel { background-color : #131D27; color : #C6C7C8; }")
         if self.exchange == accounts.EXCHANGE_BITFINEX:
-            self.exchange_obj = exchanges.Bitfinex(accounts.exchanges[accounts.EXCHANGE_BITFINEX]["markets"], \
+            self.exchange_obj = exchanges.Bitfinex(accounts, \
                                                    accounts.exchanges[accounts.EXCHANGE_BITFINEX]["api_key"], \
                                                    accounts.exchanges[accounts.EXCHANGE_BITFINEX]["api_secret"])
         elif self.exchange == accounts.EXCHANGE_BINANCE:
-            self.exchange_obj = exchanges.Binance(accounts.exchanges[accounts.EXCHANGE_BINANCE]["markets"], \
+            self.exchange_obj = exchanges.Binance(accounts, \
                                                   accounts.exchanges[accounts.EXCHANGE_BINANCE]["api_key"], \
                                                   accounts.exchanges[accounts.EXCHANGE_BINANCE]["api_secret"])
         elif self.exchange == accounts.EXCHANGE_KRAKEN:
-            self.exchange_obj = exchanges.Kraken(accounts.exchanges[accounts.EXCHANGE_KRAKEN]["markets"])
+            self.exchange_obj = exchanges.Kraken(accounts)
         elif self.exchange == accounts.EXCHANGE_OANDA:
             self.exchange_obj = None
 

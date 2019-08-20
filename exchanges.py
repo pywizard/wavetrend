@@ -8,10 +8,10 @@ import threading
 import time
 
 class Bitfinex:
-    def __init__(self, markets, api_key, api_secret):
+    def __init__(self, account, api_key, api_secret):
+        self.account = account
         self.api_key = api_key
         self.api_secret = api_secret
-        self.markets = markets
         self.manager_candlestick = WssClient(self.api_key, self.api_secret)
         self.manager_depth = WssClient(self.api_key, self.api_secret)
         self.manager_ticker = WssClient(self.api_key, self.api_secret)
@@ -20,8 +20,11 @@ class Bitfinex:
         self.started_depth = False
         self.started_ticker = False
         self.started_trades = False
+        self.markets = None
 
     def get_exchange_symbol(self, symbol):
+        if self.markets is None:
+            self.markets = self.account.client(self.account.EXCHANGE_BITFINEX).fetch_markets(symbol)
         for market in self.markets:
             if market["symbol"] == symbol:
                 symbol = market["id"]
@@ -72,13 +75,16 @@ class Bitfinex:
 
 
 class Binance:
-    def __init__(self, markets, api_key, api_secret):
+    def __init__(self, account, api_key, api_secret):
+        self.account = account
         self.client = Client(api_key, api_secret)
         self.manager = BinanceSocketManager(self.client)
         self.started = False
-        self.markets = markets
+        self.markets = None
 
     def get_exchange_symbol(self, symbol):
+        if self.markets is None:
+            self.markets = self.account.client(self.account.EXCHANGE_BINANCE).fetch_markets()
         for market in self.markets:
             if market["symbol"] == symbol:
                 symbol = market["id"]
@@ -145,8 +151,9 @@ class Binance:
             pass
 
 class Kraken:
-    def __init__(self, markets):
-        self.markets = markets
+    def __init__(self, account):
+        self.account = account
+        self.markets = None
         self.manager_candlestick = KrakenClient.WssClient()
         self.manager_depth = KrakenClient.WssClient()
         self.manager_ticker = KrakenClient.WssClient()
@@ -157,6 +164,8 @@ class Kraken:
         self.started_trades = False
 
     def get_exchange_symbol(self, symbol):
+        if self.markets == None:
+            self.markets = self.account.client(self.account.EXCHANGE_KRAKEN).fetch_markets(symbol)
         for market in self.markets:
             if market["symbol"] == symbol:
                 symbol = market["id"]
