@@ -146,7 +146,8 @@ class oanda (Exchange):
         for candle in json_body["candles"]:
             candle_time = candle["time"][:-8]
             timestamp = arrow.get(candle_time, 'YYYY-MM-DDTHH:mm:ss').datetime
-            real_timestamps.append(timestamp)
+            timestamp_local = arrow.Arrow.fromdatetime(timestamp, "America/New_York").to('local').datetime
+            real_timestamps.append(timestamp_local)
             candles.append([int(fake_timestamps), candle["openMid"], candle["highMid"], candle["lowMid"], candle["closeMid"],candle["volume"]])
             fake_timestamps = fake_timestamps + self.elapsed_table[timeframe]
 
