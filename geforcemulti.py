@@ -400,7 +400,6 @@ qs = {}
 aqs = {}
 dqs = {}
 qs_local = {}
-exchange_balances = {}
 
 CANDLE_TYPE_CANDLESTICK = 0
 CANDLE_TYPE_HEIKIN_ASHI = 1
@@ -1454,90 +1453,6 @@ class ChartRunner(QtCore.QThread):
 
     return dt, open_, high, low, close, volume, limit, real_timestamps
 
-
-class UpdateUsdBalanceRunner(QtCore.QThread):
-  data_ready = QtCore.pyqtSignal()
-  
-  def __init__(self, parent, exchange, winid):
-    super(UpdateUsdBalanceRunner, self).__init__(parent)
-    self.parent = parent
-    self.exchange = exchange
-    self.winid = winid
-
-  def run(self):
-    global qs_local
-    global destroyed_window_ids
-
-    if self.exchange == accounts.EXCHANGE_OANDA:
-        return
-
-    time.sleep(5)
-    while True:
-      try:
-        ticker = accounts.fetch_tickers(self.exchange)
-
-        self.usdt_symbols = []
-        self.btc_symbols = []
-        for symbol,value in ticker.items():
-          if symbol.endswith("USDT"):
-            self.usdt_symbols.append(symbol) 
-          if symbol.endswith("USD"):
-            self.usdt_symbols.append(symbol)
-          if symbol.endswith("BTC"):
-            self.btc_symbols.append(symbol)
-
-        balances = accounts.client(self.exchange).fetch_balance()
-        usdt_balance = 0
-        
-        if "BTC/USD" in ticker:
-          btcusd_symbol = "BTC/USD"
-        else:
-          btcusd_symbol = "BTC/USDT"
-        
-        btc_price = float(ticker[btcusd_symbol]["last"])
-        for balance_symbol, balance in balances.items():
-          if "total" not in balance:
-            continue
-          if float(balance["total"]) == 0.0:
-            continue
-          if balance_symbol == "USDT":
-            usdt_balance = usdt_balance + float(balance["total"])
-          elif balance_symbol + "/USDT" in self.usdt_symbols:
-            for symbol_name,symbol in ticker.items():
-              if symbol_name == balance_symbol + "/USDT":
-                symbol_price = float(symbol["last"])
-                break
-            usdt_balance = usdt_balance + float(balance["total"]) * symbol_price
-          elif balance_symbol + "/USD" in self.usdt_symbols:
-            for symbol_name,symbol in ticker.items():
-              if symbol_name == balance_symbol + "/USD":
-                symbol_price = float(symbol["last"])
-                break
-            usdt_balance = usdt_balance + float(balance["total"]) * symbol_price
-          elif balance_symbol + "/BTC" in self.btc_symbols:
-            for symbol_name,symbol in ticker.items():
-              if symbol_name == balance_symbol + "/BTC":
-                symbol_price = float(symbol["last"])
-                break
-            usdt_balance = usdt_balance + float(balance["total"]) * symbol_price * btc_price
-        
-        btc_balance = usdt_balance / btc_price
-
-        qs_local[self.winid].append([self.exchange, self.exchange + " USD Balance: " + "%.2f - BTC Balance: %.8f" % (usdt_balance, btc_balance)])
-      except:
-        print(get_full_stacktrace())
-
-      do_break = False
-      for i in range(0, 35*60*10):
-        if self.winid in destroyed_window_ids:
-            del qs_local[self.winid]
-            do_break = True
-            break
-        time.sleep(0.1)
-
-      if do_break == True:
-          break
-
 class Window(QtWidgets.QMainWindow):
     global tab_widgets
     global config
@@ -1632,14 +1547,10 @@ class Window(QtWidgets.QMainWindow):
         global aqs
         global dqs
         global qs_local
-        global exchange_balances
         qs[window_id] = Queue.Queue()
         aqs[window_id] = Queue.Queue()
         dqs[window_id] = collections.deque()
         qs_local[window_id] = collections.deque()
-
-        exchange_balances[self.exchange] = {}
-        exchange_balances[self.exchange][window_id] = ""
 
         DataRunnerTabs[window_id] = DataRunner(self, self.exchange, symbol, window_id, 0, timeframe_entered)
 
@@ -1651,13 +1562,6 @@ class Window(QtWidgets.QMainWindow):
         ChartRunnerTabs[window_id].CANVAS_DRAW.connect(self.on_CANVAS_DRAW)
         ChartRunnerTabs[window_id].CHART_DESTROY.connect(self.on_CHART_DESTROY)
         ChartRunnerTabs[window_id].start()
-
-        self.updateusdbalance_runner_thread = UpdateUsdBalanceRunner(self, self.exchange, window_id)
-        self.updateusdbalance_runner_thread.start()
-
-        timer = QtCore.QTimer(self)
-        timer.timeout.connect(self.update_usd_balance)
-        timer.start(5000)
 
     def keyPressEvent(self, event):
      global window_configs
@@ -1813,46 +1717,6 @@ class Window(QtWidgets.QMainWindow):
 
         window_ids = copy.deepcopy(window_ids_copy)
 
-    def update_usd_balance(self):
-      global qs_local
-      global exchange_balances
-
-      index = self.tabWidget.currentIndex()
-      if index == -1:
-          return
-      tab_index = window_ids[index]
-      if tab_index in qs_local and len(qs_local[tab_index]) > 0:
-        [exchange, message] = qs_local[tab_index].pop()
-        qs_local[tab_index].clear()
-        #populate through all windows for the same exchange
-        if exchange in exchange_balances:
-            for winid in exchange_balances[exchange]:
-                exchange_balances[exchange][winid] = message
-            self.statusbar.showMessage(message)
-      else:
-        winid_found = False
-        for exchange in exchange_balances.keys():
-            for winid in exchange_balances[exchange].keys():
-                if winid == tab_index:
-                    message = exchange_balances[exchange][winid]
-                    if message == "":
-                        for winid_ in exchange_balances[exchange]:
-                            message = exchange_balances[exchange][winid_]
-                            if message != "":
-                                self.statusbar.showMessage(message)
-                                exchange_balances[exchange][winid] = \
-                                    exchange_balances[exchange][winid_]
-                                winid_found = True
-                                break
-                    else:
-                        self.statusbar.showMessage(message)
-                        winid_found = True
-                    break
-                if winid_found == True:
-                    break
-            if winid_found == True:
-                break
-
     def tabOnChange(self, event):
       global tab_current_index
       if self.tabWidget.currentIndex() in window_ids:
@@ -1860,7 +1724,6 @@ class Window(QtWidgets.QMainWindow):
         self.setWindowTitle("WAVETREND " + self.exchange)
         tab_current_index = window_ids[self.tabWidget.currentIndex()]
         self.OrderbookWidget[self.tabWidget.currentIndex()].update_trades_display()
-        self.update_usd_balance()
       else:
         self.statusbar.showMessage("")
 
@@ -1937,26 +1800,8 @@ class Window(QtWidgets.QMainWindow):
 
     def removeTab(self, window_id, selected_exchange):
       global destroyed_window_ids
-      global exchange_balances
       self.exchange = selected_exchange
       destroyed_window_ids[window_id] = "DESTROYED"
-
-      #remove specific window_id from exchange_balances list
-      exchange_ = ""
-      exchange_balances_copy = copy.deepcopy(exchange_balances)
-      for exchange in exchange_balances_copy:
-          for winid in exchange_balances_copy[exchange]:
-              if winid == window_id:
-                  del exchange_balances[exchange][winid]
-                  exchange_ = exchange
-                  break
-      #remove exchange from exchange_balances list if there
-      #isn't another tab open with the same exchange
-      found = False
-      if exchange_ != "" and len(exchange_balances[exchange_]) == 0:
-          del exchange_balances[exchange_]
-
-      self.update_usd_balance()
 
     def addTab(self, symbol, timeframe_entered, selected_exchange):
       global tab_current_index
@@ -2038,7 +1883,6 @@ class Window(QtWidgets.QMainWindow):
       global aqs
       global dqs
       global qs_local
-      global exchange_balances
 
       qs[window_id] = Queue.Queue()
       aqs[window_id] = Queue.Queue()
@@ -2058,14 +1902,6 @@ class Window(QtWidgets.QMainWindow):
       ChartRunnerTabs[window_id].CANVAS_DRAW.connect(self.on_CANVAS_DRAW)
       ChartRunnerTabs[window_id].CHART_DESTROY.connect(self.on_CHART_DESTROY)
       ChartRunnerTabs[window_id].start()
-
-      if self.exchange not in exchange_balances:
-          exchange_balances[self.exchange] = {}
-          self.updateusdbalance_runner_thread = UpdateUsdBalanceRunner(self, self.exchange, window_id)
-          self.updateusdbalance_runner_thread.start()
-      exchange_balances[self.exchange][window_id] = ""
-
-      self.update_usd_balance()
 
     def add_coin_clicked(self, event):
       global dialog
