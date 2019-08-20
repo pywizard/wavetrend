@@ -18,7 +18,7 @@ from ccxt.base.decimal_to_precision import decimal_to_precision
 import json
 import oandapyV20
 import oandapyV20.endpoints.accounts as accounts
-import oandapyV20.endpoints.instruments as instruments
+import oandapyV20.endpoints.pricing as pricing
 import requests
 import arrow
 import warnings
@@ -28,6 +28,7 @@ warnings.filterwarnings("ignore")
 class oanda (Exchange):
     def __init__(self, account_id, account_token):
         self.account_id = account_id
+        self.account_token = account_token
         self.oanda = oandapyV20.API(access_token=account_token)
         self.decimal_to_precision = decimal_to_precision
         self.timeframes = {
@@ -115,6 +116,12 @@ class oanda (Exchange):
         self.markets = result
         return self.markets
 
+    def is_instrument_halted(self, symbol):
+        request = pricing.PricingInfo(accountID=self.account_id, params={"instruments": symbol})
+        self.oanda.request(request)
+        import pprint
+        pprint.pprint(request.response)
+
     def amount_to_precision(self, symbol, amount):
         return self.number_to_string(amount)
 
@@ -129,7 +136,7 @@ class oanda (Exchange):
         ]
 
     def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
-        url = "https://api-fxtrade.oanda.com/v1/candles?instrument=" + symbol +"&count=" + str(limit) + "&candleFormat=midpoint&granularity=" + self.timeframes[timeframe] + "&dailyAlignment=0&alignmentTimezone=America%2FNew_York"
+        url = "https://api-fxtrade.oanda.com/v1/candles?instrument=" + symbol +"&count=" + str(limit) + "&candleFormat=midpoint&granularity=" + self.timeframes[timeframe] + "&alignmentTimezone=America%2FNew_York"
         response = requests.get(url)
         json_body = response.json()
 

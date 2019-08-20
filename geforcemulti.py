@@ -821,7 +821,8 @@ class ChartRunner(QtCore.QThread):
           if first == True and force_redraw_chart == False:
                 date, open_, high, low, close, vol, limit, real_timestamps = self.getData(timeframe_entered, days_entered, symbol)
                 if self.exchange == accounts.EXCHANGE_OANDA:
-                    time_close = (datetime.datetime.timestamp(real_timestamps[-1]) // elapsed_table[self.timeframe_entered] * \
+                    date_local = arrow.Arrow.fromdatetime(real_timestamps[-1], "America/New_York").to('local').datetime
+                    time_close = (datetime.datetime.timestamp(date_local) // elapsed_table[self.timeframe_entered] * \
                                   elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
                 else:
                     time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
