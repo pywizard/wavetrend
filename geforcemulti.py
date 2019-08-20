@@ -2443,10 +2443,6 @@ class Dialog(QtWidgets.QDialog):
                 background-color: #FFFFFF;
                 margin: 0;
             }
-            QTableView {
-                gridline-color: #FFFFFF;
-                margin: 0;
-            }
             '''
             app.setStyleSheet(qss_data)
 
@@ -2501,7 +2497,10 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.tableWidgetBids.setColumnCount(3)
         self.tableWidgetBids.verticalHeader().setVisible(False)
         self.tableWidgetBids.horizontalHeader().setStyleSheet("QHeaderView::section{border: 0px; border-bottom: 0px;}")
-        self.tableWidgetBids.setShowGrid(False)
+        if theme.theme_type == themes.THEME_TYPE_DARK:
+            self.tableWidgetBids.setShowGrid(False)
+        elif theme.theme_type == themes.THEME_TYPE_LIGHT:
+            self.tableWidgetBids.setStyleSheet("QTablewView{gridline-color: #E0E3EB}")
         self.tableWidgetBids.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.tableWidgetBids.setHorizontalHeaderLabels(["Price", "Qty", "Sum"])
         self.tableWidgetBids.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
@@ -2517,7 +2516,10 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.tableWidgetAsks.setColumnCount(3)
         self.tableWidgetAsks.verticalHeader().setVisible(False)
         self.tableWidgetAsks.horizontalHeader().setStyleSheet("QHeaderView::section{border: 0px; border-bottom: 0px}")
-        self.tableWidgetAsks.setShowGrid(False)
+        if theme.theme_type == themes.THEME_TYPE_DARK:
+            self.tableWidgetAsks.setShowGrid(False)
+        elif theme.theme_type == themes.THEME_TYPE_LIGHT:
+            self.tableWidgetAsks.setStyleSheet("QTablewView{gridline-color: #E0E3EB}")
         self.tableWidgetAsks.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.tableWidgetAsks.setHorizontalHeaderLabels(["Price", "Qty", "Sum"])
         self.tableWidgetAsks.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
