@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1027</width>
-    <height>865</height>
+    <width>1487</width>
+    <height>554</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -76,7 +76,7 @@
           </sizepolicy>
          </property>
          <property name="text">
-          <string>Add Coin</string>
+          <string>Add Instrument</string>
          </property>
          <property name="toolButtonStyle">
           <enum>Qt::ToolButtonIconOnly</enum>
