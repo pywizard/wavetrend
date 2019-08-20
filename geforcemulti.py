@@ -2287,6 +2287,7 @@ class Dialog(QtWidgets.QDialog):
     def __init__(self):
         QtWidgets.QDialog.__init__(self)
         uic.loadUi('windowqt.ui', self)
+        self.setFixedSize(534, 575)
 
         self.selected_exchange = ""
         for exchange_name in accounts.exchanges.keys():
@@ -2440,6 +2441,10 @@ class Dialog(QtWidgets.QDialog):
             }
             QDialog {
                 background-color: #FFFFFF;
+                margin: 0;
+            }
+            QTableView {
+                gridline-color: #FFFFFF;
                 margin: 0;
             }
             '''
@@ -3194,21 +3199,8 @@ if __name__ == "__main__":
     accounts.initialize()
 
     theme = themes.Theme(themes.THEME_TYPE_DARK)
-    if theme.theme_type == themes.THEME_TYPE_DARK:
-        with open("style.qss", "r") as fh:
-            app.setStyleSheet(fh.read())
-    elif theme.theme_type == themes.THEME_TYPE_LIGHT:
-        qss_data = '''
-        QMainWindow {
-            background-color: #FFFFFF;
-            margin: 0;
-        }
-        QDialog {
-            background-color: #FFFFFF;
-            margin: 0;
-        }
-        '''
-        app.setStyleSheet(qss_data)
+    with open("style.qss", "r") as fh:
+        app.setStyleSheet(fh.read())
 
     if platform.system() == "Linux":
         new_font = QtGui.QFont()

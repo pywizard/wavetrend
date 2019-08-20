@@ -6,9 +6,12 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>532</width>
+    <width>534</width>
     <height>575</height>
    </rect>
+  </property>
+  <property name="contextMenuPolicy">
+   <enum>Qt::DefaultContextMenu</enum>
   </property>
   <property name="windowTitle">
    <string>Select coin from 24hr price change list</string>
@@ -25,6 +28,12 @@
      <width>161</width>
      <height>32</height>
     </rect>
+   </property>
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
    </property>
    <property name="orientation">
     <enum>Qt::Horizontal</enum>
@@ -71,16 +80,6 @@
     </property>
    </column>
   </widget>
-  <widget class="QComboBox" name="comboBox">
-   <property name="geometry">
-    <rect>
-     <x>420</x>
-     <y>500</y>
-     <width>71</width>
-     <height>22</height>
-    </rect>
-   </property>
-  </widget>
   <widget class="QComboBox" name="exchangeCombobox">
    <property name="geometry">
     <rect>
@@ -115,6 +114,16 @@
    </property>
    <property name="text">
     <string>Light Theme</string>
+   </property>
+  </widget>
+  <widget class="QComboBox" name="comboBox">
+   <property name="geometry">
+    <rect>
+     <x>430</x>
+     <y>500</y>
+     <width>69</width>
+     <height>22</height>
+    </rect>
    </property>
   </widget>
  </widget>
