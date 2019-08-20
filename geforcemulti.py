@@ -2448,6 +2448,9 @@ class Dialog(QtWidgets.QDialog):
                 background-color: #FFFFFF;
                 margin: 0;
             }
+            QTableWidget::item {
+                margin-left: 5px; margin-right: 5px;
+            }
             '''
             app.setStyleSheet(qss_data)
 
@@ -2504,14 +2507,14 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.tableWidgetBids.horizontalHeader().setStyleSheet("QHeaderView::section{border: 0px; border-bottom: 0px;}")
         if theme.theme_type == themes.THEME_TYPE_DARK:
             self.tableWidgetBids.setShowGrid(False)
+            self.tableWidgetBids.setStyleSheet("QTableWidget::item { margin-left: 5px; margin-right: 5px; }")
         elif theme.theme_type == themes.THEME_TYPE_LIGHT:
-            self.tableWidgetBids.setStyleSheet("QTablewView {gridline-color: #E0E3EB}")
+            self.tableWidgetBids.setStyleSheet("QTablewView {gridline-color: #E0E3EB};")
         self.tableWidgetBids.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.tableWidgetBids.setHorizontalHeaderLabels(["Price", "Qty", "Sum"])
         self.tableWidgetBids.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.tableWidgetBids.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.tableWidgetBids.horizontalHeader().setFont(self.font)
-        self.tableWidgetBids.setStyleSheet("QTableWidget::item { margin-left: 5px; margin-right: 5px; }")
         header = self.tableWidgetBids.horizontalHeader()
         header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
@@ -2523,14 +2526,14 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.tableWidgetAsks.horizontalHeader().setStyleSheet("QHeaderView::section{border: 0px; border-bottom: 0px}")
         if theme.theme_type == themes.THEME_TYPE_DARK:
             self.tableWidgetAsks.setShowGrid(False)
+            self.tableWidgetAsks.setStyleSheet("QTableWidget::item { margin-left: 5px; margin-right: 5px; }")
         elif theme.theme_type == themes.THEME_TYPE_LIGHT:
-            self.tableWidgetAsks.setStyleSheet("QTablewView{gridline-color: #E0E3EB}")
+            self.tableWidgetAsks.setStyleSheet("QTablewView {gridline-color: #E0E3EB; margin-left: 5px; margin-right: 5px;};")
         self.tableWidgetAsks.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.tableWidgetAsks.setHorizontalHeaderLabels(["Price", "Qty", "Sum"])
         self.tableWidgetAsks.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.tableWidgetAsks.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.tableWidgetAsks.horizontalHeader().setFont(self.font)
-        self.tableWidgetAsks.setStyleSheet("QTableWidget::item { margin-left: 5px; margin-right: 5px; }")
         header = self.tableWidgetAsks.horizontalHeader()
         header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
