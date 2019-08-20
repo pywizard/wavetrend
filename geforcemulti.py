@@ -1443,10 +1443,7 @@ class ChartRunner(QtCore.QThread):
 
     for candle in candles:
         if self.exchange == accounts.EXCHANGE_OANDA:
-            if candle[0] is not numpy.nan:
-                dt.append(datetime.datetime.fromtimestamp(candle[0]))
-            else:
-                dt.append(numpy.nan)
+            dt.append(datetime.datetime.fromtimestamp(candle[0]))
         else:
             dt.append(datetime.datetime.fromtimestamp(int(candle[0]) / 1000))
         open_.append(float(candle[1]))
@@ -2306,12 +2303,10 @@ class Dialog(QtWidgets.QDialog):
                 win32gui.EndDialog(window_handle, 0)
 
     def updateWidget(self):
-        global theme_init
         if theme_init == True:
             if theme.theme_type == themes.THEME_TYPE_LIGHT:
                 self.checkBox.setChecked(True)
             self.checkBox.setEnabled(False)
-        theme_init = True
 
         self.tableWidget.verticalHeader().hide()
         if self.selected_exchange == accounts.EXCHANGE_OANDA:
@@ -2426,8 +2421,10 @@ class Dialog(QtWidgets.QDialog):
     def accept(self):
       global theme
       global app
+      global theme_init
       selectionModel = self.tableWidget.selectionModel()
       if selectionModel.hasSelection():
+        theme_init = True
         row = self.tableWidget.selectedItems()[0].row()
         timeframe_entered = str(self.comboBox.currentText())
         symbol = str(self.tableWidget.item(row, 0).text())
