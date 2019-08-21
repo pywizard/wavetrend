@@ -2724,14 +2724,16 @@ class OrderBookWidget(QtWidgets.QWidget):
                         if volume != 0:
                             self.wss_orderbook["bids"][price] = volume
                         else:
-                            del self.wss_orderbook["bids"][price]
+                            if price in self.wss_orderbook["bids"]:
+                                del self.wss_orderbook["bids"][price]
                     for order in asks:
                         price = float(order[0])
                         volume = float(order[1])
                         if volume != 0:
                             self.wss_orderbook["asks"][price] = volume
                         else:
-                            del self.wss_orderbook["asks"][price]
+                            if price in self.wss_orderbook["asks"]:
+                                del self.wss_orderbook["asks"][price]
 
                 else:
                     return
@@ -2787,9 +2789,11 @@ class OrderBookWidget(QtWidgets.QWidget):
 
                     if count == 0:
                         if amount == 1:
-                            del self.wss_orderbook["bids"][price]
+                            if price in self.wss_orderbook["bids"]:
+                                del self.wss_orderbook["bids"][price]
                         elif amount == -1:
-                            del self.wss_orderbook["asks"][price]
+                            if price in self.wss_orderbook["asks"]:
+                                del self.wss_orderbook["asks"][price]
                     elif count > 0:
                         if amount > 0:
                             self.wss_orderbook["bids"][price] = [count, amount]
