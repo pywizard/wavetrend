@@ -81,39 +81,45 @@ class oanda (Exchange):
         })
 
     def fetch_markets(self):
-        request = accounts.AccountInstruments(accountID=self.account_id)
-        self.oanda.request(request)
-        instruments = request.response["instruments"]
-        result = {}
-        id = 0
-        for instrument in instruments:
-            id = id + 1
-            symbol = instrument["name"]
-            base = symbol.split("_")[0]
-            quote = symbol.split("_")[1]
-            baseId = 0
-            quoteId = 0
-            precision = {}
-            precision["price"] = instrument["displayPrecision"]
-            limits = None
-            market = None
-            name = instrument["displayName"]
-            type = instrument["type"]
-            result[symbol] = {
-                'id': id,
-                'symbol': symbol,
-                'name': name,
-                'type': type,
-                'base': base,
-                'quote': quote,
-                'baseId': baseId,
-                'quoteId': quoteId,
-                'active': True,
-                'precision': precision,
-                'limits': limits,
-                'info': market
-            }
-        self.markets = result
+        while True:
+            try:
+                request = accounts.AccountInstruments(accountID=self.account_id)
+                self.oanda.request(request)
+                instruments = request.response["instruments"]
+                result = {}
+                id = 0
+                for instrument in instruments:
+                    id = id + 1
+                    symbol = instrument["name"]
+                    base = symbol.split("_")[0]
+                    quote = symbol.split("_")[1]
+                    baseId = 0
+                    quoteId = 0
+                    precision = {}
+                    precision["price"] = instrument["displayPrecision"]
+                    limits = None
+                    market = None
+                    name = instrument["displayName"]
+                    type = instrument["type"]
+                    result[symbol] = {
+                        'id': id,
+                        'symbol': symbol,
+                        'name': name,
+                        'type': type,
+                        'base': base,
+                        'quote': quote,
+                        'baseId': baseId,
+                        'quoteId': quoteId,
+                        'active': True,
+                        'precision': precision,
+                        'limits': limits,
+                        'info': market
+                    }
+                self.markets = result
+                break
+            except:
+                time.sleep(1)
+
         return self.markets
 
     def is_instrument_halted(self, symbol):
@@ -136,20 +142,25 @@ class oanda (Exchange):
         ]
 
     def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
-        url = "https://api-fxtrade.oanda.com/v1/candles?instrument=" + symbol +"&count=" + str(limit) + "&candleFormat=midpoint&granularity=" + self.timeframes[timeframe] + "&alignmentTimezone=America%2FNew_York"
-        response = requests.get(url)
-        json_body = response.json()
+        while True:
+            try:
+                url = "https://api-fxtrade.oanda.com/v1/candles?instrument=" + symbol +"&count=" + str(limit) + "&candleFormat=midpoint&granularity=" + self.timeframes[timeframe] + "&alignmentTimezone=America%2FNew_York"
+                response = requests.get(url)
+                json_body = response.json()
 
-        candles = []
-        real_timestamps = []
-        fake_timestamps = 86400
-        for candle in json_body["candles"]:
-            candle_time = candle["time"][:-8]
-            timestamp = arrow.get(candle_time, 'YYYY-MM-DDTHH:mm:ss').datetime
-            timestamp_local = arrow.Arrow.fromdatetime(timestamp, "America/New_York").to('local').datetime
-            real_timestamps.append(timestamp_local)
-            candles.append([int(fake_timestamps), candle["openMid"], candle["highMid"], candle["lowMid"], candle["closeMid"], candle["volume"]])
-            fake_timestamps = fake_timestamps + self.elapsed_table[timeframe]
+                candles = []
+                real_timestamps = []
+                fake_timestamps = 86400
+                for candle in json_body["candles"]:
+                    candle_time = candle["time"][:-8]
+                    timestamp = arrow.get(candle_time, 'YYYY-MM-DDTHH:mm:ss').datetime
+                    timestamp_local = arrow.Arrow.fromdatetime(timestamp, "America/New_York").to('local').datetime
+                    real_timestamps.append(timestamp_local)
+                    candles.append([int(fake_timestamps), candle["openMid"], candle["highMid"], candle["lowMid"], candle["closeMid"], candle["volume"]])
+                    fake_timestamps = fake_timestamps + self.elapsed_table[timeframe]
+                break
+            except:
+                time.sleep(1)
 
         return candles, real_timestamps
 
