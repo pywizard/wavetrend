@@ -24,7 +24,7 @@ class Bitfinex:
 
     def get_exchange_symbol(self, symbol):
         if self.markets is None:
-            self.markets = self.account.client(self.account.EXCHANGE_BITFINEX).fetch_markets(symbol)
+            self.markets = self.account.fetch_markets(self.account.EXCHANGE_BITFINEX)
         for market in self.markets:
             if market["symbol"] == symbol:
                 symbol = market["id"]
@@ -84,7 +84,7 @@ class Binance:
 
     def get_exchange_symbol(self, symbol):
         if self.markets is None:
-            self.markets = self.account.client(self.account.EXCHANGE_BINANCE).fetch_markets()
+            self.markets = self.account.fetch_markets(self.account.EXCHANGE_BINANCE)
         for market in self.markets:
             if market["symbol"] == symbol:
                 symbol = market["id"]
@@ -164,8 +164,8 @@ class Kraken:
         self.started_trades = False
 
     def get_exchange_symbol(self, symbol):
-        if self.markets == None:
-            self.markets = self.account.client(self.account.EXCHANGE_KRAKEN).fetch_markets(symbol)
+        if self.markets is None:
+            self.markets = self.account.fetch_markets(self.account.EXCHANGE_KRAKEN)
         for market in self.markets:
             if market["symbol"] == symbol:
                 symbol = market["id"]

@@ -87,6 +87,16 @@ class ExchangeAccounts:
         self.tickers[exchange] = tickers
         return tickers
 
+    def fetch_markets(self, exchange):
+        while True:
+            try:
+                markets = self.exchanges[exchange]["client"].fetch_markets()
+                break
+            except:
+                time.sleep(1)
+        self.markets[exchange] = markets
+        return markets
+
     def get_symbol_price(self, exchange, symbol):
         while True:
             try:

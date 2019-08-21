@@ -1412,7 +1412,7 @@ class ChartRunner(QtCore.QThread):
     else:
         limit = fixed_limit
 
-    if self.exchange == accounts.EXCHANGE_OANDA:
+    if self.exchange == accounts.EXCHANGE_OANDA and fixed_limit == None:
         limit = int(limit * 1.25)
 
     dt = []
