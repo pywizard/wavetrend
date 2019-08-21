@@ -2413,7 +2413,7 @@ class OrderBookWidget(QtWidgets.QWidget):
             self.tableWidgetAsks.horizontalHeader().setStyleSheet(
                 "QHeaderView::section {background-color: #50535E; color: #FFFFFF;}")
             self.tableWidgetTrades.setStyleSheet(
-                "QTableView {gridline-color: #FFFFFF};")
+                "QTableView {gridline-color: #E0E3EB};")
             self.tableWidgetTrades.horizontalHeader().setStyleSheet(
                 "QHeaderView::section {background-color: #50535E; color: #FFFFFF;}")
 
