@@ -2398,7 +2398,7 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.tableWidgetTrades.setMinimumHeight(self.height()*0.4)
         self.orderbookWidthAdjusted = False
         if self.exchange == accounts.EXCHANGE_OANDA:
-            self.orderbookWidthAdjusted = True # XXX adjusted fo testing
+            self.orderbookWidthAdjusted = True
         self.tableWidgetBids.hide()
         self.tableWidgetAsks.hide()
         self.tableWidgetTrades.hide()
@@ -2406,9 +2406,15 @@ class OrderBookWidget(QtWidgets.QWidget):
         if theme.theme_type == themes.THEME_TYPE_LIGHT:
             self.tableWidgetBids.setStyleSheet(
                 "QHeaderView::section {background-color: #50535E; color: #FFFFFF;}")
+            self.tableWidgetBids.horizontalHeader().setStyleSheet(
+                "QHeaderView::section {background-color: #50535E; color: #FFFFFF;}")
             self.tableWidgetAsks.setStyleSheet(
                 "QHeaderView::section {background-color: #50535E; color: #FFFFFF;}")
+            self.tableWidgetAsks.horizontalHeader().setStyleSheet(
+                "QHeaderView::section {background-color: #50535E; color: #FFFFFF;}")
             self.tableWidgetTrades.setStyleSheet(
+                "QTableView {gridline-color: #FFFFFF};")
+            self.tableWidgetTrades.horizontalHeader().setStyleSheet(
                 "QHeaderView::section {background-color: #50535E; color: #FFFFFF;}")
 
         self.init_orderbook_widget()
