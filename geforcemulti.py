@@ -826,10 +826,9 @@ class ChartRunner(QtCore.QThread):
                     time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
                                   elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
                 date2 = None
-          elif first == False and force_redraw_chart == False:
+          elif first == False and force_redraw_chart == False and self.exchange == accounts.EXCHANGE_OANDA:
                 dateX, openX, highX, lowX, closeX, volX, limitX, real_timestampsX = self.getData(timeframe_entered, days_entered, symbol, fixed_limit=1)
-                if self.exchange == accounts.EXCHANGE_OANDA:
-                    real_timestamp2 = real_timestampsX[-1]
+                real_timestamp2 = real_timestampsX[-1]
                 date2 = dateX[-1]
                 open2_ = openX[-1]
                 high2 = highX[-1]
