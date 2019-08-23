@@ -2,8 +2,8 @@
 #Exchange Configuration
 #**************************
 #Enter your api keys and api secrets inside the quotes for each exchange
-#you want to trade with. For Oanda api_key corresponds to account-id and
-#api_secret to account-token.
+#you want to trade with. For Oanda api_key corresponds to a practice account-id and
+#api_secret to a practice account-token.
 exchanges = {
     "BITFINEX": {
     "api_key": "",
