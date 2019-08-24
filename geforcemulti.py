@@ -484,13 +484,19 @@ class DataRunner:
 
   def restart_websocket(self):
       self.chanid = -1
-      self.exchange_obj.stop_candlestick_websocket()
+      try:
+        self.exchange_obj.stop_candlestick_websocket()
+      except:
+        pass
       self.exchange_obj.start_candlestick_websocket(self.symbol, self.timeframe_entered, self.process_message)
       self.websocket_alive_time = time.time()
 
   def restart_ticker_websocket(self):
       self.chanid_ticker = -1
-      self.exchange_obj.stop_ticker_websocket()
+      try:
+        self.exchange_obj.stop_ticker_websocket()
+      except:
+        pass
       self.exchange_obj.start_ticker_websocket(self.symbol, self.process_message_ticker)
       self.websocket_ticker_alive_time = time.time()
 
@@ -2666,11 +2672,17 @@ class OrderBookWidget(QtWidgets.QWidget):
             i = i + 1
 
     def restart_websocket(self):
-        self.exchange_obj.stop_depth_websocket()
+        try:
+            self.exchange_obj.stop_depth_websocket()
+        except:
+            pass
         self.exchange_obj.start_depth_websocket(self.symbol, self.process_message)
 
     def restart_websocket_trades(self):
-        self.exchange_obj.stop_trades_websocket()
+        try:
+            self.exchange_obj.stop_trades_websocket()
+        except:
+            pass
         self.exchange_obj.start_trades_websocket(self.symbol, self.process_message_trades)
         self.websocket_alive_time_trades = time.time()
 

@@ -95,6 +95,7 @@ class ExchangeAccounts:
             except:
                 time.sleep(1)
         self.markets[exchange] = markets
+        self.exchanges[exchange]["markets"] = markets
         return markets
 
     def get_symbol_price(self, exchange, symbol):
