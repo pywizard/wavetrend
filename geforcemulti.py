@@ -795,6 +795,7 @@ class ChartRunner(QtCore.QThread):
     keltner_index = -1
     squeeze_now_shown = False
     closed_hours_time = time.time()
+    closed_hours = False
 
     while True:
         try:

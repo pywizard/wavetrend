@@ -3,7 +3,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 #
-from bitfinex import WssClient
 from binance.client import Client
 from binance.websockets import BinanceSocketManager
 from binance.depthcache import DepthCacheManager
@@ -12,13 +11,36 @@ import bitfinex
 from autobahn.twisted.websocket import WebSocketClientProtocol
 import threading
 import time
+import json
 
-def BITFINEX_FIX__init__(self, factory, payload=None):
-    super(WebSocketClientProtocol, self).__init__()  # FIX: call super for Twisted the proper way
-    self.factory = factory
-    self.payload = payload
+class MyBitfinexClientProtocol(WebSocketClientProtocol):
 
-bitfinex.websockets.client.BitfinexClientProtocol.__init__ = BITFINEX_FIX__init__
+    def __init__(self, factory, payload=None):
+        super(WebSocketClientProtocol, self).__init__()  # FIX: call super for Twisted the proper way
+        self.factory = factory
+        self.payload = payload
+
+    def onOpen(self):
+        self.factory.protocol_instance = self
+
+    def onConnect(self, response):
+        if self.payload:
+            self.sendMessage(self.payload, isBinary=False)
+        # reset the delay after reconnecting
+        self.factory.resetDelay()
+
+    def onMessage(self, payload, isBinary):
+        if not isBinary:
+            try:
+                payload_obj = json.loads(payload.decode('utf8'))
+            except ValueError:
+                pass
+            else:
+                self.factory.callback(payload_obj)
+
+bitfinex.websockets.client.BitfinexClientProtocol = MyBitfinexClientProtocol
+
+from bitfinex import WssClient
 
 class Bitfinex:
     def __init__(self, account, api_key, api_secret):
