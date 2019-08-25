@@ -2282,6 +2282,12 @@ class Dialog(QtWidgets.QDialog):
 
         self.close()
 
+        try:
+            if accounts.client(self.selected_exchange).markets[symbol]['precision']['price'] == 1:
+                accounts.client(self.selected_exchange).markets[symbol]['precision']['price'] = 3
+        except:
+            pass
+
         global main
         global main_shown
 
