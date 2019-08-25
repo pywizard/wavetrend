@@ -11,6 +11,5 @@ sklearn
 psutil
 Twisted==19.7.0
 oandapyV20
-requests
 arrow
 pywin32 (in case of windows)

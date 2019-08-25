@@ -19,7 +19,7 @@ import json
 import oandapyV20
 import oandapyV20.endpoints.accounts as accounts
 import oandapyV20.endpoints.pricing as pricing
-import requests
+import urllib.request
 import arrow
 import warnings
 import time
@@ -150,8 +150,9 @@ class oanda (Exchange):
         while True:
             try:
                 url = "https://api-fxtrade.oanda.com/v1/candles?instrument=" + symbol +"&count=" + str(limit) + "&candleFormat=midpoint&granularity=" + self.timeframes[timeframe] + "&alignmentTimezone=America%2FNew_York"
-                response = requests.get(url)
-                json_body = response.json()
+                request = urllib.request.Request(url)
+                response = urllib.request.urlopen(request)
+                json_body = json.loads(response.read().decode('utf-8'))
 
                 candles = []
                 real_timestamps = []

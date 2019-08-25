@@ -789,6 +789,7 @@ class ChartRunner(QtCore.QThread):
     bband_index = -1
     keltner_index = -1
     squeeze_now_shown = False
+    closed_hours_time = time.time()
 
     while True:
         try:
@@ -1298,10 +1299,10 @@ class ChartRunner(QtCore.QThread):
           pclose.clear()
           pvol.clear()
 
-          closed_hours = False
-          if self.exchange == accounts.EXCHANGE_OANDA:
+          if self.exchange == accounts.EXCHANGE_OANDA and (init == True or (time.time() - closed_hours_time > 60*15)):
               # regard closed trading hours
               closed_hours = not accounts.client(self.exchange).is_instrument_halted(symbol)
+              closed_hours_time = time.time()
 
           if init == False and time.time() > time_close and closed_hours == False:
             do_break = False
