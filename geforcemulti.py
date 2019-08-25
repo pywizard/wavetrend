@@ -1,7 +1,7 @@
 import os
 import sys
 import platform
-#macos: run openblas single threaded
+#macos: run wavetrend cpu wise single threaded
 is_darwin = platform.system() == "Darwin"
 if is_darwin == True:
     os.environ["OPENBLAS_NUM_THREADS"] = "1"
@@ -1300,26 +1300,10 @@ class ChartRunner(QtCore.QThread):
 
           closed_hours = False
           if self.exchange == accounts.EXCHANGE_OANDA:
-              # regard closed trading hours, Friday 5pm to Sunday 5pm
-              nyc_time_now = arrow.now('America/New_York').datetime
-              nyc_time_now_5pm = nyc_time_now.replace(hour=17, minute=0, second=0, microsecond=0)
-              nyc_weekday_now = nyc_time_now.weekday()
-              if nyc_weekday_now == 4:  # Friday
-                  if nyc_time_now >= nyc_time_now_5pm:
-                    closed_hours = True
-              elif nyc_weekday_now == 5:  # Saturday
-                  closed_hours = True
-              elif nyc_weekday_now == 6:  # Sunday
-                  if nyc_time_now < nyc_time_now_5pm:
-                      closed_hours = True
+              # regard closed trading hours
+              closed_hours = not accounts.client(self.exchange).is_instrument_halted(symbol)
 
-          if closed_hours == True:
-            do_break = False
-            if tab_index in destroyed_window_ids:
-                do_break = True
-            self.CANVAS_DRAW.emit(self.tab_index)
-            aqs[tab_index].get()
-          elif init == False and time.time() > time_close:
+          if init == False and time.time() > time_close and closed_hours == False:
             do_break = False
             while True:
               if tab_index in destroyed_window_ids:

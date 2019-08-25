@@ -123,10 +123,15 @@ class oanda (Exchange):
         return self.markets
 
     def is_instrument_halted(self, symbol):
-        request = pricing.PricingInfo(accountID=self.account_id, params={"instruments": symbol})
-        self.oanda.request(request)
-        import pprint
-        pprint.pprint(request.response)
+        while True:
+            try:
+                request = pricing.PricingInfo(accountID=self.account_id, params={"instruments": symbol})
+                self.oanda.request(request)
+                tradeable = request.response["prices"][0]["tradeable"]
+                break
+            except:
+                time.sleep(1)
+        return tradeable
 
     def amount_to_precision(self, symbol, amount):
         return self.number_to_string(amount)
