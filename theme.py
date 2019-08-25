@@ -1,4 +1,9 @@
-﻿from PyQt5 import QtGui
+﻿#
+# Copyright (c) 2019 Nikolaos Rangos. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+from PyQt5 import QtGui
 THEME_TYPE_DARK = 1
 THEME_TYPE_LIGHT = 2
 
