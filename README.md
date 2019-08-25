@@ -30,7 +30,10 @@ INSTALLATION
 =====
 requirements: python3 64-bit
 
-requirements inside requirements.txt (please use the correct versions especially for ccxt lib)
+requirements inside requirements.txt (please use the correct versions)
+
+
+In case of Windows: The newest Visual C++ Redistributable for Visual Studio Package for the according Python3 compilation.
 
 install TA-Lib from:
 
