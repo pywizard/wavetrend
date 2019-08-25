@@ -3,9 +3,17 @@ from binance.client import Client
 from binance.websockets import BinanceSocketManager
 from binance.depthcache import DepthCacheManager
 from kraken_wsclient_py import kraken_wsclient_py as KrakenClient
-
+import bitfinex
+from autobahn.twisted.websocket import WebSocketClientProtocol
 import threading
 import time
+
+def BITFINEX_FIX__init__(self, factory, payload=None):
+    super(WebSocketClientProtocol, self).__init__()  # FIX: call super for Twisted the proper way
+    self.factory = factory
+    self.payload = payload
+
+bitfinex.websockets.client.BitfinexClientProtocol.__init__ = BITFINEX_FIX__init__
 
 class Bitfinex:
     def __init__(self, account, api_key, api_secret):
