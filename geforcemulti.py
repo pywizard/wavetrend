@@ -1659,7 +1659,9 @@ class Window(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(str, str)
     def on_CHART_DESTROY(self, winid, exchange):
+        global qs
         global aqs
+        global dqs
         global window_ids
         global window_configs
 
@@ -2795,7 +2797,7 @@ class OrderBookWidget(QtWidgets.QWidget):
                         if price in self.wss_orderbook["asks"]:
                             del self.wss_orderbook["asks"][price]
 
-                if len(asks) == 0 or len(bids) == 0:
+                if len(asks) == 0 and len(bids) == 0:
                     return
 
             tab_index = get_tab_index(self.winid)
