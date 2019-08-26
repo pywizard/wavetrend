@@ -2472,7 +2472,7 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.tableWidgetAsks.clear()
         self.tableWidgetBids.setHorizontalHeaderLabels(["Price", "Qty", "Sum"])
         self.tableWidgetAsks.setHorizontalHeaderLabels(["Price", "Qty", "Sum"])
-        
+
         self.tableWidgetBids.setRowCount(len(bids_))
         highest_amount = 0
         for bid in bids_:
@@ -2760,41 +2760,42 @@ class OrderBookWidget(QtWidgets.QWidget):
                         price = float(order[0])
                         volume = float(order[1])
                         self.wss_orderbook["asks"][price] = volume
+                    return
 
-                elif isinstance(msg, list) and isinstance(msg[1], dict) and "a" in msg[1] or "b" in msg[1]:
-                    # update in memory orderbook
-                    bids = []
-                    asks = []
+                # update in memory orderbook
+                bids = []
+                asks = []
 
-                    if "a" in msg[1].keys():
-                        asks = msg[1]["a"]
-                    elif "b" in msg[1].keys():
-                        bids = msg[1]["b"]
+                for ii in range(0, len(msg)):
+                    item = msg[ii]
+                    if isinstance(item, dict) and ("a" in item or "b" in item):
+                        for key in item:
+                            if isinstance(item[key], list):
+                                if key == "b":
+                                    for bid in item[key]:
+                                        bids.append(bid)
+                                elif key == "a":
+                                    for ask in item[key]:
+                                        asks.append(ask)
 
-                    if len(msg) > 2 and isinstance(msg[2], dict) and ("a" in msg[2].keys() or "b" in msg[2].keys()):
-                        if "a" in msg[2].keys():
-                            asks = msg[2]["a"]
-                        elif "b" in msg[2].keys():
-                            bids = msg[2]["b"]
+                for order in bids:
+                    price = float(order[0])
+                    volume = float(order[1])
+                    if volume != 0:
+                        self.wss_orderbook["bids"][price] = volume
+                    else:
+                        if price in self.wss_orderbook["bids"]:
+                            del self.wss_orderbook["bids"][price]
+                for order in asks:
+                    price = float(order[0])
+                    volume = float(order[1])
+                    if volume != 0:
+                        self.wss_orderbook["asks"][price] = volume
+                    else:
+                        if price in self.wss_orderbook["asks"]:
+                            del self.wss_orderbook["asks"][price]
 
-                    for order in bids:
-                        price = float(order[0])
-                        volume = float(order[1])
-                        if volume != 0:
-                            self.wss_orderbook["bids"][price] = volume
-                        else:
-                            if price in self.wss_orderbook["bids"]:
-                                del self.wss_orderbook["bids"][price]
-                    for order in asks:
-                        price = float(order[0])
-                        volume = float(order[1])
-                        if volume != 0:
-                            self.wss_orderbook["asks"][price] = volume
-                        else:
-                            if price in self.wss_orderbook["asks"]:
-                                del self.wss_orderbook["asks"][price]
-
-                else:
+                if len(asks) == 0 or len(bids) == 0:
                     return
 
             tab_index = get_tab_index(self.winid)
