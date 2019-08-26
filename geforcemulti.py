@@ -2468,6 +2468,11 @@ class OrderBookWidget(QtWidgets.QWidget):
     def on_DISPLAY_ORDERBOOK(self, bids_, asks_):
         global window_configs
 
+        self.tableWidgetBids.clear()
+        self.tableWidgetAsks.clear()
+        self.tableWidgetBids.setHorizontalHeaderLabels(["Price", "Qty", "Sum"])
+        self.tableWidgetAsks.setHorizontalHeaderLabels(["Price", "Qty", "Sum"])
+        
         self.tableWidgetBids.setRowCount(len(bids_))
         highest_amount = 0
         for bid in bids_:
