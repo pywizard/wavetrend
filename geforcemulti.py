@@ -2283,6 +2283,9 @@ class Dialog(QtWidgets.QDialog):
             QTableWidget::item {
                 margin-left: 5px; margin-right: 5px;
             }
+            QTabWidget::tab-bar {
+             left: 0
+            }
             '''
             app.setStyleSheet(qss_data)
 
@@ -2408,15 +2411,15 @@ class OrderBookWidget(QtWidgets.QWidget):
 
         if theme.theme_type == themes.THEME_TYPE_LIGHT:
             self.tableWidgetBids.setStyleSheet(
-                "QHeaderView::section {background-color: #50535E; color: #FFFFFF;}")
-            self.tableWidgetBids.horizontalHeader().setStyleSheet(
-                "QHeaderView::section {background-color: #50535E; color: #FFFFFF;}")
+                "QTableView {gridline-color: #E0E3EB; border: 1px solid #50535E};")
             self.tableWidgetAsks.setStyleSheet(
+                "QTableView {gridline-color: #E0E3EB; border: 1px solid #50535E};")
+            self.tableWidgetBids.horizontalHeader().setStyleSheet(
                 "QHeaderView::section {background-color: #50535E; color: #FFFFFF;}")
             self.tableWidgetAsks.horizontalHeader().setStyleSheet(
                 "QHeaderView::section {background-color: #50535E; color: #FFFFFF;}")
             self.tableWidgetTrades.setStyleSheet(
-                "QTableView {gridline-color: #E0E3EB};")
+                "QTableView {gridline-color: #E0E3EB; border: 1px solid #50535E};")
             self.tableWidgetTrades.horizontalHeader().setStyleSheet(
                 "QHeaderView::section {background-color: #50535E; color: #FFFFFF;}")
 
