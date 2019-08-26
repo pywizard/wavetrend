@@ -2790,7 +2790,7 @@ class OrderBookWidget(QtWidgets.QWidget):
                             for order in sorted(self.wss_orderbook["bids"], reverse=True):
                                 jj = jj + 1
                                 if jj > 25:
-                                    del wss_orderbook_copy["bids"][price]
+                                    del wss_orderbook_copy["bids"][order]
                             self.wss_orderbook = copy.deepcopy(wss_orderbook_copy)
                         else:
                             if price in self.wss_orderbook["bids"]:
@@ -2805,7 +2805,7 @@ class OrderBookWidget(QtWidgets.QWidget):
                             for order in sorted(self.wss_orderbook["asks"]):
                                 jj = jj + 1
                                 if jj > 25:
-                                    del wss_orderbook_copy["asks"][price]
+                                    del wss_orderbook_copy["asks"][order]
                             self.wss_orderbook = copy.deepcopy(wss_orderbook_copy)
                         else:
                             if price in self.wss_orderbook["asks"]:
