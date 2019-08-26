@@ -2763,42 +2763,42 @@ class OrderBookWidget(QtWidgets.QWidget):
                         volume = float(order[1])
                         self.wss_orderbook["asks"][price] = volume
                     return
+                else:
+                    # update in memory orderbook
+                    bids = []
+                    asks = []
 
-                # update in memory orderbook
-                bids = []
-                asks = []
+                    for ii in range(0, len(msg)):
+                        item = msg[ii]
+                        if isinstance(item, dict) and ("a" in item or "b" in item):
+                            for key in item:
+                                if isinstance(item[key], list):
+                                    if key == "b":
+                                        for bid in item[key]:
+                                            bids.append(bid)
+                                    elif key == "a":
+                                        for ask in item[key]:
+                                            asks.append(ask)
 
-                for ii in range(0, len(msg)):
-                    item = msg[ii]
-                    if isinstance(item, dict) and ("a" in item or "b" in item):
-                        for key in item:
-                            if isinstance(item[key], list):
-                                if key == "b":
-                                    for bid in item[key]:
-                                        bids.append(bid)
-                                elif key == "a":
-                                    for ask in item[key]:
-                                        asks.append(ask)
+                    for order in bids:
+                        price = float(order[0])
+                        volume = float(order[1])
+                        if volume != 0:
+                            self.wss_orderbook["bids"][price] = volume
+                        else:
+                            if price in self.wss_orderbook["bids"]:
+                                del self.wss_orderbook["bids"][price]
+                    for order in asks:
+                        price = float(order[0])
+                        volume = float(order[1])
+                        if volume != 0:
+                            self.wss_orderbook["asks"][price] = volume
+                        else:
+                            if price in self.wss_orderbook["asks"]:
+                                del self.wss_orderbook["asks"][price]
 
-                for order in bids:
-                    price = float(order[0])
-                    volume = float(order[1])
-                    if volume != 0:
-                        self.wss_orderbook["bids"][price] = volume
-                    else:
-                        if price in self.wss_orderbook["bids"]:
-                            del self.wss_orderbook["bids"][price]
-                for order in asks:
-                    price = float(order[0])
-                    volume = float(order[1])
-                    if volume != 0:
-                        self.wss_orderbook["asks"][price] = volume
-                    else:
-                        if price in self.wss_orderbook["asks"]:
-                            del self.wss_orderbook["asks"][price]
-
-                if len(asks) == 0 and len(bids) == 0:
-                    return
+                    if len(asks) == 0 and len(bids) == 0:
+                        return
 
             tab_index = get_tab_index(self.winid)
             if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
