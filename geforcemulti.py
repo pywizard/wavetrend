@@ -2785,6 +2785,13 @@ class OrderBookWidget(QtWidgets.QWidget):
                         volume = float(order[1])
                         if volume != 0:
                             self.wss_orderbook["bids"][price] = volume
+                            jj = 0
+                            wss_orderbook_copy = copy.deepcopy(self.wss_orderbook)
+                            for order in sorted(self.wss_orderbook["bids"], reverse=True):
+                                jj = jj + 1
+                                if jj > 25:
+                                    del wss_orderbook_copy["bids"][price]
+                            self.wss_orderbook = copy.deepcopy(wss_orderbook_copy)
                         else:
                             if price in self.wss_orderbook["bids"]:
                                 del self.wss_orderbook["bids"][price]
@@ -2793,6 +2800,13 @@ class OrderBookWidget(QtWidgets.QWidget):
                         volume = float(order[1])
                         if volume != 0:
                             self.wss_orderbook["asks"][price] = volume
+                            jj = 0
+                            wss_orderbook_copy = copy.deepcopy(self.wss_orderbook)
+                            for order in sorted(self.wss_orderbook["asks"]):
+                                jj = jj + 1
+                                if jj > 25:
+                                    del wss_orderbook_copy["asks"][price]
+                            self.wss_orderbook = copy.deepcopy(wss_orderbook_copy)
                         else:
                             if price in self.wss_orderbook["asks"]:
                                 del self.wss_orderbook["asks"][price]

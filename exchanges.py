@@ -113,6 +113,8 @@ class Bitfinex:
             self.started_depth = True
 
     def stop_depth_websocket(self):
+        if self.is_websocket_closed(self.manager_depth) == True:
+            return
         try:
             self.manager_depth.close()
         except:
