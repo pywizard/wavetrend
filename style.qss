@@ -689,7 +689,7 @@ QTabWidget::pane {
 }
 
 QTabWidget::tab-bar {
- left: 0
+    left: 0
 }
 
 QTabBar {

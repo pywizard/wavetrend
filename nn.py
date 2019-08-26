@@ -151,7 +151,7 @@ class NeuralNetwork(QtCore.QThread):
                 self.first = False
                 self.trains_time = time.time()
 
-            if time.time() - self.predict_time > 30:
+            if time.time() - self.predict_time > 60:
                 outcome_buystr = ""
                 outcome_sellstr = ""
 

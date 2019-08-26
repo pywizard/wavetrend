@@ -2703,6 +2703,10 @@ class OrderBookWidget(QtWidgets.QWidget):
             i = i + 1
 
     def restart_websocket(self):
+        self.wss_chanid = -1
+        self.wss_orderbook = {}
+        self.wss_orderbook["bids"] = {}
+        self.wss_orderbook["asks"] = {}
         try:
             self.exchange_obj.stop_depth_websocket()
         except:
@@ -2710,6 +2714,7 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.exchange_obj.start_depth_websocket(self.symbol, self.process_message)
 
     def restart_websocket_trades(self):
+        self.wss_chanid_trades = -1
         try:
             self.exchange_obj.stop_trades_websocket()
         except:
