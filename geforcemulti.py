@@ -2289,6 +2289,34 @@ class Dialog(QtWidgets.QDialog):
                 padding: 1px;
                 margin: 0px;
             }
+            QTabBar {
+                qproperty-drawBase: 0;
+                border-radius: 3px;
+            }
+            
+            QTabBar:focus {
+                border: 0px transparent black;
+            }
+            /* TOP TABS */
+            
+            QTabBar::tab:top {
+                color: #50535E;
+                border: 1px solid #E0E3EB;
+                background-color: #FFFFFF;
+                padding: 1px;
+                min-width: 50px;
+                border-top-left-radius: 2px;
+                border-top-right-radius: 2px;
+            }
+            
+            QTabBar::tab:top:selected {
+                color: #000000;
+                background-color: #E0E3EB;
+                border: 1px solid #E0E3EB;
+                border-top-left-radius: 2px;
+                border-top-right-radius: 2px;
+            }
+
             '''
             app.setStyleSheet(qss_data)
 
