@@ -1720,8 +1720,6 @@ class Window(QtWidgets.QMainWindow):
         self.setWindowTitle("WAVETREND " + self.exchange)
         tab_current_index = window_ids[self.tabWidget.currentIndex()]
         self.OrderbookWidget[self.tabWidget.currentIndex()].update_trades_display()
-      else:
-        self.statusbar.showMessage("")
 
     def trendingEnabled(self, window_id):
         global window_configs
@@ -2285,6 +2283,11 @@ class Dialog(QtWidgets.QDialog):
             }
             QTabWidget::tab-bar {
              left: 0
+            }
+            QTabWidget::pane {
+                border: 1px solid #76797C;
+                padding: 1px;
+                margin: 0px;
             }
             '''
             app.setStyleSheet(qss_data)
