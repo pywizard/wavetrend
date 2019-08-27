@@ -154,7 +154,7 @@ class oanda (Exchange):
     def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
         while True:
             try:
-                url = "https://api-fxtrade.oanda.com/v1/candles?instrument=" + symbol +"&count=" + str(limit) + "&candleFormat=midpoint&granularity=" + self.timeframes[timeframe] + "&alignmentTimezone=America%2FNew_York"
+                url = "https://api-fxtrade.oanda.com/v1/candles?instrument=" + symbol +"&count=" + str(limit) + "&candleFormat=midpoint&granularity=" + self.timeframes[timeframe]
                 request = urllib.request.Request(url)
                 response = urllib.request.urlopen(request)
                 json_body = json.loads(response.read().decode('utf-8'))
@@ -165,7 +165,7 @@ class oanda (Exchange):
                 for candle in json_body["candles"]:
                     candle_time = candle["time"][:-8]
                     timestamp = arrow.get(candle_time, 'YYYY-MM-DDTHH:mm:ss').datetime
-                    timestamp_local = arrow.Arrow.fromdatetime(timestamp, "America/New_York").to('local').datetime
+                    timestamp_local = arrow.Arrow.fromdatetime(timestamp).to('local').datetime
                     real_timestamps.append(timestamp_local)
                     candles.append([int(fake_timestamps), candle["openMid"], candle["highMid"], candle["lowMid"], candle["closeMid"], candle["volume"]])
                     fake_timestamps = fake_timestamps + self.elapsed_table[timeframe]
