@@ -66,13 +66,6 @@ class Bitfinex:
         self.started_trades = False
         self.markets = None
 
-    def is_websocket_closed(self, manager):
-        keys = set(manager._conns.keys())
-        for key in keys:
-            if manager._conns[key].is_closed == True:
-                return True
-        return False
-
     def get_exchange_symbol(self, symbol):
         if self.markets is None:
             self.markets = self.account.fetch_markets(self.account.EXCHANGE_BITFINEX)
@@ -89,8 +82,6 @@ class Bitfinex:
             self.started_candlestick = True
 
     def stop_candlestick_websocket(self):
-        if self.is_websocket_closed(self.manager_candlestick) == True:
-            return
         self.manager_candlestick.close()
 
     def start_ticker_websocket(self, symbol, callback):
@@ -101,8 +92,6 @@ class Bitfinex:
             self.started_ticker = True
 
     def stop_ticker_websocket(self):
-        if self.is_websocket_closed(self.manager_ticker) == True:
-            return
         self.manager_ticker.close()
 
     def start_depth_websocket(self, symbol, callback):
@@ -113,8 +102,6 @@ class Bitfinex:
             self.started_depth = True
 
     def stop_depth_websocket(self):
-        if self.is_websocket_closed(self.manager_depth) == True:
-            return
         try:
             self.manager_depth.close()
         except:
@@ -128,8 +115,6 @@ class Bitfinex:
             self.started_trades = True
 
     def stop_trades_websocket(self):
-        if self.is_websocket_closed(self.manager_trades) == True:
-            return
         self.manager_trades.close()
 
 
@@ -148,13 +133,6 @@ class Binance:
             if market["symbol"] == symbol:
                 symbol = market["id"]
         return symbol
-
-    def is_websocket_closed(self, manager):
-        keys = set(manager._conns.keys())
-        for key in keys:
-            if manager._conns[key].is_closed == True:
-                return True
-        return False
 
     def start_candlestick_websocket(self, symbol, interval, callback):
         self.symbol = self.get_exchange_symbol(symbol)
