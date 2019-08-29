@@ -14,7 +14,7 @@
    <enum>Qt::DefaultContextMenu</enum>
   </property>
   <property name="windowTitle">
-   <string>Select coin from 24hr price change list</string>
+   <string>Select instrument from 24hr price change list</string>
   </property>
   <property name="windowIcon">
    <iconset>
