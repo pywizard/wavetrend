@@ -21,7 +21,6 @@ class BitfinexClientProtocol(WebSocketClientProtocol):
         super().__init__()
         self.factory = factory
         self.payload = payload
-        self.connected = False
 
     def onOpen(self):
         self.factory.protocol_instance = self
@@ -42,15 +41,12 @@ class BitfinexClientProtocol(WebSocketClientProtocol):
                 self.factory.callback(payload_obj)
 
     def connectionFailed(self, reason):
-        self.connected = False
         super().connectionFailed(reason)
 
     def connectionLost(self, reason):
-        self.connected = False
         super().connectionLost(reason)
 
     def connectionMade(self):
-        self.connected = True
         super().connectionMade()
 
 bitfinex.websockets.client.BitfinexClientProtocol = BitfinexClientProtocol
@@ -86,8 +82,7 @@ class Bitfinex:
             self.started_candlestick = True
 
     def stop_candlestick_websocket(self):
-        if hasattr(self.manager_candlestick, 'connected') and self.manager_candlestick.connected == True:
-            self.manager_candlestick.close()
+        self.manager_candlestick.close()
 
     def start_ticker_websocket(self, symbol, callback):
         self.symbol = self.get_exchange_symbol(symbol)
@@ -97,8 +92,7 @@ class Bitfinex:
             self.started_ticker = True
 
     def stop_ticker_websocket(self):
-        if hasattr(self.manager_ticker, 'connected') and self.manager_ticker.connected == True:
-            self.manager_ticker.close()
+        self.manager_ticker.close()
 
     def start_depth_websocket(self, symbol, callback):
         self.symbol = self.get_exchange_symbol(symbol)
@@ -108,8 +102,7 @@ class Bitfinex:
             self.started_depth = True
 
     def stop_depth_websocket(self):
-        if hasattr(self.manager_depth, 'connected') and self.manager_depth.connected == True:
-            self.manager_depth.close()
+        self.manager_depth.close()
 
     def start_trades_websocket(self, symbol, callback):
         self.symbol = self.get_exchange_symbol(symbol)
@@ -119,8 +112,7 @@ class Bitfinex:
             self.started_trades = True
 
     def stop_trades_websocket(self):
-        if hasattr(self.manager_trades, 'connected') and self.manager_trades.connected == True:
-            self.manager_trades.close()
+        self.manager_trades.close()
 
 
 class Binance:

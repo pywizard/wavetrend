@@ -1687,7 +1687,6 @@ class Window(QtWidgets.QMainWindow):
             if exchange == accounts.EXCHANGE_BITFINEX or exchange == accounts.EXCHANGE_KRAKEN:
                 DataRunnerTabs[winid].exchange_obj.stop_ticker_websocket()
             del DataRunnerTabs[winid].exchange_obj
-        del DataRunnerTabs[winid]
 
         if exchange != accounts.EXCHANGE_OANDA:
             self.OrderbookWidget[tab_index].exchange_obj.stop_depth_websocket()
@@ -1701,6 +1700,7 @@ class Window(QtWidgets.QMainWindow):
 
             del self.OrderbookWidget[tab_index].exchange_obj
         del self.OrderbookWidget[tab_index]
+        del DataRunnerTabs[winid]
 
         self.tabWidget.removeTab(tab_index)
         self.tabWidget.setCurrentIndex(tab_index)
