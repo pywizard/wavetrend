@@ -86,7 +86,7 @@ class Bitfinex:
             self.started_candlestick = True
 
     def stop_candlestick_websocket(self):
-        if self.manager_candlestick.connected == True:
+        if hasattr(self.manager_candlestick, 'connected') and self.manager_candlestick.connected == True:
             self.manager_candlestick.close()
 
     def start_ticker_websocket(self, symbol, callback):
@@ -97,7 +97,7 @@ class Bitfinex:
             self.started_ticker = True
 
     def stop_ticker_websocket(self):
-        if self.manager_ticker.connected == True:
+        if hasattr(self.manager_ticker, 'connected') and self.manager_ticker.connected == True:
             self.manager_ticker.close()
 
     def start_depth_websocket(self, symbol, callback):
@@ -108,7 +108,7 @@ class Bitfinex:
             self.started_depth = True
 
     def stop_depth_websocket(self):
-        if self.manager_depth.connected == True:
+        if hasattr(self.manager_depth, 'connected') and self.manager_depth.connected == True:
             self.manager_depth.close()
 
     def start_trades_websocket(self, symbol, callback):
@@ -119,7 +119,7 @@ class Bitfinex:
             self.started_trades = True
 
     def stop_trades_websocket(self):
-        if self.manager_trades.connected == True:
+        if hasattr(self.manager_trades, 'connected') and self.manager_trades.connected == True:
             self.manager_trades.close()
 
 
