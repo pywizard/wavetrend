@@ -118,7 +118,13 @@ class Bitfinex:
 class Binance:
     def __init__(self, account, api_key, api_secret):
         self.account = account
-        self.client = Client(api_key, api_secret)
+        while True:
+            try:
+                self.client = Client(api_key, api_secret)
+                break
+            except:
+                time.sleep(1)
+
         self.manager = BinanceSocketManager(self.client)
         self.started = False
         self.markets = None
