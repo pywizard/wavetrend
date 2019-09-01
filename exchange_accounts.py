@@ -83,33 +83,45 @@ class ExchangeAccounts:
                 sys.exit(1)
 
     def fetch_tickers(self, exchange):
+        sleep_time = 0.2
         while True:
             try:
                 tickers = self.exchanges[exchange]["client"].fetch_tickers()
                 break
-            except:
-                time.sleep(1)
+            except Exception as e:
+                time.sleep(sleep_time)
+                sleep_time = sleep_time * 2
+                if sleep_time > 30:
+                    sleep_time = 0.2
         self.tickers[exchange] = tickers
         return tickers
 
     def fetch_markets(self, exchange):
+        sleep_time = 0.2
         while True:
             try:
                 markets = self.exchanges[exchange]["client"].fetch_markets()
                 break
-            except:
-                time.sleep(1)
+            except Exception as e:
+                time.sleep(sleep_time)
+                sleep_time = sleep_time * 2
+                if sleep_time > 30:
+                    sleep_time = 0.2
         self.markets[exchange] = markets
         self.exchanges[exchange]["markets"] = markets
         return markets
 
     def get_symbol_price(self, exchange, symbol):
         while True:
+            sleep_time = 0.2
             try:
                 ticker_last = self.fetch_tickers(exchange)[symbol]["last"]
                 break
-            except:
-                time.sleep(1)
+            except Exception as e:
+                time.sleep(sleep_time)
+                sleep_time = sleep_time * 2
+                if sleep_time > 30:
+                    sleep_time = 0.2
         return ticker_last
 
     def get_asset_from_symbol(self, exchange, symbol):
@@ -129,10 +141,14 @@ class ExchangeAccounts:
         return self.exchanges[exchange]["client_"]
 
     def get_orderbook(self, exchange, symbol):
+        sleep_time = 0.2
         while True:
             try:
                 orderbook = self.exchanges[exchange]["client"].fetch_order_book(symbol)
                 break
-            except:
-                time.sleep(1)
+            except Exception as e:
+                time.sleep(sleep_time)
+                sleep_time = sleep_time * 2
+                if sleep_time > 30:
+                    sleep_time = 0.2
         return orderbook

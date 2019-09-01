@@ -118,12 +118,16 @@ class Bitfinex:
 class Binance:
     def __init__(self, account, api_key, api_secret):
         self.account = account
+        sleep_time = 0.2
         while True:
             try:
                 self.client = Client(api_key, api_secret)
                 break
-            except:
-                time.sleep(1)
+            except Exception:
+                time.sleep(sleep_time)
+                sleep_time = sleep_time * 2
+                if sleep_time > 10:
+                    sleep_time = 0.2
 
         self.manager = BinanceSocketManager(self.client)
         self.started = False
@@ -140,6 +144,7 @@ class Binance:
     def start_candlestick_websocket(self, symbol, interval, callback):
         self.symbol = self.get_exchange_symbol(symbol)
 
+        sleep_time = 0.2
         while True:
             try:
                 self.connection_key = self.manager.start_kline_socket(self.symbol, callback, interval=interval)
@@ -147,24 +152,31 @@ class Binance:
                     self.manager.start()
                     self.started = True
                 break
-            except:
-                time.sleep(1)
+            except Exception as e:
+                time.sleep(sleep_time)
+                sleep_time = sleep_time * 2
+                if sleep_time > 30:
+                    sleep_time = 0.2
 
     def stop_candlestick_websocket(self):
         try:
             self.manager.stop_socket(self.connection_key)
-        except:
+        except Exception as e:
             pass
 
     def start_depth_websocket_internal(self, symbol, callback):
         time.sleep(0.1)
+        sleep_time = 0.2
         while True:
             try:
                 self.depth_cache_manager = DepthCacheManager(self.client, self.symbol, callback=callback, limit=50, refresh_interval=0)
                 self.started = True
                 break
-            except:
-                time.sleep(1)
+            except Exception as e:
+                time.sleep(sleep_time)
+                sleep_time = sleep_time * 2
+                if sleep_time > 30:
+                    sleep_time = 0.2
 
     def start_depth_websocket(self, symbol, callback):
         self.symbol = self.get_exchange_symbol(symbol)
@@ -176,11 +188,12 @@ class Binance:
     def stop_depth_websocket(self):
         try:
             self.depth_cache_manager.close(close_socket=True)
-        except:
+        except Exception as e:
             pass
 
     def start_trades_websocket(self, symbol, callback):
         self.symbol = self.get_exchange_symbol(symbol)
+        sleep_time = 0.2
         while True:
             try:
                 self.connection_key_trades = self.manager.start_trade_socket(self.symbol, callback)
@@ -188,13 +201,16 @@ class Binance:
                     self.manager.start()
                     self.started = True
                 break
-            except:
-                time.sleep(1)
+            except Exception as e:
+                time.sleep(sleep_time)
+                sleep_time = sleep_time * 2
+                if sleep_time > 30:
+                    sleep_time = 0.2
 
     def stop_trades_websocket(self):
         try:
             self.manager.stop_socket(self.connection_key_trades)
-        except:
+        except Exception as e:
             pass
 
 class Kraken:
@@ -251,7 +267,7 @@ class Kraken:
     def stop_depth_websocket(self):
         try:
             self.manager_depth.close()
-        except:
+        except Exception as e:
             pass
 
     def start_trades_websocket(self, symbol, callback):

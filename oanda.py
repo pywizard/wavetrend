@@ -86,6 +86,7 @@ class oanda (Exchange):
         })
 
     def fetch_markets(self):
+        sleep_time = 0.2
         while True:
             try:
                 request = accounts.AccountInstruments(accountID=self.account_id)
@@ -122,20 +123,27 @@ class oanda (Exchange):
                     }
                 self.markets = result
                 break
-            except:
-                time.sleep(1)
+            except Exception as e:
+                time.sleep(sleep_time)
+                sleep_time = sleep_time * 2
+                if sleep_time > 30:
+                    sleep_time = 0.2
 
         return self.markets
 
     def is_instrument_halted(self, symbol):
+        sleep_time = 1
         while True:
             try:
                 request = pricing.PricingInfo(accountID=self.account_id, params={"instruments": symbol})
                 self.oanda.request(request)
                 tradeable = request.response["prices"][0]["tradeable"]
                 break
-            except:
-                time.sleep(1)
+            except Exception as e:
+                time.sleep(sleep_time)
+                sleep_time = sleep_time * 2
+                if sleep_time > 60:
+                    sleep_time = 1
         return tradeable
 
     def amount_to_precision(self, symbol, amount):
@@ -152,47 +160,30 @@ class oanda (Exchange):
         ]
 
     def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
+        sleep_time = 1
         while True:
             try:
                 url = "https://api-fxtrade.oanda.com/v1/candles?instrument=" + symbol +"&count=" + str(limit) + "&candleFormat=midpoint&granularity=" + self.timeframes[timeframe]
                 request = urllib.request.Request(url)
                 response = urllib.request.urlopen(request)
                 json_body = json.loads(response.read().decode('utf-8'))
-
-                candles = []
-                real_timestamps = []
-                fake_timestamps = 86400
-                for candle in json_body["candles"]:
-                    candle_time = candle["time"][:-8]
-                    timestamp = arrow.get(candle_time, 'YYYY-MM-DDTHH:mm:ss').datetime
-                    timestamp_local = arrow.Arrow.fromdatetime(timestamp).to('local').datetime
-                    real_timestamps.append(timestamp_local)
-                    candles.append([int(fake_timestamps), candle["openMid"], candle["highMid"], candle["lowMid"], candle["closeMid"], candle["volume"]])
-                    fake_timestamps = fake_timestamps + self.elapsed_table[timeframe]
-                break
+                if "candles" in json_body:
+                    break
             except:
                 time.sleep(1)
+                sleep_time = sleep_time * 2
+                if sleep_time > 30:
+                    sleep_time = 1
+
+        candles = []
+        real_timestamps = []
+        fake_timestamps = 86400
+        for candle in json_body["candles"]:
+            candle_time = candle["time"][:-8]
+            timestamp = arrow.get(candle_time, 'YYYY-MM-DDTHH:mm:ss').datetime
+            timestamp_local = arrow.Arrow.fromdatetime(timestamp).to('local').datetime
+            real_timestamps.append(timestamp_local)
+            candles.append([int(fake_timestamps), candle["openMid"], candle["highMid"], candle["lowMid"], candle["closeMid"], candle["volume"]])
+            fake_timestamps = fake_timestamps + self.elapsed_table[timeframe]
 
         return candles, real_timestamps
-
-    def handle_errors(self, code, reason, url, method, headers, body, response):
-        if response is None:
-            return
-        if code >= 400:
-            if body[0] == '{':
-                feedback = self.id + ' ' + self.json(response)
-                message = None
-                if 'message' in response:
-                    message = response['message']
-                elif 'error' in response:
-                    message = response['error']
-                else:
-                    raise ExchangeError(feedback)  # malformed(to our knowledge) response
-                exact = self.exceptions['exact']
-                if message in exact:
-                    raise exact[message](feedback)
-                broad = self.exceptions['broad']
-                broadKey = self.findBroadlyMatchedKey(broad, message)
-                if broadKey is not None:
-                    raise broad[broadKey](feedback)
-                raise ExchangeError(feedback)  # unknown message

@@ -491,7 +491,7 @@ class DataRunner:
       self.chanid = -1
       try:
         self.exchange_obj.stop_candlestick_websocket()
-      except:
+      except Exception as e:
         pass
       self.exchange_obj.start_candlestick_websocket(self.symbol, self.timeframe_entered, self.process_message)
       self.websocket_alive_time = time.time()
@@ -500,7 +500,7 @@ class DataRunner:
       self.chanid_ticker = -1
       try:
         self.exchange_obj.stop_ticker_websocket()
-      except:
+      except Exception as e:
         pass
       self.exchange_obj.start_ticker_websocket(self.symbol, self.process_message_ticker)
       self.websocket_ticker_alive_time = time.time()
@@ -798,124 +798,182 @@ class ChartRunner(QtCore.QThread):
     closed_hours = False
 
     while True:
-        try:
-          while True:
-              if init == True:
-                  self.FIGURE_CLEAR.emit(self.tab_index)
-                  aqs[self.tab_index].get()
-                  while True:
-                      if self.OrderbookWidget.orderbookWidthAdjusted == False:
-                          time.sleep(0.05)
-                          continue
-                      else:
-                          break
-                  update_time = time.time()
-                  break
-              if force_redraw_chart == True:
-                  update_time = time.time()
-                  break
-              elif time.time() - update_time < 1:
-                  time.sleep(0.1)
+      while True:
+          if init == True:
+              self.FIGURE_CLEAR.emit(self.tab_index)
+              aqs[self.tab_index].get()
+              while True:
+                  if self.OrderbookWidget.orderbookWidthAdjusted == False:
+                      time.sleep(0.05)
+                      continue
+                  else:
+                      break
+              update_time = time.time()
+              break
+          if force_redraw_chart == True:
+              update_time = time.time()
+              break
+          elif time.time() - update_time < 1:
+              time.sleep(0.1)
+          else:
+              update_time = time.time()
+              break
+
+      candle_type = window_configs[self.tab_index].candle_type
+      trade_type = window_configs[self.tab_index].trade_type
+      bband_type = window_configs[self.tab_index].bband_type
+      indicator_type = window_configs[self.tab_index].indicator_type
+      hotkeys_pressed = current_candle_type != candle_type or current_trade_type != trade_type or \
+                        current_bband_type != bband_type or current_indicator_type != indicator_type
+      if hotkeys_pressed == True:
+          trendbars_display_counter = 0
+          force_redraw_chart = True
+
+      if first == True and force_redraw_chart == False:
+            date, open_, high, low, close, vol, limit, real_timestamps = self.getData(timeframe_entered, days_entered, symbol)
+            if self.exchange == accounts.EXCHANGE_OANDA:
+                time_close = datetime.datetime.timestamp(real_timestamps[-1]) + elapsed_table[self.timeframe_entered]
+            else:
+                time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
+                              elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
+            date2 = None
+      elif first == False and force_redraw_chart == False and self.exchange == accounts.EXCHANGE_OANDA:
+            dateX, openX, highX, lowX, closeX, volX, limitX, real_timestampsX = self.getData(timeframe_entered, days_entered, symbol, fixed_limit=1)
+            real_timestamp2 = real_timestampsX[-1]
+            date2 = dateX[-1]
+            open2_ = openX[-1]
+            high2 = highX[-1]
+            low2 = lowX[-1]
+            close2 = closeX[-1]
+            vol2 = volX[-1]
+            limit2 = 1
+      elif first == False and force_redraw_chart == False and self.exchange != accounts.EXCHANGE_OANDA:
+            try:
+                chart_result = dqs[self.tab_index].pop()
+                dqs[self.tab_index].clear()
+                [date2, open2_, high2, low2, close2, vol2, limit2] = chart_result
+            except IndexError:
+                pass
+      else:
+          if first == False and force_redraw_chart == True:
+            self.FIGURE_CLEAR.emit(self.tab_index)
+            aqs[self.tab_index].get()
+            first = True
+            force_redraw_chart = False
+            last_line1 = None
+            last_line2 = None
+            last_rect = None
+            indicators.clear()
+            indicator_axes.clear()
+            current_candle_type = candle_type
+            current_trade_type = trade_type
+            current_bband_type = bband_type
+            current_indicator_type = indicator_type
+            continue
+
+      if first == True:
+        self.FIGURE_ADD_SUBPLOT.emit(self.tab_index, 111, None)
+        ax = aqs[self.tab_index].get()
+
+        prices.clear()
+        for i in range(0, len(date)):
+            prices.append([date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]])
+
+        ax.xaxis.set_tick_params(labelsize=7)
+        ax.yaxis.set_tick_params(labelsize=7)
+      else:
+        if date2 != None:
+            prices[-1] = [date2num(date2), open2_, high2, low2, close2, vol2, date2]
+            if self.exchange == accounts.EXCHANGE_OANDA:
+                real_timestamps[-1] = real_timestamp2
+
+      if first == True:
+        indicators.append(indicator_BBANDS(theme, current_bband_type == BBAND_TYPE_TRENDBARS))
+        bband_index = 0
+        indicators.append(indicator_KELTNER_CHANNEL())
+        keltner_index = 1
+        if current_indicator_type == CHART_INDICATORS and current_trade_type == TRADE_TYPE_TRENDING:
+            indicators.append(indicator_MACD(theme))
+        elif current_indicator_type == CHART_INDICATORS and current_trade_type == TRADE_TYPE_OSC:
+            indicators.append(indicator_STOCH(theme))
+
+        if current_indicator_type == CHART_INDICATORS:
+            indicators.append(indicator_DMI(theme))
+            indicators.append(indicator_RSI(theme))
+        indicators.append(indicator_VOLUME(theme))
+
+      start_x = 0
+      indicator_axes_count = 0
+
+      pdate = [x[0] for x in prices]
+      popen = [x[1] for x in prices]
+      phigh = [x[2] for x in prices]
+      plow = [x[3] for x in prices]
+      pclose = [x[4] for x in prices]
+      pvol = [x[5] for x in prices]
+
+      for indicator in indicators:
+        if first == True:
+          indicator.generate_values(popen, phigh, plow, pclose, pvol)
+          if window_configs[self.tab_index].ai_enabled == True:
+              stddev = talib.STDDEV(np.array(pclose), timeperiod=20, nbdev=1)
+              stddev_on_axis = []
+              for ii in range(0, len(stddev)):
+                  stddev_on_axis.append([pdate[ii], stddev[ii]])
+              stddev_is_plateau = self.is_plateau(numpy.array(stddev_on_axis))
+              if stddev_is_plateau[-1] == 0:
+                  self.parent.neural_network.ai_trending_market = True
               else:
-                  update_time = time.time()
-                  break
+                  self.parent.neural_network.ai_trending_market = False
 
-          candle_type = window_configs[self.tab_index].candle_type
-          trade_type = window_configs[self.tab_index].trade_type
-          bband_type = window_configs[self.tab_index].bband_type
-          indicator_type = window_configs[self.tab_index].indicator_type
-          hotkeys_pressed = current_candle_type != candle_type or current_trade_type != trade_type or \
-                            current_bband_type != bband_type or current_indicator_type != indicator_type
-          if hotkeys_pressed == True:
-              trendbars_display_counter = 0
-              force_redraw_chart = True
-
-          if first == True and force_redraw_chart == False:
-                date, open_, high, low, close, vol, limit, real_timestamps = self.getData(timeframe_entered, days_entered, symbol)
-                if self.exchange == accounts.EXCHANGE_OANDA:
-                    time_close = datetime.datetime.timestamp(real_timestamps[-1]) + elapsed_table[self.timeframe_entered]
-                else:
-                    time_close = (datetime.datetime.timestamp(date[-1]) // elapsed_table[self.timeframe_entered] * \
-                                  elapsed_table[self.timeframe_entered]) + elapsed_table[self.timeframe_entered]
-                date2 = None
-          elif first == False and force_redraw_chart == False and self.exchange == accounts.EXCHANGE_OANDA:
-                dateX, openX, highX, lowX, closeX, volX, limitX, real_timestampsX = self.getData(timeframe_entered, days_entered, symbol, fixed_limit=1)
-                real_timestamp2 = real_timestampsX[-1]
-                date2 = dateX[-1]
-                open2_ = openX[-1]
-                high2 = highX[-1]
-                low2 = lowX[-1]
-                close2 = closeX[-1]
-                vol2 = volX[-1]
-                limit2 = 1
-          elif first == False and force_redraw_chart == False and self.exchange != accounts.EXCHANGE_OANDA:
-                try:
-                    chart_result = dqs[self.tab_index].pop()
-                    dqs[self.tab_index].clear()
-                    [date2, open2_, high2, low2, close2, vol2, limit2] = chart_result
-                except IndexError:
-                    pass
+          if indicator.overlay_chart:
+            indicator.plot_once(ax, pdate)
           else:
-              if first == False and force_redraw_chart == True:
-                self.FIGURE_CLEAR.emit(self.tab_index)
-                aqs[self.tab_index].get()
-                first = True
-                force_redraw_chart = False
-                last_line1 = None
-                last_line2 = None
-                last_rect = None
-                indicators.clear()
-                indicator_axes.clear()
-                current_candle_type = candle_type
-                current_trade_type = trade_type
-                current_bband_type = bband_type
-                current_indicator_type = indicator_type
-                continue
-
-          if first == True:
-            self.FIGURE_ADD_SUBPLOT.emit(self.tab_index, 111, None)
-            ax = aqs[self.tab_index].get()
-
-            prices.clear()
-            for i in range(0, len(date)):
-                prices.append([date2num(date[i]), open_[i], high[i], low[i], close[i], vol[i], date[i]])
-
-            ax.xaxis.set_tick_params(labelsize=7)
-            ax.yaxis.set_tick_params(labelsize=7)
-          else:
-            if date2 != None:
-                prices[-1] = [date2num(date2), open2_, high2, low2, close2, vol2, date2]
-                if self.exchange == accounts.EXCHANGE_OANDA:
-                    real_timestamps[-1] = real_timestamp2
-
-          if first == True:
-            indicators.append(indicator_BBANDS(theme, current_bband_type == BBAND_TYPE_TRENDBARS))
-            bband_index = 0
-            indicators.append(indicator_KELTNER_CHANNEL())
-            keltner_index = 1
-            if current_indicator_type == CHART_INDICATORS and current_trade_type == TRADE_TYPE_TRENDING:
-                indicators.append(indicator_MACD(theme))
-            elif current_indicator_type == CHART_INDICATORS and current_trade_type == TRADE_TYPE_OSC:
-                indicators.append(indicator_STOCH(theme))
-
             if current_indicator_type == CHART_INDICATORS:
-                indicators.append(indicator_DMI(theme))
-                indicators.append(indicator_RSI(theme))
-            indicators.append(indicator_VOLUME(theme))
+                indicator_axes_count += 1
+                rows = 0
+                if indicator_axes_count == 1:
+                    rows = 211
+                elif indicator_axes_count == 2:
+                    rows = 311
+                elif indicator_axes_count == 3:
+                    rows = 411
+                elif indicator_axes_count == 4:
+                    rows = 511
 
-          start_x = 0
-          indicator_axes_count = 0
+            if indicator.name == "VOLUME":
+                self.FIGURE_ADD_AXES.emit(self.tab_index, [0,0,0.4,0.4], ax)
+                new_ax = aqs[self.tab_index].get()
+                new_ax.patch.set_visible(False)
+                new_ax.spines['top'].set_visible(False)
+                new_ax.grid(False)
+                ax.spines['bottom'].set_visible(False)
+            else:
+                self.FIGURE_ADD_SUBPLOT.emit(self.tab_index, rows, ax)
+                new_ax = aqs[self.tab_index].get()
+                new_ax.grid(alpha=.25)
+                new_ax.grid(True)
+            new_ax.yaxis.tick_left()
+            new_ax.yaxis.set_label_position("left")
+            new_ax.xaxis.set_tick_params(labelsize=7)
+            new_ax.yaxis.set_tick_params(labelsize=7)
+            new_ax.spines['left'].set_edgecolor(theme.grayscale_dark)
+            new_ax.spines['right'].set_edgecolor(theme.grayscale_light)
+            new_ax.spines['top'].set_edgecolor(theme.grayscale_light)
+            new_ax.spines['bottom'].set_edgecolor(theme.grayscale_light)
+            new_ax.spines['bottom'].set_linewidth(1.05)
+            new_ax.spines['left'].set_linewidth(3)
+            new_ax.xaxis.label.set_color(theme.white)
+            new_ax.yaxis.label.set_color(theme.white)
+            new_ax.tick_params(axis='x', colors=theme.white)
+            new_ax.tick_params(axis='y', colors=theme.white)
+            indicator_axes.append(new_ax)
+            indicator_update_time = time.time()
+            indicator.plot_once(new_ax, pdate)
+        else:
+          indicator.generate_values(popen, phigh, plow, pclose, pvol)
 
-          pdate = [x[0] for x in prices]
-          popen = [x[1] for x in prices]
-          phigh = [x[2] for x in prices]
-          plow = [x[3] for x in prices]
-          pclose = [x[4] for x in prices]
-          pvol = [x[5] for x in prices]
-
-          for indicator in indicators:
-            if first == True:
-              indicator.generate_values(popen, phigh, plow, pclose, pvol)
+          if time.time() - indicator_update_time > 10:
               if window_configs[self.tab_index].ai_enabled == True:
                   stddev = talib.STDDEV(np.array(pclose), timeperiod=20, nbdev=1)
                   stddev_on_axis = []
@@ -927,436 +985,375 @@ class ChartRunner(QtCore.QThread):
                   else:
                       self.parent.neural_network.ai_trending_market = False
 
-              if indicator.overlay_chart:
-                indicator.plot_once(ax, pdate)
-              else:
-                if current_indicator_type == CHART_INDICATORS:
-                    indicator_axes_count += 1
-                    rows = 0
-                    if indicator_axes_count == 1:
-                        rows = 211
-                    elif indicator_axes_count == 2:
-                        rows = 311
-                    elif indicator_axes_count == 3:
-                        rows = 411
-                    elif indicator_axes_count == 4:
-                        rows = 511
-
-                if indicator.name == "VOLUME":
-                    self.FIGURE_ADD_AXES.emit(self.tab_index, [0,0,0.4,0.4], ax)
-                    new_ax = aqs[self.tab_index].get()
-                    new_ax.patch.set_visible(False)
-                    new_ax.spines['top'].set_visible(False)
-                    new_ax.grid(False)
-                    ax.spines['bottom'].set_visible(False)
-                else:
-                    self.FIGURE_ADD_SUBPLOT.emit(self.tab_index, rows, ax)
-                    new_ax = aqs[self.tab_index].get()
-                    new_ax.grid(alpha=.25)
-                    new_ax.grid(True)
-                new_ax.yaxis.tick_left()
-                new_ax.yaxis.set_label_position("left")
-                new_ax.xaxis.set_tick_params(labelsize=7)
-                new_ax.yaxis.set_tick_params(labelsize=7)
-                new_ax.spines['left'].set_edgecolor(theme.grayscale_dark)
-                new_ax.spines['right'].set_edgecolor(theme.grayscale_light)
-                new_ax.spines['top'].set_edgecolor(theme.grayscale_light)
-                new_ax.spines['bottom'].set_edgecolor(theme.grayscale_light)
-                new_ax.spines['bottom'].set_linewidth(1.05)
-                new_ax.spines['left'].set_linewidth(3)
-                new_ax.xaxis.label.set_color(theme.white)
-                new_ax.yaxis.label.set_color(theme.white)
-                new_ax.tick_params(axis='x', colors=theme.white)
-                new_ax.tick_params(axis='y', colors=theme.white)
-                indicator_axes.append(new_ax)
-                indicator_update_time = time.time()
-                indicator.plot_once(new_ax, pdate)
-            else:
-              indicator.generate_values(popen, phigh, plow, pclose, pvol)
-
-              if time.time() - indicator_update_time > 10:
-                  if window_configs[self.tab_index].ai_enabled == True:
-                      stddev = talib.STDDEV(np.array(pclose), timeperiod=20, nbdev=1)
-                      stddev_on_axis = []
-                      for ii in range(0, len(stddev)):
-                          stddev_on_axis.append([pdate[ii], stddev[ii]])
-                      stddev_is_plateau = self.is_plateau(numpy.array(stddev_on_axis))
-                      if stddev_is_plateau[-1] == 0:
-                          self.parent.neural_network.ai_trending_market = True
-                      else:
-                          self.parent.neural_network.ai_trending_market = False
-
-              if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or \
-                      current_trade_type != trade_type or current_bband_type != bband_type or \
-                      current_indicator_type != indicator_type:
-                  indicator.update()
-            
-            xaxis_start = indicator.xaxis_get_start()
-            if xaxis_start != 0 and xaxis_start > start_x:
-              start_x = xaxis_start
-
           if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or \
                   current_trade_type != trade_type or current_bband_type != bband_type or \
                   current_indicator_type != indicator_type:
-            indicator_update_time = time.time()
+              indicator.update()
 
-          if current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
-            ### Heikin Ashi
-            if first == True:  
-              date_list    = range(0, len(popen))
-              open_list    = copy.deepcopy(popen)
-              close_list   = copy.deepcopy(pclose)
-              high_list    = copy.deepcopy(phigh)
-              low_list     = copy.deepcopy(plow)
-              volume_list  = copy.deepcopy(pvol)
-              elements        = len(popen)
+        xaxis_start = indicator.xaxis_get_start()
+        if xaxis_start != 0 and xaxis_start > start_x:
+          start_x = xaxis_start
 
-              for i in range(1, elements):
-                  close_list[i] = (open_list[i] + close_list[i] + high_list[i] + low_list[i])/4
-                  open_list[i]  = (open_list[i-1] + close_list[i-1])/2
-                  high_list[i]  = max(high_list[i], open_list[i], close_list[i])
-                  low_list[i]   = min(low_list[i], open_list[i], close_list[i])
-              
-              prices2 = []
-              prices2.clear()
-              for i in range(0, len(date)):
-                  prices2.append([date2num(date[i]), open_list[i], high_list[i], low_list[i], close_list[i], volume_list[i], date[i]])
-            else:
-              open_list[-1]    = popen[-1]
-              close_list[-1]   = pclose[-1]
-              high_list[-1]    = phigh[-1]
-              low_list[-1]     = plow[-1]
-              volume_list[-1]  = pvol[-1]
-              
-              close_list[-1] = (open_list[-1] + close_list[-1] + high_list[-1] + low_list[-1])/4
-              open_list[-1]  = (open_list[-2] + close_list[-2])/2
-              high_list[-1]  = max(high_list[-1], open_list[-1], close_list[-1])
-              low_list[-1]   = min(low_list[-1], open_list[-1], close_list[-1])
-              prices2[-1] = [date2num(date[-1]), open_list[-1], high_list[-1], low_list[-1], close_list[-1], volume_list[-1], date[-1]]
-            ###
+      if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or \
+              current_trade_type != trade_type or current_bband_type != bband_type or \
+              current_indicator_type != indicator_type:
+        indicator_update_time = time.time()
 
-          if start_x != 0:
-            highest_price = 0
-            lowest_price = 999999999999
+      if current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
+        ### Heikin Ashi
+        if first == True:
+          date_list    = range(0, len(popen))
+          open_list    = copy.deepcopy(popen)
+          close_list   = copy.deepcopy(pclose)
+          high_list    = copy.deepcopy(phigh)
+          low_list     = copy.deepcopy(plow)
+          volume_list  = copy.deepcopy(pvol)
+          elements        = len(popen)
 
-            #candlestick
-            if current_candle_type == CANDLE_TYPE_CANDLESTICK:
-              for i in range(start_x, len(date)):
-                if high[i] > highest_price:
-                  highest_price = high[i] #candlestick
-                if low[i] < lowest_price:
-                  lowest_price = low[i] #candlestick
-            elif current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
-              #heikin ashi
-              for i in range(start_x, len(date)):
-                if high_list[i] > highest_price:
-                  highest_price = high_list[i]
-                if low_list[i] < lowest_price:
-                  lowest_price = low_list[i]            
-              ###
+          for i in range(1, elements):
+              close_list[i] = (open_list[i] + close_list[i] + high_list[i] + low_list[i])/4
+              open_list[i]  = (open_list[i-1] + close_list[i-1])/2
+              high_list[i]  = max(high_list[i], open_list[i], close_list[i])
+              low_list[i]   = min(low_list[i], open_list[i], close_list[i])
 
-            xl = ax.get_xlim()
-            ax.set_xlim(date[start_x], xl[1])
+          prices2 = []
+          prices2.clear()
+          for i in range(0, len(date)):
+              prices2.append([date2num(date[i]), open_list[i], high_list[i], low_list[i], close_list[i], volume_list[i], date[i]])
+        else:
+          open_list[-1]    = popen[-1]
+          close_list[-1]   = pclose[-1]
+          high_list[-1]    = phigh[-1]
+          low_list[-1]     = plow[-1]
+          volume_list[-1]  = pvol[-1]
 
-          if prices[-1][2] > highest_price:
-              highest_price = prices[-1][2]
-          if prices[-1][3] < lowest_price:
-              lowest_price = prices[-1][3]
+          close_list[-1] = (open_list[-1] + close_list[-1] + high_list[-1] + low_list[-1])/4
+          open_list[-1]  = (open_list[-2] + close_list[-2])/2
+          high_list[-1]  = max(high_list[-1], open_list[-1], close_list[-1])
+          low_list[-1]   = min(low_list[-1], open_list[-1], close_list[-1])
+          prices2[-1] = [date2num(date[-1]), open_list[-1], high_list[-1], low_list[-1], close_list[-1], volume_list[-1], date[-1]]
+        ###
 
-          tick_values = ax.yaxis.get_major_locator().tick_values(lowest_price, highest_price)
-          ylim_offset = (tick_values[1] - tick_values[0]) / 6
-          ax.set_ylim((lowest_price - ylim_offset, highest_price + ylim_offset))
+      if start_x != 0:
+        highest_price = 0
+        lowest_price = 999999999999
 
-          ticker = prices[-1][4]
-          ticker_formatted = str(accounts.client(self.exchange).price_to_precision(symbol, ticker))
-          ticker_for_line = prices[-1][4]
-          
-          if "e-" in str(ticker) or "e+" in str(ticker):
-            d1 = ctx.create_decimal(repr(ticker))
-            ticker_formatted = format(d1, 'f')
+        #candlestick
+        if current_candle_type == CANDLE_TYPE_CANDLESTICK:
+          for i in range(start_x, len(date)):
+            if high[i] > highest_price:
+              highest_price = high[i] #candlestick
+            if low[i] < lowest_price:
+              lowest_price = low[i] #candlestick
+        elif current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
+          #heikin ashi
+          for i in range(start_x, len(date)):
+            if high_list[i] > highest_price:
+              highest_price = high_list[i]
+            if low_list[i] < lowest_price:
+              lowest_price = low_list[i]
+          ###
 
-          next_candle_start_time = time.time() // elapsed_table[timeframe_entered] * \
-                                   elapsed_table[timeframe_entered] + elapsed_table[timeframe_entered]
+        xl = ax.get_xlim()
+        ax.set_xlim(date[start_x], xl[1])
 
-          duration = datetime.datetime.fromtimestamp(next_candle_start_time) - datetime.datetime.now()
-          days, seconds = duration.days, duration.seconds
-          hours = days * 24 + seconds // 3600
-          minutes = (seconds % 3600) // 60
-          seconds = seconds % 60
-          if hours == 0:
-            time_to_next_candle = "%02d:%02d" % (minutes, seconds)
-          else:
-            time_to_next_candle = "%02d:%02d:%02d" % (hours, minutes, seconds)
- 
-          if first == True:
-            color = theme.green2  # green
-            line_color = theme.green
-            if theme.theme_type == themes.THEME_TYPE_LIGHT:
-                text_color = theme.black
-            elif theme.theme_type == themes.THEME_TYPE_DARK:
-                text_color = theme.white
+      if prices[-1][2] > highest_price:
+          highest_price = prices[-1][2]
+      if prices[-1][3] < lowest_price:
+          lowest_price = prices[-1][3]
 
-            tag_title = symbol + " " + ticker_formatted
-            if current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
-                ticker_heikin_ashi = prices2[-1][4]
-                ticker_formatted_heikin_ashi = str(accounts.client(self.exchange).price_to_precision(symbol, ticker_heikin_ashi))
-                if "e-" in str(ticker) or "e+" in str(ticker_heikin_ashi):
-                    d1 = ctx.create_decimal(repr(ticker_heikin_ashi))
-                    ticker_formatted_heikin_ashi = format(d1, 'f')
-                tag_title_ = tag_title + "\n"
-                tag_title_ = tag_title_ + " " * (len(tag_title)-len(ticker_formatted_heikin_ashi)) + ticker_formatted_heikin_ashi
-                ticker_for_line = prices2[-1][4]
-                if prices2[-1][4] < prices2[-1][1]:
-                    color = theme.red2  # red
-                    line_color = theme.red
-            else:
-                if prices[-1][4] < prices[-1][1]:
-                    color = theme.red2  # red
-                    line_color = theme.red
-                tag_title_ = tag_title
+      tick_values = ax.yaxis.get_major_locator().tick_values(lowest_price, highest_price)
+      ylim_offset = (tick_values[1] - tick_values[0]) / 6
+      ax.set_ylim((lowest_price - ylim_offset, highest_price + ylim_offset))
 
-            if time.time() <= time_close and not (hours == 0 and minutes == 0 and seconds == 0):
-                tag_title_ = tag_title_ + "\n"
-                tag_title_ = tag_title_ + " " * (len(tag_title)-len(time_to_next_candle)) + time_to_next_candle
+      ticker = prices[-1][4]
+      ticker_formatted = str(accounts.client(self.exchange).price_to_precision(symbol, ticker))
+      ticker_for_line = prices[-1][4]
 
-            price_line = ax.axhline(ticker_for_line, color=line_color, linestyle="dotted", lw=.9)
-            annotation = ax.text(date[-1] + (date[-1] - date[-5]), ticker_for_line, tag_title_, fontsize=7,
-                                 weight="bold", color=text_color, backgroundcolor=color, family="monospace")
+      if "e-" in str(ticker) or "e+" in str(ticker):
+        d1 = ctx.create_decimal(repr(ticker))
+        ticker_formatted = format(d1, 'f')
 
-            self.CANVAS_GET_SIZE.emit(self.tab_index, annotation)
-            tbox = aqs[tab_index].get()
+      next_candle_start_time = time.time() // elapsed_table[timeframe_entered] * \
+                               elapsed_table[timeframe_entered] + elapsed_table[timeframe_entered]
 
-            dbox = tbox.transformed(ax.transData.inverted())
-            annotation.set_y(ticker_for_line)
+      duration = datetime.datetime.fromtimestamp(next_candle_start_time) - datetime.datetime.now()
+      days, seconds = duration.days, duration.seconds
+      hours = days * 24 + seconds // 3600
+      minutes = (seconds % 3600) // 60
+      seconds = seconds % 60
+      if hours == 0:
+        time_to_next_candle = "%02d:%02d" % (minutes, seconds)
+      else:
+        time_to_next_candle = "%02d:%02d:%02d" % (hours, minutes, seconds)
+
+      if first == True:
+        color = theme.green2  # green
+        line_color = theme.green
+        if theme.theme_type == themes.THEME_TYPE_LIGHT:
+            text_color = theme.black
+        elif theme.theme_type == themes.THEME_TYPE_DARK:
+            text_color = theme.white
+
+        tag_title = symbol + " " + ticker_formatted
+        if current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
+            ticker_heikin_ashi = prices2[-1][4]
+            ticker_formatted_heikin_ashi = str(accounts.client(self.exchange).price_to_precision(symbol, ticker_heikin_ashi))
+            if "e-" in str(ticker) or "e+" in str(ticker_heikin_ashi):
+                d1 = ctx.create_decimal(repr(ticker_heikin_ashi))
+                ticker_formatted_heikin_ashi = format(d1, 'f')
+            tag_title_ = tag_title + "\n"
+            tag_title_ = tag_title_ + " " * (len(tag_title)-len(ticker_formatted_heikin_ashi)) + ticker_formatted_heikin_ashi
+            ticker_for_line = prices2[-1][4]
+            if prices2[-1][4] < prices2[-1][1]:
+                color = theme.red2  # red
+                line_color = theme.red
+        else:
+            if prices[-1][4] < prices[-1][1]:
+                color = theme.red2  # red
+                line_color = theme.red
+            tag_title_ = tag_title
+
+        if time.time() <= time_close and not (hours == 0 and minutes == 0 and seconds == 0):
+            tag_title_ = tag_title_ + "\n"
+            tag_title_ = tag_title_ + " " * (len(tag_title)-len(time_to_next_candle)) + time_to_next_candle
+
+        price_line = ax.axhline(ticker_for_line, color=line_color, linestyle="dotted", lw=.9)
+        annotation = ax.text(date[-1] + (date[-1] - date[-5]), ticker_for_line, tag_title_, fontsize=7,
+                             weight="bold", color=text_color, backgroundcolor=color, family="monospace")
+
+        self.CANVAS_GET_SIZE.emit(self.tab_index, annotation)
+        tbox = aqs[tab_index].get()
+
+        dbox = tbox.transformed(ax.transData.inverted())
+        annotation.set_y(ticker_for_line)
+        annotation.set_bbox(dict(facecolor=color, edgecolor=theme.white, lw=.5))
+      else:
+        color = theme.green2  # green
+        line_color = theme.green
+        if theme.theme_type == themes.THEME_TYPE_LIGHT:
+            text_color = theme.black
+        elif theme.theme_type == themes.THEME_TYPE_DARK:
+            text_color = theme.white
+
+        tag_title = symbol + " " + ticker_formatted
+        if current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
+            ticker_heikin_ashi = prices2[-1][4]
+            ticker_formatted_heikin_ashi = str(accounts.client(self.exchange).price_to_precision(symbol, ticker_heikin_ashi))
+            if "e-" in str(ticker) or "e+" in str(ticker_heikin_ashi):
+                d1 = ctx.create_decimal(repr(ticker_heikin_ashi))
+                ticker_formatted_heikin_ashi = format(d1, 'f')
+            tag_title_ = tag_title + "\n"
+            tag_title_ = tag_title_ + " " * (len(tag_title)-len(ticker_formatted_heikin_ashi)) + ticker_formatted_heikin_ashi
+            ticker_for_line = prices2[-1][4]
+            if prices2[-1][4] < prices2[-1][1]:
+                color = theme.red2  # red
+                line_color = theme.red
+        else:
+            if prices[-1][4] < prices[-1][1]:
+                color = theme.red2  # red
+                line_color = theme.red
+            tag_title_ = tag_title
+
+        if time.time() <= time_close and not (hours == 0 and minutes == 0 and seconds == 0):
+            tag_title_ = tag_title_ + "\n"
+            tag_title_ = tag_title_ + " " * (len(tag_title)-len(time_to_next_candle)) + time_to_next_candle
+
+        price_line.set_ydata(ticker_for_line)
+        price_line.set_color(line_color)
+        annotation.set_text(tag_title_)
+        annotation.set_y(ticker_for_line)
+        annotation.set_backgroundcolor(color)
+        if theme.theme_type == themes.THEME_TYPE_DARK:
+            annotation.set_bbox(dict(facecolor=color, edgecolor=text_color, lw=.5))
+        elif theme.theme_type == themes.THEME_TYPE_LIGHT:
             annotation.set_bbox(dict(facecolor=color, edgecolor=theme.white, lw=.5))
-          else:
-            color = theme.green2  # green
-            line_color = theme.green
-            if theme.theme_type == themes.THEME_TYPE_LIGHT:
-                text_color = theme.black
-            elif theme.theme_type == themes.THEME_TYPE_DARK:
-                text_color = theme.white
 
-            tag_title = symbol + " " + ticker_formatted
-            if current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
-                ticker_heikin_ashi = prices2[-1][4]
-                ticker_formatted_heikin_ashi = str(accounts.client(self.exchange).price_to_precision(symbol, ticker_heikin_ashi))
-                if "e-" in str(ticker) or "e+" in str(ticker_heikin_ashi):
-                    d1 = ctx.create_decimal(repr(ticker_heikin_ashi))
-                    ticker_formatted_heikin_ashi = format(d1, 'f')
-                tag_title_ = tag_title + "\n"
-                tag_title_ = tag_title_ + " " * (len(tag_title)-len(ticker_formatted_heikin_ashi)) + ticker_formatted_heikin_ashi
-                ticker_for_line = prices2[-1][4]
-                if prices2[-1][4] < prices2[-1][1]:
-                    color = theme.red2  # red
-                    line_color = theme.red
-            else:
-                if prices[-1][4] < prices[-1][1]:
-                    color = theme.red2  # red
-                    line_color = theme.red
-                tag_title_ = tag_title
+      if init == True:
+        xl = ax.get_xlim()
+        candle_width = ((dbox.x0 - xl[0]) / limit) * 0.8
 
-            if time.time() <= time_close and not (hours == 0 and minutes == 0 and seconds == 0):
-                tag_title_ = tag_title_ + "\n"
-                tag_title_ = tag_title_ + " " * (len(tag_title)-len(time_to_next_candle)) + time_to_next_candle
+      if first == True:
+        for i in range(0, len(indicators)):
+          if indicators[i].name == "MACD" or indicators[i].name == "VOLUME":
+            indicators[i].candle_width = candle_width
+            indicators[i].update()
+        indicators[bband_index].in_keltner(ax, pdate, indicators[keltner_index].keltner_hband, \
+                                           indicators[keltner_index].keltner_lband, lowest_price)
+        squeeze_now_shown = False
+      else:
+        if squeeze_now_shown == False:
+            index = len(pdate) - 1
+            indicators[bband_index].in_keltner_now(ax, pdate[-1], indicators[keltner_index].keltner_hband[index], \
+                                                   indicators[keltner_index].keltner_lband[index], lowest_price)
+            squeeze_now_shown = True
 
-            price_line.set_ydata(ticker_for_line)
-            price_line.set_color(line_color)
-            annotation.set_text(tag_title_)
-            annotation.set_y(ticker_for_line)
-            annotation.set_backgroundcolor(color)
-            if theme.theme_type == themes.THEME_TYPE_DARK:
-                annotation.set_bbox(dict(facecolor=color, edgecolor=text_color, lw=.5))
-            elif theme.theme_type == themes.THEME_TYPE_LIGHT:
-                annotation.set_bbox(dict(facecolor=color, edgecolor=theme.white, lw=.5))
+      if first == True and self.timeframe_entered in ["12h","1d","1D","3d","3D","1w"]:
+        scanner_results = self.candlescanner(popen, phigh, plow, pclose)
+      elif self.timeframe_entered not in ["12h","1d","1D","3d","3D","1w"]:
+        scanner_results = []
+      if current_candle_type == CANDLE_TYPE_CANDLESTICK:
+        last_line1, last_line2, last_rect, last_trendbar_color, trendbars_display_counter = \
+            _bars(ax, prices, first, last_line1, last_line2, last_rect, candle_width, scanner_results, highest_price, \
+                  current_bband_type == BBAND_TYPE_TRENDBARS, last_trendbar_color, trendbars_display_counter)
+      elif current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:
+        last_line1, last_line2, last_rect, last_trendbar_color, trendbars_display_counter = \
+            _bars(ax, prices2, first, last_line1, last_line2, last_rect, candle_width, scanner_results, highest_price, \
+                  current_bband_type == BBAND_TYPE_TRENDBARS, last_trendbar_color, trendbars_display_counter)
 
-          if init == True:
-            xl = ax.get_xlim()
-            candle_width = ((dbox.x0 - xl[0]) / limit) * 0.8
-
-          if first == True:
-            for i in range(0, len(indicators)):
-              if indicators[i].name == "MACD" or indicators[i].name == "VOLUME":
-                indicators[i].candle_width = candle_width
-                indicators[i].update()
-            indicators[bband_index].in_keltner(ax, pdate, indicators[keltner_index].keltner_hband, \
-                                               indicators[keltner_index].keltner_lband, lowest_price)
-            squeeze_now_shown = False
-          else:
-            if squeeze_now_shown == False:
-                index = len(pdate) - 1
-                indicators[bband_index].in_keltner_now(ax, pdate[-1], indicators[keltner_index].keltner_hband[index], \
-                                                       indicators[keltner_index].keltner_lband[index], lowest_price)
-                squeeze_now_shown = True
-
-          if first == True and self.timeframe_entered in ["12h","1d","1D","3d","3D","1w"]:
-            scanner_results = self.candlescanner(popen, phigh, plow, pclose)
-          elif self.timeframe_entered not in ["12h","1d","1D","3d","3D","1w"]:
-            scanner_results = []
-          if current_candle_type == CANDLE_TYPE_CANDLESTICK:
-            last_line1, last_line2, last_rect, last_trendbar_color, trendbars_display_counter = \
-                _bars(ax, prices, first, last_line1, last_line2, last_rect, candle_width, scanner_results, highest_price, \
-                      current_bband_type == BBAND_TYPE_TRENDBARS, last_trendbar_color, trendbars_display_counter)
-          elif current_candle_type == CANDLE_TYPE_HEIKIN_ASHI:        
-            last_line1, last_line2, last_rect, last_trendbar_color, trendbars_display_counter = \
-                _bars(ax, prices2, first, last_line1, last_line2, last_rect, candle_width, scanner_results, highest_price, \
-                      current_bband_type == BBAND_TYPE_TRENDBARS, last_trendbar_color, trendbars_display_counter)
-
-          if self.exchange == accounts.EXCHANGE_OANDA:
-              new_xticks = []
-              xticks = ax.get_xticks().tolist()
-              real_timestamps_datestr = [d.strftime("%b %d %Y %H:%M:%S") for d in real_timestamps]
-              additional_timestamp = (real_timestamps[-1] + datetime.timedelta(
-                  seconds=elapsed_table[self.timeframe_entered])).strftime("%b %d %Y %H:%M:%S")
-              fake = [date2num(d[-1]) for d in prices]
-              for tick in xticks:
-                  for i1 in range(0, len(fake)):
-                    if int(fake[i1]) == int(tick):
-                        new_xticks.append(real_timestamps_datestr[i1])
-                        break
-              new_xticks.append(additional_timestamp)
-              ax.set_xticklabels(new_xticks)
-
-          if first == True:
-            ax.autoscale_view()
-            ax.set_facecolor(theme.black)
-            ax.yaxis.tick_right()
-            ax.yaxis.set_label_position("right")
-            ax.spines['top'].set_edgecolor(theme.grayscale_dark)
-            ax.spines['left'].set_edgecolor(theme.grayscale_dark)
-            ax.spines['right'].set_edgecolor(theme.grayscale_light)
-            ax.spines['bottom'].set_edgecolor(theme.grayscale_light)
-            ax.spines['left'].set_linewidth(3)
-            ax.spines['top'].set_linewidth(3)
-            ax.set_facecolor(theme.black)
-            ax.xaxis.label.set_color(theme.white)
-            ax.yaxis.label.set_color(theme.white)
-            ax.tick_params(axis='x', colors=theme.white)
-            ax.tick_params(axis='y', colors=theme.white)
-            ax.grid(alpha=.25)
-            ax.grid(True)
-
-          adjustView = False
-          if self.widthAdjusted == False:
-            dpi_scale_trans = self.parent.dcs[self.tab_index].fig.dpi_scale_trans
-            position_width = 0.8
-            dc_width = self.parent.dcs[self.tab_index].width()
-            while True:
-                ax.set_position([0.04, 0.04, position_width, 0.93])
-                bbox = annotation.get_window_extent().transformed(dpi_scale_trans.inverted())
-                width = bbox.x1 + bbox.width / 3
-                width *= 100
-                if width < dc_width:
-                    position_width += 0.005
-                else:
+      if self.exchange == accounts.EXCHANGE_OANDA:
+          new_xticks = []
+          xticks = ax.get_xticks().tolist()
+          real_timestamps_datestr = [d.strftime("%b %d %Y %H:%M:%S") for d in real_timestamps]
+          additional_timestamp = (real_timestamps[-1] + datetime.timedelta(
+              seconds=elapsed_table[self.timeframe_entered])).strftime("%b %d %Y %H:%M:%S")
+          fake = [date2num(d[-1]) for d in prices]
+          for tick in xticks:
+              for i1 in range(0, len(fake)):
+                if int(fake[i1]) == int(tick):
+                    new_xticks.append(real_timestamps_datestr[i1])
                     break
-            self.widthAdjusted = True
-            adjustView = True
-            ax_bbox = ax.get_position()
+          new_xticks.append(additional_timestamp)
+          ax.set_xticklabels(new_xticks)
 
-          if first == True or adjustView == True:
-            axis_num = 0
-            axis_height = None
-            for axis in indicator_axes:
-              axis_num = axis_num + 1
-              bbox = ax_bbox
-              if axis_num == 1:
-                axis.set_position([bbox.x0, bbox.y0, bbox.width, bbox.height / 7])
-                bbox = axis.get_position()
-                axis_height = bbox.height
-              else:
-                axis.set_position([bbox.x0, bbox.y0 + axis_height, bbox.width, bbox.height / 7])
-                bbox = axis.get_position()
-                if axis != indicator_axes[len(indicator_axes)-1]:
-                  axis_height = axis_height + bbox.height
+      if first == True:
+        ax.autoscale_view()
+        ax.set_facecolor(theme.black)
+        ax.yaxis.tick_right()
+        ax.yaxis.set_label_position("right")
+        ax.spines['top'].set_edgecolor(theme.grayscale_dark)
+        ax.spines['left'].set_edgecolor(theme.grayscale_dark)
+        ax.spines['right'].set_edgecolor(theme.grayscale_light)
+        ax.spines['bottom'].set_edgecolor(theme.grayscale_light)
+        ax.spines['left'].set_linewidth(3)
+        ax.spines['top'].set_linewidth(3)
+        ax.set_facecolor(theme.black)
+        ax.xaxis.label.set_color(theme.white)
+        ax.yaxis.label.set_color(theme.white)
+        ax.tick_params(axis='x', colors=theme.white)
+        ax.tick_params(axis='y', colors=theme.white)
+        ax.grid(alpha=.25)
+        ax.grid(True)
 
-            if current_indicator_type == CHART_INDICATORS:
-                ax.set_position([ax_bbox.x0, ax_bbox.y0 + axis_height, ax_bbox.width, ax_bbox.height - axis_height])
+      adjustView = False
+      if self.widthAdjusted == False:
+        dpi_scale_trans = self.parent.dcs[self.tab_index].fig.dpi_scale_trans
+        position_width = 0.8
+        dc_width = self.parent.dcs[self.tab_index].width()
+        while True:
+            ax.set_position([0.04, 0.04, position_width, 0.93])
+            bbox = annotation.get_window_extent().transformed(dpi_scale_trans.inverted())
+            width = bbox.x1 + bbox.width / 3
+            width *= 100
+            if width < dc_width:
+                position_width += 0.005
             else:
-                ax.set_position([ax_bbox.x0, ax_bbox.y0, ax_bbox.width, ax_bbox.height])
+                break
+        self.widthAdjusted = True
+        adjustView = True
+        ax_bbox = ax.get_position()
 
-            first_axis = True
-            for axis in indicator_axes:
-                  axis.get_xaxis().set_visible(True)
-                  if first_axis:
-                    first_axis = False
-                    continue
-                  for t in axis.xaxis.get_major_ticks():
-                    t.tick1On = t.tick2On = False
-                    t.label1On = t.label2On = False
-
-            for t in ax.xaxis.get_major_ticks():
-              t.tick1On = t.tick2On = False
-              t.label1On = t.label2On = False
-
-            if first == True:
-                better_bband_str = ""
-                if current_bband_type == BBAND_TYPE_TRENDBARS:
-                    better_bband_str = ", Better Bollinger Band, MACD Confirm"
-                ax.plot(1,1, label=symbol + ", " + timeframe_entered + better_bband_str, marker = '',ls ='')
-                legend = ax.legend(frameon=False,loc="upper left", fontsize=9)
-                for text in legend.get_texts():
-                  text.set_color(theme.grayscale_lighter)
-
-          pdate.clear()
-          popen.clear()
-          phigh.clear()
-          plow.clear()
-          pclose.clear()
-          pvol.clear()
-
-          if self.exchange == accounts.EXCHANGE_OANDA and (init == True or (time.time() - closed_hours_time > 60*15)):
-              # regard closed trading hours
-              closed_hours = not accounts.client(self.exchange).is_instrument_halted(symbol)
-              closed_hours_time = time.time()
-
-          if init == False and time.time() > time_close and closed_hours == False:
-            do_break = False
-            while True:
-              if tab_index in destroyed_window_ids:
-                  do_break = True
-                  break
-              self.CANVAS_DRAW.emit(self.tab_index)
-              return_value = aqs[tab_index].get()
-              if return_value == 0:
-                  if self.exchange == accounts.EXCHANGE_OANDA:
-                      force_redraw_chart = True
-                      break
-                  try:
-                      dqs[self.tab_index].pop()
-                      dqs[self.tab_index].clear()
-                      force_redraw_chart = True
-                      break
-                  except IndexError:
-                      time.sleep(0.1)
-                      continue
-              else:
-                  force_redraw_chart = True
-                  time.sleep(0.1)
+      if first == True or adjustView == True:
+        axis_num = 0
+        axis_height = None
+        for axis in indicator_axes:
+          axis_num = axis_num + 1
+          bbox = ax_bbox
+          if axis_num == 1:
+            axis.set_position([bbox.x0, bbox.y0, bbox.width, bbox.height / 7])
+            bbox = axis.get_position()
+            axis_height = bbox.height
           else:
-            do_break = False
-            while True:
-              if tab_index in destroyed_window_ids:
-                  do_break = True
-                  break
+            axis.set_position([bbox.x0, bbox.y0 + axis_height, bbox.width, bbox.height / 7])
+            bbox = axis.get_position()
+            if axis != indicator_axes[len(indicator_axes)-1]:
+              axis_height = axis_height + bbox.height
 
-              self.CANVAS_DRAW.emit(self.tab_index)
-              return_value = aqs[tab_index].get()
-              if return_value == 0:
+        if current_indicator_type == CHART_INDICATORS:
+            ax.set_position([ax_bbox.x0, ax_bbox.y0 + axis_height, ax_bbox.width, ax_bbox.height - axis_height])
+        else:
+            ax.set_position([ax_bbox.x0, ax_bbox.y0, ax_bbox.width, ax_bbox.height])
+
+        first_axis = True
+        for axis in indicator_axes:
+              axis.get_xaxis().set_visible(True)
+              if first_axis:
+                first_axis = False
+                continue
+              for t in axis.xaxis.get_major_ticks():
+                t.tick1On = t.tick2On = False
+                t.label1On = t.label2On = False
+
+        for t in ax.xaxis.get_major_ticks():
+          t.tick1On = t.tick2On = False
+          t.label1On = t.label2On = False
+
+        if first == True:
+            better_bband_str = ""
+            if current_bband_type == BBAND_TYPE_TRENDBARS:
+                better_bband_str = ", Better Bollinger Band, MACD Confirm"
+            ax.plot(1,1, label=symbol + ", " + timeframe_entered + better_bband_str, marker = '',ls ='')
+            legend = ax.legend(frameon=False,loc="upper left", fontsize=9)
+            for text in legend.get_texts():
+              text.set_color(theme.grayscale_lighter)
+
+      pdate.clear()
+      popen.clear()
+      phigh.clear()
+      plow.clear()
+      pclose.clear()
+      pvol.clear()
+
+      if self.exchange == accounts.EXCHANGE_OANDA and (init == True or (time.time() - closed_hours_time > 60*15)):
+          # regard closed trading hours
+          closed_hours = not accounts.client(self.exchange).is_instrument_halted(symbol)
+          closed_hours_time = time.time()
+
+      if init == False and time.time() > time_close and closed_hours == False:
+        do_break = False
+        while True:
+          if tab_index in destroyed_window_ids:
+              do_break = True
+              break
+          self.CANVAS_DRAW.emit(self.tab_index)
+          return_value = aqs[tab_index].get()
+          if return_value == 0:
+              if self.exchange == accounts.EXCHANGE_OANDA:
+                  force_redraw_chart = True
                   break
-              else:
-                  if time.time() > time_close:
-                    force_redraw_chart = True
+              try:
+                  dqs[self.tab_index].pop()
+                  dqs[self.tab_index].clear()
+                  force_redraw_chart = True
+                  break
+              except IndexError:
                   time.sleep(0.1)
-                  update_time = time.time() - 1
+                  continue
+          else:
+              force_redraw_chart = True
+              time.sleep(0.1)
+      else:
+        do_break = False
+        while True:
+          if tab_index in destroyed_window_ids:
+              do_break = True
+              break
 
-          if do_break == True:
-            break
+          self.CANVAS_DRAW.emit(self.tab_index)
+          return_value = aqs[tab_index].get()
+          if return_value == 0:
+              break
+          else:
+              if time.time() > time_close:
+                force_redraw_chart = True
+              time.sleep(0.1)
+              update_time = time.time() - 1
 
-          first = False
-          init = False
-        except:
-          print(get_full_stacktrace())
+      if do_break == True:
+        break
+
+      first = False
+      init = False
 
 
     self.CHART_DESTROY.emit(self.tab_index, self.exchange)
@@ -1366,47 +1363,33 @@ class ChartRunner(QtCore.QThread):
         limit = 0
         if timeframe_entered == "15m":
             limit = int(days_entered * 4 * 24)
-
-        if timeframe_entered == "1m":
+        elif timeframe_entered == "1m":
             limit = int(days_entered * 60 * 24)
-
-        if timeframe_entered == "3m":
+        elif timeframe_entered == "3m":
             limit = int(days_entered * 20 * 24)
-
-        if timeframe_entered == "5m":
+        elif timeframe_entered == "5m":
             limit = int(days_entered * 12 * 24)
-
-        if timeframe_entered == "30m":
+        elif timeframe_entered == "30m":
             limit = int(days_entered * 2 * 24)
-
-        if timeframe_entered == "1h":
+        elif timeframe_entered == "1h":
             limit = int(days_entered * 24)
-
-        if timeframe_entered == "2h":
+        elif timeframe_entered == "2h":
             limit = int(days_entered * (24/2))
-
-        if timeframe_entered == "3h":
+        elif timeframe_entered == "3h":
             limit = int(days_entered * (24/3))
-
-        if timeframe_entered == "4h":
+        elif timeframe_entered == "4h":
             limit = int(days_entered * (24/4))
-
-        if timeframe_entered == "6h":
+        elif timeframe_entered == "6h":
             limit = int(days_entered * (24/6))
-
-        if timeframe_entered == "8h":
+        elif timeframe_entered == "8h":
             limit = int(days_entered * (24/8))
-
-        if timeframe_entered == "12h":
+        elif timeframe_entered == "12h":
             limit = int(days_entered * (24/12))
-
-        if timeframe_entered == "1d":
+        elif timeframe_entered == "1d":
             limit = int(days_entered)
-
-        if timeframe_entered == "3d":
+        elif timeframe_entered == "3d":
             limit = int(days_entered / 3)
-
-        if timeframe_entered == "1w":
+        elif timeframe_entered == "1w":
             limit = int(days_entered / 7)
     else:
         limit = fixed_limit
@@ -1422,6 +1405,7 @@ class ChartRunner(QtCore.QThread):
     volume = []
     real_timestamps = None
 
+    sleep_time = 1
     while True:
         try:
           if self.exchange == accounts.EXCHANGE_KRAKEN:
@@ -1431,9 +1415,12 @@ class ChartRunner(QtCore.QThread):
           else:
             candles = accounts.client(self.exchange).fetch_ohlcv(currency_entered, timeframe_entered, limit=limit)
           break
-        except:
+        except Exception as e:
           print(get_full_stacktrace())
-          time.sleep(3)
+          time.sleep(sleep_time)
+          sleep_time = sleep_time * 2
+          if sleep_time > 60:
+              sleep_time = 1
           continue
 
     if self.exchange == accounts.EXCHANGE_KRAKEN:
@@ -1923,7 +1910,7 @@ class Window(QtWidgets.QMainWindow):
         global aiDialog
         try:
             self.aiDialog.close()
-        except:
+        except Exception as e:
             pass
 
 class TradeDialog(QtWidgets.QDialog):
@@ -1998,7 +1985,7 @@ class TradeDialog(QtWidgets.QDialog):
     
     try:
       accounts.client(self.exchange).create_limit_buy_order(self.symbol, amount, price)
-    except:
+    except Exception as e:
       print(get_full_stacktrace())
       return
     
@@ -2014,7 +2001,7 @@ class TradeDialog(QtWidgets.QDialog):
     
     try:
       accounts.client(self.exchange).create_limit_sell_order(self.symbol, amount, price)
-    except:
+    except Exception as e:
       print(get_full_stacktrace())
       return
 
@@ -2025,7 +2012,7 @@ class TradeDialog(QtWidgets.QDialog):
 
     try:
       accounts.client(self.exchange).create_market_buy_order(self.symbol, amount)
-    except:
+    except Exception as e:
       print(get_full_stacktrace())
       return
     
@@ -2036,7 +2023,7 @@ class TradeDialog(QtWidgets.QDialog):
     
     try:
       accounts.client(self.exchange).create_market_sell_order(self.symbol, amount)
-    except:
+    except Exception as e:
       print(get_full_stacktrace())
       return
 
@@ -2068,7 +2055,7 @@ class TradeDialog(QtWidgets.QDialog):
       price = float(self.editPrice.text())
       amount = truncate(float(self.editAmount.text()), 2)
       self.editTotal.setText("%.04f" % (amount * price))
-    except:
+    except Exception as e:
       pass
     
   def editamount2_textChanged(self, event):
@@ -2076,7 +2063,7 @@ class TradeDialog(QtWidgets.QDialog):
       price = float(self.editPrice2.text())
       amount = truncate(float(self.editAmount2.text()), 2)
       self.editTotal2.setText("%.04f" % (amount * price))
-    except:
+    except Exception as e:
       pass
   
   def buyMarketLabelClicked(self, event):
@@ -2330,7 +2317,7 @@ class Dialog(QtWidgets.QDialog):
         try:
             if accounts.client(self.selected_exchange).markets[symbol]['precision']['price'] == 1:
                 accounts.client(self.selected_exchange).markets[symbol]['precision']['price'] = 3
-        except:
+        except Exception as e:
             pass
 
         global main
@@ -2719,7 +2706,7 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.wss_orderbook["asks"] = {}
         try:
             self.exchange_obj.stop_depth_websocket()
-        except:
+        except Exception as e:
             pass
         self.exchange_obj.start_depth_websocket(self.symbol, self.process_message)
 
@@ -2727,7 +2714,7 @@ class OrderBookWidget(QtWidgets.QWidget):
         self.wss_chanid_trades = -1
         try:
             self.exchange_obj.stop_trades_websocket()
-        except:
+        except Exception as e:
             pass
         self.exchange_obj.start_trades_websocket(self.symbol, self.process_message_trades)
         self.websocket_alive_time_trades = time.time()
@@ -3094,7 +3081,7 @@ if __name__ == "__main__":
     config = {}
     try:
         exec (open("config.txt").read(), config)
-    except:
+    except Exception as e:
         showQtMessageMissingExchangesConfig()
         sys.exit(1)
 
