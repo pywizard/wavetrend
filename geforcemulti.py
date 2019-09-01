@@ -946,6 +946,7 @@ class ChartRunner(QtCore.QThread):
                 new_ax = aqs[self.tab_index].get()
                 new_ax.patch.set_visible(False)
                 new_ax.spines['top'].set_visible(False)
+                new_ax.spines['right'].set_visible(False)
                 new_ax.grid(False)
                 ax.spines['bottom'].set_visible(False)
             else:
@@ -1164,6 +1165,7 @@ class ChartRunner(QtCore.QThread):
         annotation.set_text(tag_title_)
         annotation.set_y(ticker_for_line)
         annotation.set_backgroundcolor(color)
+
         if theme.theme_type == themes.THEME_TYPE_DARK:
             annotation.set_bbox(dict(facecolor=color, edgecolor=text_color, lw=.5))
         elif theme.theme_type == themes.THEME_TYPE_LIGHT:
@@ -1240,15 +1242,20 @@ class ChartRunner(QtCore.QThread):
         dpi_scale_trans = self.parent.dcs[self.tab_index].fig.dpi_scale_trans
         position_width = 0.8
         dc_width = self.parent.dcs[self.tab_index].width()
+        offset = 0.005
         while True:
             ax.set_position([0.04, 0.04, position_width, 0.93])
             bbox = annotation.get_window_extent().transformed(dpi_scale_trans.inverted())
             width = bbox.x1 + bbox.width / 3
             width *= 100
             if width < dc_width:
-                position_width += 0.005
+                position_width += offset
             else:
-                break
+                if offset == 0.00001:
+                    break
+                else:
+                   position_width = position_width - offset
+                   offset = 0.00001
         self.widthAdjusted = True
         adjustView = True
         ax_bbox = ax.get_position()
