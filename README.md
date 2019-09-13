@@ -206,7 +206,7 @@ Once the chart is loaded there are several options available in the charts tab. 
 
 # CONFIGURATION
 
-Edit config.txt and your Exchange API Keys.
+Edit config.txt and configure your Exchange API Keys.
 
 
 
