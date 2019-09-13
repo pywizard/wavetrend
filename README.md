@@ -87,7 +87,7 @@ The initial view shows the instruments Chart and instrument Volume of the Chart 
 
 
 
-![](blob/master/manual/Wavetrend%20V1.3%20Software%20Manual/Pictures/Tabbed%20View.PNG?raw=true)
+![](manual/Wavetrend%20V1.3%20Software%20Manual/Pictures/Tabbed%20View.PNG?raw=true)
 
 ​                                                                     **Main View Of The Application**
 
@@ -95,7 +95,7 @@ The initial view shows the instruments Chart and instrument Volume of the Chart 
 
 
 
-![](blob/master/manual/Wavetrend%20V1.3%20Software%20Manual/Pictures/Tabbed%20View.PNG?raw=true)
+![](manual/Wavetrend%20V1.3%20Software%20Manual/Pictures/Tabbed%20View.PNG?raw=true)
 
 ​    															**The Tabbed View With Many Instruments**
 
@@ -121,7 +121,7 @@ For the initial loaded instrument view the chart is displayed the following way:
 
 
 
-![](blob/master/manual/Wavetrend%20V1.3%20Software%20Manual/Pictures/Main%20View%20Detailed.PNG?raw=true)
+![](manual/Wavetrend%20V1.3%20Software%20Manual/Pictures/Main%20View%20Detailed.PNG?raw=true)
 
 ​         									**Right Side Of Main View With Details**
 
@@ -129,7 +129,7 @@ For the initial loaded instrument view the chart is displayed the following way:
 
 
 
-![Main View Detailed 2](blob/master/manual/Wavetrend%20V1.3%20Software%20Manual/Pictures/Main%20View%20Detailed%202.PNG?raw=true)
+![Main View Detailed 2](manual/Wavetrend%20V1.3%20Software%20Manual/Pictures/Main%20View%20Detailed%202.PNG?raw=true)
 
 ​			**Left Side Bottom Of Main View With The Indicators And Current Indicator Values**
 
@@ -149,7 +149,7 @@ The Time column shows how many seconds, minutes and hours the trade was executed
 
 
 
-![](blob/master/manual/Wavetrend%20V1.3%20Software%20Manual/Pictures/Orderbook%20and%20Trades%20View.PNG?raw=true)
+![](manual/Wavetrend%20V1.3%20Software%20Manual/Pictures/Orderbook%20and%20Trades%20View.PNG?raw=true)
 
 ​                                                               **Orderbook and Trades View**
 
@@ -180,6 +180,8 @@ Once the chart is loaded there are several options available in the charts tab. 
 
 Edit config.txt and your Exchange API Keys.
 
+
+
 # INSTALLATION
 
 Requirements: python3 64-bit
@@ -201,7 +203,4 @@ brew install ta-lib
 # RUNNING
 
 python geforcemulti.py
-
-Windows users can use the EXE build inside
-releasebuilds\: unzip the file and run wavetrend.exe
 
