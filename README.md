@@ -28,7 +28,7 @@ The Wavetrend software supports the Oanda (https://oanda.com) exchange to displa
 
 When the Wavetrend software is launched it shows the instrument selection dialog. At the top left of the window the user can select the desired exchange that should be used to display the market data for a specific instrument. This selection is named "Select Exchange". Once the user selects the exchange the instruments are loaded below.
 
-![](manual/Wavetrend V1.3 Software Manual/Pictures/Exchange and Instrument Selection.PNG)
+![](![Exchange and Instrument Selection.PNG](blob/master/manual/Wavetrend%20V1.3%20Software%20Manual/Pictures/Exchange%20and%20Instrument%20Selection.PNG?raw=true))
 
    													**Exchange Selections for Bitfinex and Oanda**
 
@@ -87,7 +87,7 @@ The initial view shows the instruments Chart and instrument Volume of the Chart 
 
 
 
-![](manual/Wavetrend V1.3 Software Manual/Pictures/Main View.PNG)
+![](blob/master/manual/Wavetrend%20V1.3%20Software%20Manual/Pictures/Tabbed%20View.PNG?raw=true)
 
 ​                                                                     **Main View Of The Application**
 
@@ -95,7 +95,7 @@ The initial view shows the instruments Chart and instrument Volume of the Chart 
 
 
 
-![](manual/Wavetrend V1.3 Software Manual/Pictures/Tabbed View.PNG)
+![](blob/master/manual/Wavetrend%20V1.3%20Software%20Manual/Pictures/Tabbed%20View.PNG?raw=true)
 
 ​    															**The Tabbed View With Many Instruments**
 
@@ -121,7 +121,7 @@ For the initial loaded instrument view the chart is displayed the following way:
 
 
 
-![](manual/Wavetrend V1.3 Software Manual/Pictures/Main View Detailed.PNG)
+![](blob/master/manual/Wavetrend%20V1.3%20Software%20Manual/Pictures/Main%20View%20Detailed.PNG?raw=true)
 
 ​         									**Right Side Of Main View With Details**
 
@@ -129,7 +129,7 @@ For the initial loaded instrument view the chart is displayed the following way:
 
 
 
-![Main View Detailed 2](manual/Wavetrend V1.3 Software Manual/Pictures/Main View Detailed 2.PNG)
+![Main View Detailed 2](blob/master/manual/Wavetrend%20V1.3%20Software%20Manual/Pictures/Main%20View%20Detailed%202.PNG?raw=true)
 
 ​			**Left Side Bottom Of Main View With The Indicators And Current Indicator Values**
 
@@ -149,7 +149,7 @@ The Time column shows how many seconds, minutes and hours the trade was executed
 
 
 
-![](manual/Wavetrend V1.3 Software Manual/Pictures/Orderbook and Trades View.PNG)
+![](blob/master/manual/Wavetrend%20V1.3%20Software%20Manual/Pictures/Orderbook%20and%20Trades%20View.PNG?raw=true)
 
 ​                                                               **Orderbook and Trades View**
 
