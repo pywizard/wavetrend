@@ -64,14 +64,6 @@ class NeuralNetwork(QtCore.QThread):
                 accounts.client(accounts.EXCHANGE_BITFINEX).amount_to_precision(self.symbol,
                                                                                 (asset_balance / price) * percent))
             print(str(amount))
-            try:
-                if self.current_order_id != 0:
-                    params = {'type': 'market'}
-                    order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="buy",
-                                                                                      type="market", amount=amount,
-                                                                                      params=params)
-            except:
-                print(get_full_stacktrace())
             params = {'type': 'market'}
             order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="buy",
                                                                               type="market", amount=amount, params=params)
@@ -89,14 +81,6 @@ class NeuralNetwork(QtCore.QThread):
                                                                                            (asset_balance / price) *
                                                                                            percent))
             print(str(amount))
-            try:
-                if self.current_order_id != 0:
-                    params = {'type': 'market'}
-                    order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="sell",
-                                                                                      type="market", amount=amount,
-                                                                                      params=params)
-            except:
-                print(get_full_stacktrace())
             params = {'type': 'market'}
             order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="sell",
                                                                               type="market", amount=amount, params=params)
@@ -209,7 +193,11 @@ class NeuralNetwork(QtCore.QThread):
                         outcome = predictor.predict(X=X_TEST)
                         print("AI says buy? " + str(outcome[0]) + " " + str(self.bid[0]))
                         outcome_buystr = "AI says buy? " + str(outcome[0]) + " " + str(self.bid[0])
-                        if outcome[0] > limit_above:
+                        if self.trade_state == "SOLD" and outcome[0] > 0.5:
+                            self.dobuy(self.bid[0])
+                            self.trade_state = "NEUTRAL"
+                            outcome_buystr = outcome_buystr + " YES"
+                        elif outcome[0] > limit_above:
                             if self.trade_state == "NEUTRAL" or self.trade_state == "SOLD":
                                 self.dobuy(self.bid[0])
                                 self.trade_state = "BOUGHT"
@@ -226,7 +214,11 @@ class NeuralNetwork(QtCore.QThread):
                         outcome = predictor.predict(X=X_TEST)
                         print("AI says sell? " + str(outcome[0]) + " " + str(self.ask[0]))
                         outcome_sellstr = "AI says sell? " + str(outcome[0]) + " " + str(self.ask[0])
-                        if outcome[0] < limit_below:
+                        if self.trade_state == "BOUGHT" and outcome[0] < 0.5:
+                            self.dosell(self.ask[0])
+                            self.trade_state = "NEUTRAL"
+                            outcome_sellstr = outcome_sellstr + " YES"
+                        elif outcome[0] < limit_below:
                             if self.trade_state == "NEUTRAL" or self.trade_state == "BOUGHT":
                                 self.dosell(self.ask[0])
                                 self.trade_state = "SOLD"
