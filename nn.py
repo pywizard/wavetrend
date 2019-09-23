@@ -137,13 +137,9 @@ class NeuralNetwork(QtCore.QThread):
                 print(str(counter) + "/" + str(len(self.train_times)))
 
                 counter_neg = counter * -1
-                if self.train_times[counter_neg] + 60*60 > time.time():
-                    counter = counter + 125
-                    continue
-                else:
-                    counter = counter + 125
-                    if counter >= len(self.train_times):
-                        break
+                counter = counter + 125
+                if counter >= len(self.train_times):
+                    break
 
                 predictor.fit(X=self.train_input[counter_neg:],
                               y=self.train_output[counter_neg:])
@@ -155,7 +151,7 @@ class NeuralNetwork(QtCore.QThread):
                                                                             (self.asset_balance_usd / current_bid[
                                                                                 0]) * percent))
                 X_TEST = [[current_bid[0], amount]]
-                outcome = predictor.predict(X=X_TEST)
+                outcome = predictor.predict(X=X_TEST)[0]
                 if outcome > 0.5:
                     outcome_above_sum = outcome_above_sum + outcome
                     outcome_above = outcome_above + 1
