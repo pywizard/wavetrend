@@ -361,7 +361,6 @@ def get_window_id():
   return "win-" + ''.join(random.choice('0123456789abcdef') for i in range(10))
 
 window_configs = {}
-stddev_is_plateau = 0
 
 def get_full_stacktrace():
     exc = sys.exc_info()[0]
@@ -764,7 +763,6 @@ class ChartRunner(QtCore.QThread):
     global tab_current_index
     global destroyed_window_ids
     global window_configs
-    global stddev_is_plateau
 
     days_entered = days_table[self.timeframe_entered]
     timeframe_entered = self.timeframe_entered
@@ -915,17 +913,6 @@ class ChartRunner(QtCore.QThread):
       for indicator in indicators:
         if first == True:
           indicator.generate_values(popen, phigh, plow, pclose, pvol)
-          if window_configs[self.tab_index].ai_enabled == True:
-              stddev = talib.STDDEV(np.array(pclose), timeperiod=20, nbdev=1)
-              stddev_on_axis = []
-              for ii in range(0, len(stddev)):
-                  stddev_on_axis.append([pdate[ii], stddev[ii]])
-              stddev_is_plateau = self.is_plateau(numpy.array(stddev_on_axis))
-              if stddev_is_plateau[-1] == 0:
-                  self.parent.neural_network.ai_trending_market = True
-              else:
-                  self.parent.neural_network.ai_trending_market = False
-
           if indicator.overlay_chart:
             indicator.plot_once(ax, pdate)
           else:
@@ -973,18 +960,6 @@ class ChartRunner(QtCore.QThread):
             indicator.plot_once(new_ax, pdate)
         else:
           indicator.generate_values(popen, phigh, plow, pclose, pvol)
-
-          if time.time() - indicator_update_time > 10:
-              if window_configs[self.tab_index].ai_enabled == True:
-                  stddev = talib.STDDEV(np.array(pclose), timeperiod=20, nbdev=1)
-                  stddev_on_axis = []
-                  for ii in range(0, len(stddev)):
-                      stddev_on_axis.append([pdate[ii], stddev[ii]])
-                  stddev_is_plateau = self.is_plateau(numpy.array(stddev_on_axis))
-                  if stddev_is_plateau[-1] == 0:
-                      self.parent.neural_network.ai_trending_market = True
-                  else:
-                      self.parent.neural_network.ai_trending_market = False
 
           if time.time() - indicator_update_time > 10 or current_candle_type != candle_type or \
                   current_trade_type != trade_type or current_bband_type != bband_type or \
@@ -1487,7 +1462,7 @@ class Window(QtWidgets.QMainWindow):
         trendbarsChartActionDisable = QtWidgets.QAction("-better bband", self)
         chartOnlyActionEnable = QtWidgets.QAction("+chart only", self)
         chartOnlyActionDisable = QtWidgets.QAction("-chart only", self)
-        if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT" and timeframe_entered == "1h":
+        if self.exchange == accounts.EXCHANGE_BITFINEX:
             aiActionEnable = QtWidgets.QAction("+neural network", self)
         closeAction = QtWidgets.QAction("close", self)
         tabBarMenu.addAction(trendingMarketAction)
@@ -1498,7 +1473,7 @@ class Window(QtWidgets.QMainWindow):
         tabBarMenu.addAction(trendbarsChartActionDisable)
         tabBarMenu.addAction(chartOnlyActionEnable)
         tabBarMenu.addAction(chartOnlyActionDisable)
-        if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT" and timeframe_entered == "1h":
+        if self.exchange == accounts.EXCHANGE_BITFINEX:
             tabBarMenu.addAction(aiActionEnable)
         tabBarMenu.addAction(closeAction)
         trendingMarketAction.triggered.connect(functools.partial(self.trendingEnabled, window_ids[0]))
@@ -1509,7 +1484,7 @@ class Window(QtWidgets.QMainWindow):
         trendbarsChartActionDisable.triggered.connect(functools.partial(self.trendbarsDisabled, window_ids[0]))
         chartOnlyActionEnable.triggered.connect(functools.partial(self.chartOnlyEnable, window_ids[0]))
         chartOnlyActionDisable.triggered.connect(functools.partial(self.chartOnlyDisable, window_ids[0]))
-        if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT" and timeframe_entered == "1h":
+        if self.exchange == accounts.EXCHANGE_BITFINEX:
             aiActionEnable.triggered.connect(functools.partial(self.aiEnabled, window_ids[0]))
         closeAction.triggered.connect(functools.partial(self.removeTab, window_ids[0]))
         menuButton = QtWidgets.QToolButton(self)
@@ -1772,13 +1747,12 @@ class Window(QtWidgets.QMainWindow):
         if tab_index == INTERNAL_TAB_INDEX_NOTFOUND:
             return
 
-        leverage_amount, okPressed = QtWidgets.QInputDialog.getDouble(self, "Leverage Trading", "Leverage Trade Amount in USDT:", 13000)
+        leverage_amount, okPressed = QtWidgets.QInputDialog.getDouble(self, "Leverage Trading", "Leverage Trade Amount in USD:", 13000)
         if okPressed:
             self.aiDialog = AIDialog()
             self.aiDialog.show()
 
-            self.aiDialog.listWidget.addItem("Amount for trades: " + str(leverage_amount) + " USDT")
-            self.aiDialog.listWidget.addItem("AI learning for 30 minutes...")
+            self.aiDialog.listWidget.addItem("Amount for trades: " + str(leverage_amount) + " USD")
 
             window_configs[window_id].ai_enabled = True
 
@@ -1786,7 +1760,8 @@ class Window(QtWidgets.QMainWindow):
             newTabText = self.tabWidget.tabText(tab_index) + " AI ENABLED"
             self.tabWidget.setTabText(tab_index, newTabText)
 
-            self.neural_network = nn.NeuralNetwork(self, accounts)
+            symbol = str(self.tabWidget.tabText(self.tabWidget.currentIndex())).split(" ")[0]
+            self.neural_network = nn.NeuralNetwork(self, accounts, symbol)
             self.neural_network.asset_balance_usd = leverage_amount
             self.neural_network.DISPLAY_LINE.connect(self.aiDialog.on_DISPLAY_AIDIALOG_ITEM)
             self.neural_network.start()
@@ -1828,7 +1803,7 @@ class Window(QtWidgets.QMainWindow):
       trendbarsChartActionDisable = QtWidgets.QAction("-better bband", self)
       chartOnlyActionEnable = QtWidgets.QAction("+chart only", self)
       chartOnlyActionDisable = QtWidgets.QAction("-chart only", self)
-      if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT" and timeframe_entered == "1h":
+      if self.exchange == accounts.EXCHANGE_BITFINEX:
           aiActionEnable = QtWidgets.QAction("+neural network", self)
       closeAction = QtWidgets.QAction("close", self)
       tabBarMenu.addAction(trendingMarketAction)
@@ -1839,7 +1814,7 @@ class Window(QtWidgets.QMainWindow):
       tabBarMenu.addAction(trendbarsChartActionDisable)
       tabBarMenu.addAction(chartOnlyActionEnable)
       tabBarMenu.addAction(chartOnlyActionDisable)
-      if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT" and timeframe_entered == "1h":
+      if self.exchange == accounts.EXCHANGE_BITFINEX:
         tabBarMenu.addAction(aiActionEnable)
       tabBarMenu.addAction(closeAction)
       trendingMarketAction.triggered.connect(functools.partial(self.trendingEnabled, window_ids[tab_index]))
@@ -1850,7 +1825,7 @@ class Window(QtWidgets.QMainWindow):
       trendbarsChartActionDisable.triggered.connect(functools.partial(self.trendbarsDisabled, window_ids[tab_index]))
       chartOnlyActionEnable.triggered.connect(functools.partial(self.chartOnlyEnable, window_ids[tab_index]))
       chartOnlyActionDisable.triggered.connect(functools.partial(self.chartOnlyDisable, window_ids[tab_index]))
-      if self.exchange == accounts.EXCHANGE_BINANCE and symbol == "BTC/USDT" and timeframe_entered == "1h":
+      if self.exchange == accounts.EXCHANGE_BITFINEX:
         aiActionEnable.triggered.connect(functools.partial(self.aiEnabled, window_ids[tab_index]))
       closeAction.triggered.connect(functools.partial(self.removeTab, window_ids[tab_index], selected_exchange))
 
@@ -2664,7 +2639,6 @@ class OrderBookWidget(QtWidgets.QWidget):
                 trade = 0
 
             if window_configs[self.winid].ai_enabled == True:
-                self.parent.neural_network.train_times.append(time.time())
                 self.parent.neural_network.train_input.append([trade_price, trade_quantity])
                 self.parent.neural_network.train_output.append(trade)
 

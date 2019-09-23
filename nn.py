@@ -31,7 +31,7 @@ def get_full_stacktrace():
 
 class NeuralNetwork(QtCore.QThread):
     DISPLAY_LINE = QtCore.pyqtSignal(str)
-    def __init__(self, parent, accounts):
+    def __init__(self, parent, accounts, symbol):
         super(NeuralNetwork, self).__init__(parent)
         self.parent = parent
         self.train_input = []
@@ -42,19 +42,16 @@ class NeuralNetwork(QtCore.QThread):
         self.nn_qs = Queue.Queue()
         self.nn_qs_orderbook = collections.deque()
         self.current_order_id = 0
-        self.symbol = "BTC/USDT"
+        self.symbol = symbol
         self.asset_balance_usd = 6000
         self.accounts = accounts
         self.current_order_id = 0
         self.exchange = EXCHANGE_BITFINEX
         self.trade_state = "NEUTRAL"
-        self.train_time = time.time()
-        self.trains_time = time.time()
         self.percent_check_time = time.time()
         self.first = True
-        self.market_type_trending = True
         self.ai_trending_market = True
-        self.predict_time = time.time() + 60 * 30  # XXX 60 multiplied by 30
+        self.predict_time = time.time()
         self.display_time = time.time()
         self.exit_thread = False
 
@@ -113,103 +110,129 @@ class NeuralNetwork(QtCore.QThread):
             if self.exit_thread == True:
                 break
 
-            if self.market_type_trending == False and \
-                    self.ai_trending_market == True:
-                for ii in reversed(range(0, self.train_times)):
-                    if time.time() - self.train_times[ii] > 60 * 60:
-                        del self.train_input[:ii]
-                        del self.train_output[:ii]
-                        del self.train_times[:ii]
+            self.train_input = []
+            self.train_output = []
+            self.train_times = []
+            for ii in reversed(range(0, 21)):
+                trades_since_1day = self.accounts.client(EXCHANGE_BITFINEX).fetchTrades(self.symbol, time.time() * 1000 - 86400000 * ii,
+                                                                               5000)
+                for trade in trades_since_1day:
+                    trade_outcome = 1
+                    if trade["side"] == "sell":
+                        trade_outcome = 0
+                    elif trade["side"] == "buy":
+                        trade_outcome = 1
+                    self.train_input.append([trade["price"], trade["amount"]])
+                    self.train_output.append(trade_outcome)
+                    self.train_times.append(trade["timestamp"] / 1000)
+
+            predictor = LinearRegression(n_jobs=-1)
+
+            outcome_above_sum = 0
+            outcome_below_sum = 0
+            outcome_above = 0
+            outcome_below = 0
+            counter = 0
+            while True:
+                print(str(counter) + "/" + str(len(self.train_times)))
+
+                counter_neg = counter * -1
+                if self.train_times[counter_neg] + 60*60 > time.time():
+                    counter = counter + 125
+                    continue
+                else:
+                    counter = counter + 125
+                    if counter >= len(self.train_times):
                         break
 
-            if self.ai_trending_market == True:
-                if time.time() - self.train_time > 60 * 60:
-                    self.train_time = time.time()
-                    del self.train_input[:int(len(self.train_input) / 2)]
-                    del self.train_output[:int(len(self.train_output) / 2)]
+                predictor.fit(X=self.train_input[counter_neg:],
+                              y=self.train_output[counter_neg:])
 
-            elif self.ai_trending_market == False:
-                if time.time() - self.percent_check_time > 60 * 5:
-                    total, available, percent, used, free = psutil.virtual_memory()
-                    available_megabyte = available / (1024 * 1024)
-                    process = psutil.Process(os.getpid())
-                    process_rss_megabyte = process.memory_full_info().rss / (1024 * 1024)
-                    if (process_rss_megabyte * 100) / available_megabyte > 50:
-                        del self.train_input[:int(len(self.train_input) / 2)]
-                        del self.train_output[:int(len(self.train_output) / 2)]
-                    self.percent_check_time = time.time()
+                current_bid = self.train_input[counter_neg:][1]
+                percent = 1
+                amount = float(
+                    self.accounts.client(self.exchange).amount_to_precision(self.symbol,
+                                                                            (self.asset_balance_usd / current_bid[
+                                                                                0]) * percent))
+                X_TEST = [[current_bid[0], amount]]
+                outcome = predictor.predict(X=X_TEST)
+                if outcome > 0.5:
+                    outcome_above_sum = outcome_above_sum + outcome
+                    outcome_above = outcome_above + 1
+                elif outcome < 0.5:
+                    outcome_below_sum = outcome_below_sum + outcome
+                    outcome_below = outcome_below + 1
 
-            if self.first == True or time.time() - self.trains_time > 60 * 30:
-                market_str = ""
-                if self.ai_trending_market == True:
-                    market_str = "TREND"
-                    self.market_type_trending = True
-                else:
-                    market_str = "SIDEWAYS"
-                    self.market_type_trending = False
-                self.DISPLAY_LINE.emit("Market Type: " + market_str)
-                self.first = False
-                self.trains_time = time.time()
+            limit_above = outcome_above_sum / outcome_above
+            limit_below = outcome_below_sum / outcome_below
+            self.DISPLAY_LINE.emit("limit above 0.5 = " + str(limit_above))
+            self.DISPLAY_LINE.emit("limit below 0.5 = " + str(limit_below))
 
-            if time.time() - self.predict_time > 60:
-                outcome_buystr = ""
-                outcome_sellstr = ""
+            time_start = time.time()
+            while True:
+                if time.time() - time_start > 60*60*3:
+                    break
 
-                predictor = LinearRegression(n_jobs=-1)
+                if self.exit_thread == True:
+                    break
 
-                if len(self.train_input) > len(self.train_output):
-                    train_input_start_index = len(self.train_input) - len(self.train_output)
-                elif len(self.train_output) > len(self.train_input):
-                    train_output_start_index = len(self.train_output) - len(self.train_input)
-                elif len(self.train_input) == len(self.train_output):
-                    train_input_start_index = 0
-                    train_output_start_index = 0
-                try:
-                    predictor.fit(X=self.train_input[train_input_start_index:],
-                                  y=self.train_output[train_output_start_index:])
-                except:
-                    continue
+                if time.time() - self.predict_time > 60:
+                    outcome_buystr = ""
+                    outcome_sellstr = ""
 
-                try:
-                    percent = 1
-                    asset_balance = self.asset_balance_usd
-                    amount = float(
-                        self.accounts.client(self.exchange).amount_to_precision(self.symbol,
-                                                                                (asset_balance / self.bid[0]) * percent))
-                    X_TEST = [[float(self.bid[0]), float(amount)]]
-                    outcome = predictor.predict(X=X_TEST)
-                    print("AI says buy? " + str(outcome[0]) + " " + str(self.bid[0]))
-                    outcome_buystr = "AI says buy? " + str(outcome[0]) + " " + str(self.bid[0])
-                    if outcome[0] > 0.7:
-                        if self.trade_state == "NEUTRAL" or self.trade_state == "SOLD":
-                            self.dobuy(self.bid[0])
-                            self.trade_state = "BOUGHT"
-                            outcome_buystr = outcome_buystr + " YES"
-                except:
-                    print(get_full_stacktrace())
-                try:
-                    percent = 1
-                    asset_balance = self.asset_balance_usd
-                    amount = float(self.accounts.client(self.exchange).amount_to_precision(self.symbol,
-                                                                                            (asset_balance /
-                                                                                             self.ask[0]) * percent))
-                    X_TEST = [[float(self.ask[0]), float(amount)]]
-                    outcome = predictor.predict(X=X_TEST)
-                    print("AI says sell? " + str(outcome[0]) + " " + str(self.ask[0]))
-                    outcome_sellstr = "AI says sell? " + str(outcome[0]) + " " + str(self.ask[0])
-                    if outcome[0] < 0.3:
-                        if self.trade_state == "NEUTRAL" or self.trade_state == "BOUGHT":
-                            self.dosell(self.ask[0])
-                            self.trade_state = "SOLD"
-                            outcome_sellstr = outcome_sellstr + " YES"
-                except:
-                    print(get_full_stacktrace())
+                    if len(self.train_input) > len(self.train_output):
+                        train_input_start_index = len(self.train_input) - len(self.train_output)
+                    elif len(self.train_output) > len(self.train_input):
+                        train_output_start_index = len(self.train_output) - len(self.train_input)
+                    elif len(self.train_input) == len(self.train_output):
+                        train_input_start_index = 0
+                        train_output_start_index = 0
+                    try:
+                        predictor.fit(X=self.train_input[train_input_start_index:],
+                                      y=self.train_output[train_output_start_index:])
+                    except:
+                        continue
 
-                if time.time() - self.display_time > 60 or outcome_buystr.find("YES") > -1 \
-                        or outcome_sellstr.find("YES") > -1:
-                    self.DISPLAY_LINE.emit(outcome_buystr)
-                    self.DISPLAY_LINE.emit(outcome_sellstr)
-                    self.display_time = time.time()
+                    try:
+                        percent = 1
+                        asset_balance = self.asset_balance_usd
+                        amount = float(
+                            self.accounts.client(self.exchange).amount_to_precision(self.symbol,
+                                                                                    (asset_balance / self.bid[0]) * percent))
+                        X_TEST = [[float(self.bid[0]), float(amount)]]
+                        outcome = predictor.predict(X=X_TEST)
+                        print("AI says buy? " + str(outcome[0]) + " " + str(self.bid[0]))
+                        outcome_buystr = "AI says buy? " + str(outcome[0]) + " " + str(self.bid[0])
+                        if outcome[0] > limit_above:
+                            if self.trade_state == "NEUTRAL" or self.trade_state == "SOLD":
+                                self.dobuy(self.bid[0])
+                                self.trade_state = "BOUGHT"
+                                outcome_buystr = outcome_buystr + " YES"
+                    except:
+                        print(get_full_stacktrace())
+                    try:
+                        percent = 1
+                        asset_balance = self.asset_balance_usd
+                        amount = float(self.accounts.client(self.exchange).amount_to_precision(self.symbol,
+                                                                                                (asset_balance /
+                                                                                                 self.ask[0]) * percent))
+                        X_TEST = [[float(self.ask[0]), float(amount)]]
+                        outcome = predictor.predict(X=X_TEST)
+                        print("AI says sell? " + str(outcome[0]) + " " + str(self.ask[0]))
+                        outcome_sellstr = "AI says sell? " + str(outcome[0]) + " " + str(self.ask[0])
+                        if outcome[0] < limit_below:
+                            if self.trade_state == "NEUTRAL" or self.trade_state == "BOUGHT":
+                                self.dosell(self.ask[0])
+                                self.trade_state = "SOLD"
+                                outcome_sellstr = outcome_sellstr + " YES"
+                    except:
+                        print(get_full_stacktrace())
 
-                self.predict_time = time.time()
-            time.sleep(1)
+                    if time.time() - self.display_time > 60 or outcome_buystr.find("YES") > -1 \
+                            or outcome_sellstr.find("YES") > -1:
+                        self.DISPLAY_LINE.emit(outcome_buystr)
+                        self.DISPLAY_LINE.emit(outcome_sellstr)
+                        self.display_time = time.time()
+
+                    self.predict_time = time.time()
+                time.sleep(1)
