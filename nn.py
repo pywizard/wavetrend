@@ -113,7 +113,10 @@ class NeuralNetwork(QtCore.QThread):
             self.train_input = []
             self.train_output = []
             self.train_times = []
-            for ii in reversed(range(0, 21)):
+
+            all_trades = {}
+
+            for ii in reversed(range(0, 25)):
                 trades_since_1day = self.accounts.client(EXCHANGE_BITFINEX).fetchTrades(self.symbol, time.time() * 1000 - 86400000 * ii,
                                                                                5000)
                 for trade in trades_since_1day:
@@ -122,9 +125,16 @@ class NeuralNetwork(QtCore.QThread):
                         trade_outcome = 0
                     elif trade["side"] == "buy":
                         trade_outcome = 1
-                    self.train_input.append([trade["price"], trade["amount"]])
-                    self.train_output.append(trade_outcome)
-                    self.train_times.append(trade["timestamp"] / 1000)
+
+                    trade_existing = False
+                    if trade["price"] in all_trades and all_trades[trade["price"]] == trade["timestamp"]:
+                        trade_existing = True
+
+                    if trade_existing == False:
+                        self.train_input.append([trade["price"], trade["amount"]])
+                        self.train_output.append(trade_outcome)
+                        self.train_times.append(trade["timestamp"] / 1000)
+                        all_trades[trade["price"]] = trade["timestamp"]
 
             predictor = LinearRegression(n_jobs=-1)
 
@@ -166,7 +176,7 @@ class NeuralNetwork(QtCore.QThread):
 
             time_start = time.time()
             while True:
-                if time.time() - time_start > 60*60*3:
+                if time.time() - time_start > 60*60:
                     break
 
                 if self.exit_thread == True:
