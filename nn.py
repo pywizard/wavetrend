@@ -14,6 +14,10 @@ import traceback
 import collections
 import queue as Queue
 
+TRADE_STATE_NEUTRAL = 0
+TRADE_STATE_BOUGHT = 1
+TRADE_STATE_SOLD = 2
+
 def get_full_stacktrace():
     exc = sys.exc_info()[0]
     stack = traceback.extract_stack()[:-1]  # last one would be full_stack()
@@ -47,7 +51,7 @@ class NeuralNetwork(QtCore.QThread):
         self.accounts = accounts
         self.current_order_id = 0
         self.exchange = EXCHANGE_BITFINEX
-        self.trade_state = "NEUTRAL"
+        self.trade_state = TRADE_STATE_NEUTRAL
         self.percent_check_time = time.time()
         self.first = True
         self.ai_trending_market = True
@@ -68,7 +72,7 @@ class NeuralNetwork(QtCore.QThread):
             order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="buy",
                                                                               type="market", amount=amount, params=params)
             self.current_order_id = int(order["id"])
-        except:
+        except Exception as e:
             print(get_full_stacktrace())
             return
 
@@ -85,7 +89,7 @@ class NeuralNetwork(QtCore.QThread):
             order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="sell",
                                                                               type="market", amount=amount, params=params)
             self.current_order_id = int(order["id"])
-        except:
+        except Exception as e:
             print(get_full_stacktrace())
             return
 
@@ -193,14 +197,14 @@ class NeuralNetwork(QtCore.QThread):
                         outcome = predictor.predict(X=X_TEST)
                         print("AI says buy? " + str(outcome[0]) + " " + str(self.bid[0]))
                         outcome_buystr = "AI says buy? " + str(outcome[0]) + " " + str(self.bid[0])
-                        if self.trade_state == "SOLD" and outcome[0] > 0.5:
+                        if self.trade_state == TRADE_STATE_SOLD and outcome[0] > 0.5:
                             self.dobuy(self.bid[0])
-                            self.trade_state = "NEUTRAL"
+                            self.trade_state = TRADE_STATE_NEUTRAL
                             outcome_buystr = outcome_buystr + " YES"
                         elif outcome[0] > limit_above:
-                            if self.trade_state == "NEUTRAL" or self.trade_state == "SOLD":
+                            if self.trade_state == TRADE_STATE_NEUTRAL or self.trade_state == TRADE_STATE_SOLD:
                                 self.dobuy(self.bid[0])
-                                self.trade_state = "BOUGHT"
+                                self.trade_state = TRADE_STATE_BOUGHT
                                 outcome_buystr = outcome_buystr + " YES"
                     except:
                         print(get_full_stacktrace())
@@ -214,14 +218,14 @@ class NeuralNetwork(QtCore.QThread):
                         outcome = predictor.predict(X=X_TEST)
                         print("AI says sell? " + str(outcome[0]) + " " + str(self.ask[0]))
                         outcome_sellstr = "AI says sell? " + str(outcome[0]) + " " + str(self.ask[0])
-                        if self.trade_state == "BOUGHT" and outcome[0] < 0.5:
+                        if self.trade_state == TRADE_STATE_BOUGHT and outcome[0] < 0.5:
                             self.dosell(self.ask[0])
-                            self.trade_state = "NEUTRAL"
+                            self.trade_state = TRADE_STATE_NEUTRAL
                             outcome_sellstr = outcome_sellstr + " YES"
                         elif outcome[0] < limit_below:
-                            if self.trade_state == "NEUTRAL" or self.trade_state == "BOUGHT":
+                            if self.trade_state == TRADE_STATE_NEUTRAL or self.trade_state == TRADE_STATE_BOUGHT:
                                 self.dosell(self.ask[0])
-                                self.trade_state = "SOLD"
+                                self.trade_state = TRADE_STATE_SOLD
                                 outcome_sellstr = outcome_sellstr + " YES"
                     except:
                         print(get_full_stacktrace())
