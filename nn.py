@@ -61,9 +61,15 @@ class NeuralNetwork(QtCore.QThread):
 
     def dobuy(self, price, distance):
         try:
+            accounts = self.accounts
+            if self.current_order_id != 0:
+                try:
+                    accounts.client_(accounts.EXCHANGE_BITFINEX).cancel_order(str(self.current_order_id))
+                except Exception as e:
+                    print(get_full_stacktrace())
+
             percent = 1
             asset_balance = self.asset_balance_usd
-            accounts = self.accounts
             amount = float(
                 accounts.client(accounts.EXCHANGE_BITFINEX).amount_to_precision(self.symbol,
                                                                                 (asset_balance / price) * percent))
@@ -78,9 +84,15 @@ class NeuralNetwork(QtCore.QThread):
 
     def dosell(self, price, distance):
         try:
+            accounts = self.accounts
+            if self.current_order_id != 0:
+                try:
+                    accounts.client_(accounts.EXCHANGE_BITFINEX).cancel_order(str(self.current_order_id))
+                except Exception as e:
+                    print(get_full_stacktrace())
+
             percent = 1
             asset_balance = self.asset_balance_usd
-            accounts = self.accounts
             amount = float(accounts.client(accounts.EXCHANGE_BITFINEX).amount_to_precision(self.symbol,
                                                                                            (asset_balance / price) *
                                                                                            percent))
@@ -141,13 +153,17 @@ class NeuralNetwork(QtCore.QThread):
             outcome_above = 0
             outcome_below = 0
             counter = 0
+            counter_increase = 125
             while True:
                 print(str(counter) + "/" + str(len(self.train_times)))
 
                 counter_neg = counter * -1
-                counter = counter + 125
-                if counter >= len(self.train_times):
+                counter = counter + counter_increase
+                if counter >= len(self.train_times) and counter_increase == 1:
                     break
+                elif counter >= len(self.train_times):
+                    counter = counter - 124
+                    counter_increase = 1
 
                 predictor.fit(X=self.train_input[counter_neg:],
                               y=self.train_output[counter_neg:])
