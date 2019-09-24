@@ -74,8 +74,12 @@ class NeuralNetwork(QtCore.QThread):
                 accounts.client(accounts.EXCHANGE_BITFINEX).amount_to_precision(self.symbol,
                                                                                 (asset_balance / price) * percent))
             print(str(amount))
+            params = {'type': 'market'}
+            order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="buy",
+                                                                              type="market", amount=amount, params=params)
+
             params = {'type': 'trailing-stop'}
-            order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="buy", price=distance,
+            order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="sell", price=distance,
                                                                               type="trailing-stop", amount=amount, params=params)
             self.current_order_id = int(order["id"])
         except Exception as e:
@@ -97,8 +101,12 @@ class NeuralNetwork(QtCore.QThread):
                                                                                            (asset_balance / price) *
                                                                                            percent))
             print(str(amount))
+
+            params = {'type': 'market'}
+            accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="sell",
+                                                                              type="market", amount=amount, params=params)
             params = {'type': 'trailing-stop'}
-            order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="sell", price=distance,
+            order = accounts.client_(accounts.EXCHANGE_BITFINEX).create_order(symbol=self.symbol, side="buy", price=distance,
                                                                               type="trailing-stop", amount=amount, params=params)
             self.current_order_id = int(order["id"])
         except Exception as e:
