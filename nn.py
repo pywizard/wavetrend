@@ -114,152 +114,144 @@ class NeuralNetwork(QtCore.QThread):
             return
 
     def run(self):
+        self.train_input = []
+        self.train_output = []
+        self.train_times = []
+        self.highest_price = 0
+        self.lowest_price = 9999999999
+
+        all_trades = {}
+
+        for ii in reversed(range(0, 25)):
+            trades_since_1day = self.accounts.client(EXCHANGE_BITFINEX).fetchTrades(self.symbol, time.time() * 1000 - 86400000 * ii,
+                                                                           5000)
+            for trade in trades_since_1day:
+                trade_outcome = 1
+                if trade["side"] == "sell":
+                    trade_outcome = 0
+                elif trade["side"] == "buy":
+                    trade_outcome = 1
+
+                trade_existing = False
+                if trade["price"] in all_trades and all_trades[trade["price"]] == trade["timestamp"]:
+                    trade_existing = True
+
+                if trade_existing == False:
+                    self.train_input.append([trade["price"], trade["amount"]])
+                    self.train_output.append(trade_outcome)
+                    self.train_times.append(trade["timestamp"] / 1000)
+                    all_trades[trade["price"]] = trade["timestamp"]
+
+                if trade["price"] > self.highest_price:
+                    self.highest_price = trade["price"]
+                if trade["price"] < self.lowest_price:
+                    self.lowest_price = trade["price"]
+
+        trailing_stop_distance = (self.highest_price - self.lowest_price) * 0.03
+        trailing_stop_distance = float(self.accounts.client(self.exchange).price_to_precision(self.symbol,
+                                                                                        trailing_stop_distance))
+        predictor = LinearRegression(n_jobs=-1)
+
+        outcome_above_sum = 0
+        outcome_below_sum = 0
+        outcome_above = 0
+        outcome_below = 0
+        counter = 0
+        counter_increase = 125
+        while True:
+            print(str(counter) + "/" + str(len(self.train_times)))
+
+            counter_neg = counter * -1
+            counter = counter + counter_increase
+            if counter >= len(self.train_times) and counter_increase == 1:
+                break
+            elif counter >= len(self.train_times):
+                counter = counter - 124
+                counter_increase = 1
+
+            predictor.fit(X=self.train_input[counter_neg:],
+                          y=self.train_output[counter_neg:])
+
+            current_bid = self.train_input[counter_neg:][1]
+            percent = 1
+            amount = float(
+                self.accounts.client(self.exchange).amount_to_precision(self.symbol,
+                                                                        (self.asset_balance_usd / current_bid[
+                                                                            0]) * percent))
+            X_TEST = [[current_bid[0], amount]]
+            outcome = predictor.predict(X=X_TEST)[0]
+            if outcome > 0.5:
+                outcome_above_sum = outcome_above_sum + outcome
+                outcome_above = outcome_above + 1
+            elif outcome < 0.5:
+                outcome_below_sum = outcome_below_sum + outcome
+                outcome_below = outcome_below + 1
+
+        limit_above = outcome_above_sum / outcome_above
+        limit_below = outcome_below_sum / outcome_below
+        self.DISPLAY_LINE.emit("limit above 0.5 = %.4f" % limit_above)
+        self.DISPLAY_LINE.emit("limit below 0.5 = %.4f" % limit_below)
+        self.DISPLAY_LINE.emit("trailing stop distance = " + str(trailing_stop_distance))
+
         while True:
             if self.exit_thread == True:
                 break
 
-            self.train_input = []
-            self.train_output = []
-            self.train_times = []
-            self.highest_price = 0
-            self.lowest_price = 9999999999
+            if time.time() - self.predict_time > 60:
+                outcome_buystr = ""
+                outcome_sellstr = ""
 
-            all_trades = {}
+                if len(self.train_input) > len(self.train_output):
+                    train_input_start_index = len(self.train_input) - len(self.train_output)
+                elif len(self.train_output) > len(self.train_input):
+                    train_output_start_index = len(self.train_output) - len(self.train_input)
+                elif len(self.train_input) == len(self.train_output):
+                    train_input_start_index = 0
+                    train_output_start_index = 0
+                try:
+                    predictor.fit(X=self.train_input[train_input_start_index:],
+                                  y=self.train_output[train_output_start_index:])
+                except:
+                    continue
 
-            for ii in reversed(range(0, 25)):
-                trades_since_1day = self.accounts.client(EXCHANGE_BITFINEX).fetchTrades(self.symbol, time.time() * 1000 - 86400000 * ii,
-                                                                               5000)
-                for trade in trades_since_1day:
-                    trade_outcome = 1
-                    if trade["side"] == "sell":
-                        trade_outcome = 0
-                    elif trade["side"] == "buy":
-                        trade_outcome = 1
+                try:
+                    percent = 1
+                    asset_balance = self.asset_balance_usd
+                    amount = float(
+                        self.accounts.client(self.exchange).amount_to_precision(self.symbol,
+                                                                                (asset_balance / self.bid[0]) * percent))
+                    X_TEST = [[float(self.bid[0]), float(amount)]]
+                    outcome = predictor.predict(X=X_TEST)
+                    outcome_buystr = "AI says buy? %.4f" % outcome[0] + " " + str(self.bid[0])
+                    if outcome[0] > limit_above:
+                        if self.trade_state == TRADE_STATE_NEUTRAL or self.trade_state == TRADE_STATE_SOLD:
+                            self.dobuy(self.bid[0], trailing_stop_distance)
+                            self.trade_state = TRADE_STATE_BOUGHT
+                            outcome_buystr = outcome_buystr + " YES"
+                except:
+                    print(get_full_stacktrace())
+                try:
+                    percent = 1
+                    asset_balance = self.asset_balance_usd
+                    amount = float(self.accounts.client(self.exchange).amount_to_precision(self.symbol,
+                                                                                            (asset_balance /
+                                                                                             self.ask[0]) * percent))
+                    X_TEST = [[float(self.ask[0]), float(amount)]]
+                    outcome = predictor.predict(X=X_TEST)
+                    outcome_sellstr = "AI says sell? %.4f" % outcome[0] + " " + str(self.ask[0])
+                    if outcome[0] < limit_below:
+                        if self.trade_state == TRADE_STATE_NEUTRAL or self.trade_state == TRADE_STATE_BOUGHT:
+                            self.dosell(self.ask[0], trailing_stop_distance)
+                            self.trade_state = TRADE_STATE_SOLD
+                            outcome_sellstr = outcome_sellstr + " YES"
+                except:
+                    print(get_full_stacktrace())
 
-                    trade_existing = False
-                    if trade["price"] in all_trades and all_trades[trade["price"]] == trade["timestamp"]:
-                        trade_existing = True
+                if time.time() - self.display_time > 60 or outcome_buystr.find("YES") > -1 \
+                        or outcome_sellstr.find("YES") > -1:
+                    self.DISPLAY_LINE.emit(outcome_buystr)
+                    self.DISPLAY_LINE.emit(outcome_sellstr)
+                    self.display_time = time.time()
 
-                    if trade_existing == False:
-                        self.train_input.append([trade["price"], trade["amount"]])
-                        self.train_output.append(trade_outcome)
-                        self.train_times.append(trade["timestamp"] / 1000)
-                        all_trades[trade["price"]] = trade["timestamp"]
-
-                    if trade["price"] > self.highest_price:
-                        self.highest_price = trade["price"]
-                    if trade["price"] < self.lowest_price:
-                        self.lowest_price = trade["price"]
-
-            trailing_stop_distance = (self.highest_price - self.lowest_price) * 0.03
-            trailing_stop_distance = float(self.accounts.client(self.exchange).price_to_precision(self.symbol,
-                                                                                            trailing_stop_distance))
-            predictor = LinearRegression(n_jobs=-1)
-
-            outcome_above_sum = 0
-            outcome_below_sum = 0
-            outcome_above = 0
-            outcome_below = 0
-            counter = 0
-            counter_increase = 125
-            while True:
-                print(str(counter) + "/" + str(len(self.train_times)))
-
-                counter_neg = counter * -1
-                counter = counter + counter_increase
-                if counter >= len(self.train_times) and counter_increase == 1:
-                    break
-                elif counter >= len(self.train_times):
-                    counter = counter - 124
-                    counter_increase = 1
-
-                predictor.fit(X=self.train_input[counter_neg:],
-                              y=self.train_output[counter_neg:])
-
-                current_bid = self.train_input[counter_neg:][1]
-                percent = 1
-                amount = float(
-                    self.accounts.client(self.exchange).amount_to_precision(self.symbol,
-                                                                            (self.asset_balance_usd / current_bid[
-                                                                                0]) * percent))
-                X_TEST = [[current_bid[0], amount]]
-                outcome = predictor.predict(X=X_TEST)[0]
-                if outcome > 0.5:
-                    outcome_above_sum = outcome_above_sum + outcome
-                    outcome_above = outcome_above + 1
-                elif outcome < 0.5:
-                    outcome_below_sum = outcome_below_sum + outcome
-                    outcome_below = outcome_below + 1
-
-            limit_above = outcome_above_sum / outcome_above
-            limit_below = outcome_below_sum / outcome_below
-            self.DISPLAY_LINE.emit("limit above 0.5 = %.4f" % limit_above)
-            self.DISPLAY_LINE.emit("limit below 0.5 = %.4f" % limit_below)
-            self.DISPLAY_LINE.emit("trailing stop distance = " + str(trailing_stop_distance))
-
-            time_start = time.time()
-            while True:
-                if time.time() - time_start > 60*60:
-                    break
-
-                if self.exit_thread == True:
-                    break
-
-                if time.time() - self.predict_time > 60:
-                    outcome_buystr = ""
-                    outcome_sellstr = ""
-
-                    if len(self.train_input) > len(self.train_output):
-                        train_input_start_index = len(self.train_input) - len(self.train_output)
-                    elif len(self.train_output) > len(self.train_input):
-                        train_output_start_index = len(self.train_output) - len(self.train_input)
-                    elif len(self.train_input) == len(self.train_output):
-                        train_input_start_index = 0
-                        train_output_start_index = 0
-                    try:
-                        predictor.fit(X=self.train_input[train_input_start_index:],
-                                      y=self.train_output[train_output_start_index:])
-                    except:
-                        continue
-
-                    try:
-                        percent = 1
-                        asset_balance = self.asset_balance_usd
-                        amount = float(
-                            self.accounts.client(self.exchange).amount_to_precision(self.symbol,
-                                                                                    (asset_balance / self.bid[0]) * percent))
-                        X_TEST = [[float(self.bid[0]), float(amount)]]
-                        outcome = predictor.predict(X=X_TEST)
-                        outcome_buystr = "AI says buy? %.4f" % outcome[0] + " " + str(self.bid[0])
-                        if outcome[0] > limit_above:
-                            if self.trade_state == TRADE_STATE_NEUTRAL or self.trade_state == TRADE_STATE_SOLD:
-                                self.dobuy(self.bid[0], trailing_stop_distance)
-                                self.trade_state = TRADE_STATE_BOUGHT
-                                outcome_buystr = outcome_buystr + " YES"
-                    except:
-                        print(get_full_stacktrace())
-                    try:
-                        percent = 1
-                        asset_balance = self.asset_balance_usd
-                        amount = float(self.accounts.client(self.exchange).amount_to_precision(self.symbol,
-                                                                                                (asset_balance /
-                                                                                                 self.ask[0]) * percent))
-                        X_TEST = [[float(self.ask[0]), float(amount)]]
-                        outcome = predictor.predict(X=X_TEST)
-                        outcome_sellstr = "AI says sell? %.4f" % outcome[0] + " " + str(self.ask[0])
-                        if outcome[0] < limit_below:
-                            if self.trade_state == TRADE_STATE_NEUTRAL or self.trade_state == TRADE_STATE_BOUGHT:
-                                self.dosell(self.ask[0], trailing_stop_distance)
-                                self.trade_state = TRADE_STATE_SOLD
-                                outcome_sellstr = outcome_sellstr + " YES"
-                    except:
-                        print(get_full_stacktrace())
-
-                    if time.time() - self.display_time > 60 or outcome_buystr.find("YES") > -1 \
-                            or outcome_sellstr.find("YES") > -1:
-                        self.DISPLAY_LINE.emit(outcome_buystr)
-                        self.DISPLAY_LINE.emit(outcome_sellstr)
-                        self.display_time = time.time()
-
-                    self.predict_time = time.time()
-                time.sleep(1)
+                self.predict_time = time.time()
+            time.sleep(1)
