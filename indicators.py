@@ -1,9 +1,4 @@
-﻿#
-# Copyright (c) 2019 Nikolaos Rangos. All rights reserved.
-# Use of this source code is governed by a BSD-style license that can be
-# found in the LICENSE file.
-#
-import talib
+﻿import talib
 import numpy as np
 import copy
 import pandas as pd
