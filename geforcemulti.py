@@ -840,6 +840,12 @@ class ChartRunner(QtCore.QThread):
             close2 = closeX[-1]
             vol2 = volX[-1]
             limit2 = 1
+            openX.clear()
+            highX.clear()
+            lowX.clear()
+            closeX.clear()
+            volX.clear()
+            real_timestampsX.clear()
       elif first == False and force_redraw_chart == False and self.exchange != accounts.EXCHANGE_OANDA:
             try:
                 chart_result = dqs[self.tab_index].pop()
