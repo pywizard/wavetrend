@@ -19,7 +19,7 @@ import json
 import oandapyV20
 import oandapyV20.endpoints.accounts as accounts
 import oandapyV20.endpoints.pricing as pricing
-import urllib.request
+import urllib3
 import arrow
 import warnings
 import time
@@ -159,9 +159,9 @@ class oanda (Exchange):
         while True:
             try:
                 url = "https://api-fxtrade.oanda.com/v1/candles?instrument=" + symbol +"&count=" + str(limit) + "&candleFormat=midpoint&granularity=" + self.timeframes[timeframe]
-                request = urllib.request.Request(url)
-                response = urllib.request.urlopen(request)
-                json_body = json.loads(response.read().decode('utf-8'))
+                http = urllib3.PoolManager(cert_reqs='CERT_NONE')
+                response = http.request('GET', url)
+                json_body = json.loads(response.data.decode('utf-8'))
                 if "candles" in json_body:
                     break
             except:

@@ -13,4 +13,5 @@ Twisted==19.7.0
 oandapyV20
 arrow
 autobahn==19.9.2
+urllib3
 pywin32 (in case of windows)
