@@ -1,10 +1,14 @@
+import time
+#fix for autobahn on python 3.8 where time.clock() was removed
+if not hasattr(time, "clock"):
+    import timeit
+    time.clock = timeit.default_timer
 from binance.client import Client
 from binance.websockets import BinanceSocketManager
 from binance.depthcache import DepthCacheManager
 from kraken_wsclient_py import kraken_wsclient_py as KrakenClient
 import bitfinex
 import threading
-import time
 import json
 from autobahn.twisted.websocket import  WebSocketClientProtocol
 

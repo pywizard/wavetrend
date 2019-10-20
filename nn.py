@@ -1,6 +1,5 @@
 from sklearn.linear_model import LinearRegression
 from PyQt5 import QtCore
-import psutil
 import time
 import os
 import sys
