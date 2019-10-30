@@ -1015,10 +1015,7 @@ class ChartRunner(QtCore.QThread):
         d1 = ctx.create_decimal(repr(ticker))
         ticker_formatted = format(d1, 'f')
 
-      next_candle_start_time = time.time() // elapsed_table[timeframe_entered] * \
-                               elapsed_table[timeframe_entered] + elapsed_table[timeframe_entered]
-
-      duration = datetime.datetime.fromtimestamp(next_candle_start_time) - datetime.datetime.now()
+      duration = datetime.datetime.fromtimestamp(time_close) - datetime.datetime.now()
       days, seconds = duration.days, duration.seconds
       hours = days * 24 + seconds // 3600
       minutes = (seconds % 3600) // 60
