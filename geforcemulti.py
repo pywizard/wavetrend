@@ -2135,13 +2135,13 @@ class Dialog(QtWidgets.QDialog):
                     coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin]["last"]))
                     coins_.append(coins[coin])
                 elif coin.endswith("JPY"):
-                    coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin.split("/")[0] + "/USD"]["last"]))
+                    coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin.split("/")[0] + "/" + btcusd_symbol.split("/")[1]]["last"]))
                     coins_.append(coins[coin])
                 elif coin.endswith("CNY"):
-                    coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin.split("/")[0] + "/USD"]["last"]))
+                    coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin.split("/")[0] + "/" + btcusd_symbol.split("/")[1]]["last"]))
                     coins_.append(coins[coin])
                 elif coin.endswith("EUR"):
-                    coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin.split("/")[0] + "/USD"]["last"]))
+                    coins[coin]["volumeFloat"] = int(float(coins[coin]["baseVolume"]) * float(coins[coin.split("/")[0] + "/" + btcusd_symbol.split("/")[1]]["last"]))
                     coins_.append(coins[coin])
             coins = sorted(coins_, key=itemgetter("volumeFloat"), reverse=True)
 
