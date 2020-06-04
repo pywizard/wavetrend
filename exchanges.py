@@ -3,6 +3,12 @@ import time
 if not hasattr(time, "clock"):
     import timeit
     time.clock = timeit.default_timer
+
+#fix for kraken
+import os
+from certifi import where
+os.environ['SSL_CERT_FILE'] = where()
+
 from binance.client import Client
 from binance.websockets import BinanceSocketManager
 from binance.depthcache import DepthCacheManager

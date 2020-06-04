@@ -120,11 +120,15 @@ class ExchangeAccounts:
         return ticker_last
 
     def get_asset_from_symbol(self, exchange, symbol):
+        if self.markets[exchange] is None:
+            self.fetch_markets(exchange)
         for market in self.exchanges[exchange]["markets"]:
             if market["symbol"] == symbol:
                 return market["base"]
 
     def get_quote_from_symbol(self, exchange, symbol):
+        if self.markets[exchange] is None:
+            self.fetch_markets(exchange)
         for market in self.exchanges[exchange]["markets"]:
             if market["symbol"] == symbol:
                 return market["quote"]
