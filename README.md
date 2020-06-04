@@ -4,9 +4,7 @@
 
 ### Video Introduction
 
-[You can watch the introduction video at youtube: https://youtu.be/daJiSA2_0TQ](https://youtu.be/daJiSA2_0TQ)
-
-[... or you can download and watch the introduction video here: https://github.com/pywizard/wavetrend/blob/master/media/wavetrend.mp4?raw=true](https://github.com/pywizard/wavetrend/blob/master/media/wavetrend.mp4?raw=true)
+[You can download and watch the introduction video here: https://github.com/pywizard/wavetrend/blob/master/media/wavetrend.mp4?raw=true](https://github.com/pywizard/wavetrend/blob/master/media/wavetrend.mp4?raw=true)
 
 
 
