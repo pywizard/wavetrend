@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['geforcemulti.py'],
-             pathex=['Z:\\windows_vms\\wavetrend.git\\src'],
+             pathex=['Z:\\windows_vms\\wavetrend.git'],
              binaries=[],
              datas=[
                 ('config.txt', '.'),
@@ -19,9 +19,9 @@ a = Analysis(['geforcemulti.py'],
                 ('logotop.png', '.'),
                 ('coin.ico', '.'),
                 ('splashscreen.bmp', '.'),
-                ('C:\Python37-amd64\Lib\_strptime.py', '.'),
+                ('C:\Python37\Lib\_strptime.py', '.'),
                 ],
-             hiddenimports=['win32gui', 'win32api', 'win32con', 'sklearn.utils._cython_blas', 'sklearn.neighbors.typedefs', 'sklearn.neighbors.quad_tree', 'sklearn.tree._utils', 'encodings'],
+             hiddenimports=['win32gui', 'win32api', 'win32con', 'sklearn.utils._cython_blas', 'sklearn.neighbors.typedefs', 'sklearn.neighbors.quad_tree', 'sklearn.tree._utils', 'encodings', 'talib.stream'],
              runtime_hooks=['winbuildhook.py'],
              excludes=['FixTk', 'tcl', 'tk', '_tkinter', 'tkinter', 'Tkinter', "IPython"],
              win_no_prefer_redirects=False,
