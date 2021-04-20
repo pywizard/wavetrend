@@ -11,7 +11,7 @@ sklearn
 Twisted==20.3.0
 oandapyV20
 arrow
-autobahn==19.1.1
+autobahn==20.12.3
 urllib3
 certifi
 pywin32
