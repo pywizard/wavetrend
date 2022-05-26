@@ -8,7 +8,7 @@ python-binance==0.7.1
 kraken-wsclient-py==0.0.9
 bitfinex-v2==1.3.0
 sklearn
-Twisted==20.3.0
+Twisted==22.4.0
 oandapyV20
 arrow
 autobahn==19.1.1
